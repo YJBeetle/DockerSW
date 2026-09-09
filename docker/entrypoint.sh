@@ -136,6 +136,11 @@ elif [ "${START_LOCAL_LICENSE}" = "true" ] || [ -f "${FLEXNET_DIR}/lmgrd.exe" ];
 fi
 
 # 4. 执行传入的命令或默认进入交互
+if [ "${1:-}" = "--init-only" ]; then
+    echo "[DockerSW] 无头运行环境就绪 (--init-only)"
+    exit 0
+fi
+
 if [ "$#" -gt 0 ]; then
     echo "[DockerSW] 执行指令: $@"
     exec "$@"
