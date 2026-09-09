@@ -36,7 +36,23 @@ else
     echo "[DockerSW] 已检测到现有 X11 服务 (${DISPLAY})"
 fi
 
-# 2. 映射 SolidWorks 程序目录
+# 2. 注入 VC++ / MFC 原生运行库动态链接库（若挂载提供）
+VC_DLLS_DIR="${VC_DLLS_DIR:-/opt/vc_redist_dlls}"
+if [ -d "${VC_DLLS_DIR}" ]; then
+    echo "[DockerSW] 正在注入 VC++ / MFC 运行库动态链接库..."
+    cp -n "${VC_DLLS_DIR}"/*.dll "${WINEPREFIX}/drive_c/windows/system32/" 2>/dev/null || true
+fi
+
+# 3. 自动检测并安装 Wine-Mono (.NET CLR 运行时，若未预装)
+if [ ! -d "${WINEPREFIX}/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319" ]; then
+    MONO_MSI=$(ls /opt/wine-mono*.msi /tmp/wine-mono*.msi /usr/share/wine/mono/wine-mono*.msi /opt/wine-stable/share/wine/mono/wine-mono*.msi 2>/dev/null | head -n 1 || true)
+    if [ -n "${MONO_MSI}" ] && [ -f "${MONO_MSI}" ]; then
+        echo "[DockerSW] 正在静默安装 Wine-Mono 运行库 (${MONO_MSI})..."
+        wine msiexec /i "${MONO_MSI}" /quiet >/dev/null 2>&1 || true
+    fi
+fi
+
+# 4. 映射 SolidWorks 程序目录
 C_SW_CORP="${WINEPREFIX}/drive_c/Program Files/SOLIDWORKS Corp"
 C_SW_TARGET="${C_SW_CORP}/SOLIDWORKS"
 mkdir -p "${C_SW_CORP}"
@@ -64,11 +80,11 @@ else
     echo "[DockerSW][NOTICE] 未挂载外部 SolidWorks 目录 (SW_INSTALL_DIR=${SW_INSTALL_DIR})"
 fi
 
-# 自动扫描并导入挂载的 SolidWorks 注册表文件（如 SWHKLM.reg / SWHKCU.reg）
+# 自动扫描并导入挂载的 SolidWorks 注册表文件（如 SWHKLM.reg / SWHKCU.reg / sw_com_classes.reg）
 SW_REG_SEARCH_DIRS=("/opt/solidworks_reg" "/opt/solidworks_c" "${SW_INSTALL_DIR}")
 for reg_dir in "${SW_REG_SEARCH_DIRS[@]}"; do
     if [ -d "${reg_dir}" ]; then
-        for reg_file in "${reg_dir}"/SWHKLM.reg "${reg_dir}"/SWHKCU.reg; do
+        for reg_file in "${reg_dir}"/*.reg; do
             if [ -f "${reg_file}" ]; then
                 echo "[DockerSW] 正在导入 SolidWorks 注册表: ${reg_file}..."
                 wine reg import "${reg_file}" >/dev/null 2>&1 || true
@@ -76,7 +92,11 @@ for reg_dir in "${SW_REG_SEARCH_DIRS[@]}"; do
         done
     fi
 done
-wineserver -w >/dev/null 2>&1 || true
+
+# 导入镜像内置的 COM 类定义（若存在）
+if [ -f "/opt/dockersw/registry/sw_com_classes.reg" ]; then
+    wine reg import "/opt/dockersw/registry/sw_com_classes.reg" >/dev/null 2>&1 || true
+fi
 
 # 映射 ProgramData（如果提供）
 if [ -d "${SW_PROGRAMDATA}" ]; then

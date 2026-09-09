@@ -35,22 +35,27 @@ RUN dpkg --add-architecture i386 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 2. 下载 Windows Python 官方安装包并初始化 Wine 环境
-RUN wget -q "https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-amd64.exe" -O /tmp/python-installer.exe
+# 2. 下载 Windows Python 官方安装包与 Wine-Mono 官方运行时
+RUN wget -q "https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-amd64.exe" -O /tmp/python-installer.exe && \
+    mkdir -p /usr/share/wine/mono /opt/wine-stable/share/wine/mono && \
+    wget -q "http://dl.winehq.org/wine/wine-mono/11.0.0/wine-mono-11.0.0-x86.msi" -O /usr/share/wine/mono/wine-mono-11.0.0-x86.msi && \
+    cp /usr/share/wine/mono/wine-mono-11.0.0-x86.msi /opt/wine-stable/share/wine/mono/wine-mono-11.0.0-x86.msi
 
 # 3. 复制注册表配置与初始化脚本
 COPY docker/registry/headless_tweaks.reg /tmp/headless_tweaks.reg
 COPY docker/registry/license_template.reg /tmp/license_template.reg
+COPY docker/registry/sw_com_classes.reg /tmp/sw_com_classes.reg
 COPY docker/init_wineprefix.sh /tmp/init_wineprefix.sh
 
-# 4. 执行 WinePrefix 初始化（安装 Windows Python + pywin32 + 导入注册表）
+# 4. 执行 WinePrefix 初始化（安装 Wine-Mono + Windows Python + pywin32 + 导入注册表与 COM 类）
 RUN chmod +x /tmp/init_wineprefix.sh && \
     /tmp/init_wineprefix.sh && \
     rm -rf /tmp/*
 
-# 5. 安装核心导出脚本与全局 CLI 命令
-RUN mkdir -p /opt/dockersw/scripts
+# 5. 安装核心导出脚本、全局 CLI 命令与内置注册表
+RUN mkdir -p /opt/dockersw/scripts /opt/dockersw/registry
 COPY scripts/export_sw.py /opt/dockersw/scripts/export_sw.py
+COPY docker/registry/sw_com_classes.reg /opt/dockersw/registry/sw_com_classes.reg
 COPY scripts/dockersw-export /usr/local/bin/dockersw-export
 RUN chmod +x /usr/local/bin/dockersw-export
 

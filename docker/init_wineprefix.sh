@@ -4,8 +4,8 @@ set -euo pipefail
 export WINEARCH="win64"
 export WINEPREFIX="${WINEPREFIX:-/root/.wine}"
 export WINEDEBUG="-all"
-# 禁用 Mono 和 Gecko 联网等待与弹窗
-export WINEDLLOVERRIDES="mscoree,mshtml="
+# 仅禁用 mshtml (Gecko) 联网等待与弹窗，保留 mscoree 以启用 Wine-Mono (.NET CLR)
+export WINEDLLOVERRIDES="mshtml="
 
 echo "=========================================="
 echo "[DockerSW Build] 初始化 WinePrefix 与 Windows Python 环境"
@@ -25,10 +25,21 @@ echo "[INFO] 执行 wineboot 初始化 64 位 Windows 环境..."
 wineboot -u
 wineserver -w
 
-# 3. 导入无头预配注册表
-echo "[INFO] 导入无头优化注册表与许可模板..."
+# 3. 静默安装 Wine-Mono (.NET CLR 运行时环境)
+MONO_INSTALLER=$(ls /usr/share/wine/mono/wine-mono*.msi /opt/wine-stable/share/wine/mono/wine-mono*.msi 2>/dev/null | head -n 1 || true)
+if [ -n "${MONO_INSTALLER}" ] && [ -f "${MONO_INSTALLER}" ]; then
+    echo "[INFO] 静默安装 Wine-Mono: ${MONO_INSTALLER}..."
+    wine msiexec /i "${MONO_INSTALLER}" /quiet
+    wineserver -w
+fi
+
+# 4. 导入无头预配注册表与 COM 类定义
+echo "[INFO] 导入无头优化注册表、许可模板与 COM 类映射..."
 wine regedit /S /tmp/headless_tweaks.reg
 wine regedit /S /tmp/license_template.reg
+if [ -f "/tmp/sw_com_classes.reg" ]; then
+    wine regedit /S /tmp/sw_com_classes.reg
+fi
 wineserver -w
 
 # 4. 静默安装 64 位 Windows Python 3.11

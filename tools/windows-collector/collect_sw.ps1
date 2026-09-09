@@ -125,10 +125,15 @@ if ($LASTEXITCODE -eq 0 -and (Test-Path $HkcuFile)) {
 }
 
 # 附加导出 COM 接口 CLSID（确保 Wine 下能无损通过 DispatchEx 识别 ProgID）
-$ComFile = Join-Path $TargetDir "SW_COM_CLASSES.reg"
+$ComFile = Join-Path $TargetDir "sw_com_classes.reg"
 & reg.exe export "HKCR\SldWorks.Application" "$ComFile" /y | Out-Null 2>&1
+& reg.exe export "HKCR\CLSID\{6AF263BB-EB9F-4176-89E9-4F892EB0CA3D}" "$ComFile.clsid" /y | Out-Null 2>&1
+if (Test-Path "$ComFile.clsid") {
+    Get-Content "$ComFile.clsid" | Select-Object -Skip 1 | Add-Content "$ComFile"
+    Remove-Item "$ComFile.clsid" -Force
+}
 if (Test-Path $ComFile) {
-    Write-Host "  -> [OK] 已导出: SW_COM_CLASSES.reg" -ForegroundColor Green
+    Write-Host "  -> [OK] 已导出: sw_com_classes.reg" -ForegroundColor Green
 }
 
 # 5. 复制 SolidWorks 主程序目录与相关资产
@@ -160,6 +165,18 @@ if ($SkipBinaryCopy) {
         & robocopy "$ProgramDataSw" "$DestPd" /E /MT:8 /R:1 /W:1 /NDL /NFL /NP
         Write-Host "  -> [OK] ProgramData 模板数据拷贝完成！" -ForegroundColor Green
     }
+
+    # 5.4 提取 VC++ / MFC 运行库动态链接库 (mfc140*.dll, vcruntime140*.dll, msvcp140*.dll)
+    $DestVc = Join-Path $TargetDir "vc_redist_dlls"
+    New-Item -ItemType Directory -Force -Path $DestVc | Out-Null
+    $Sys32 = [System.Environment]::GetFolderPath("System")
+    $VcPatterns = @("mfc140*.dll", "vcruntime140*.dll", "msvcp140*.dll", "vcomp140*.dll", "concrt140*.dll")
+    foreach ($pat in $VcPatterns) {
+        Get-ChildItem -Path $Sys32 -Filter $pat -File -ErrorAction SilentlyContinue | ForEach-Object {
+            Copy-Item -Path $_.FullName -Destination $DestVc -Force
+        }
+    }
+    Write-Host "  -> [OK] VC++/MFC 运行时 DLL 收集完成: $DestVc" -ForegroundColor Green
 }
 
 Write-Host "`n=========================================================" -ForegroundColor Green
