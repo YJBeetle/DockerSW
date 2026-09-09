@@ -1,0 +1,72 @@
+# =========================================================================
+# DockerSW: GitLab CI 自动化无头批量导出流水线配置范例
+# =========================================================================
+
+stages:
+  - export
+
+# -------------------------------------------------------------------------
+# 方式 A：基于开源公开基础镜像 + Runner 宿主机 Volume 挂载（推荐内网 Runner）
+# -------------------------------------------------------------------------
+# 说明：
+#   GitLab Runner 的 config.toml 中需配置 volumes 挂载 SolidWorks 目录与许可目录：
+#   [[runners]]
+#     executor = "docker"
+#     [runners.docker]
+#       image = "ghcr.io/yjbeetle/dockersw:latest"
+#       volumes = [
+#         "/data/solidworks:/opt/solidworks:ro",
+#         "/data/SolidWorks_Flexnet_Server:/opt/SolidWorks_Flexnet_Server:ro",
+#         "/cache"
+#       ]
+export_cad_volume_mode:
+  stage: export
+  image: ghcr.io/yjbeetle/dockersw:latest
+  variables:
+    # 许可方式 1: 远程内网许可服务器（推荐）
+    SW_LICENSE_SERVER: "25734@192.168.1.100"
+    # 许可方式 2: 容器内自启本地挂载的 lmgrd（若无远程服务器则取消注释）
+    # START_LOCAL_LICENSE: "true"
+  script:
+    - echo "=== 开始执行 SolidWorks 静默无头导出流水线 ==="
+    - mkdir -p ./dist
+    - >
+      dockersw-export
+      --list ./export_list.txt
+      --workspace "$CI_PROJECT_DIR"
+      --outdir ./dist
+  artifacts:
+    name: "CAD_Exports_${CI_COMMIT_REF_NAME}_${CI_COMMIT_SHORT_SHA}"
+    when: on_success
+    expire_in: 1 week
+    paths:
+      - ./dist/
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+# -------------------------------------------------------------------------
+# 方式 B：基于企业私有镜像（内置 SolidWorks 文件与许可，零挂载依赖）
+# -------------------------------------------------------------------------
+# 说明：
+#   使用企业私有镜像仓库预构建好的 DockerSW 镜像（参考 examples/private-image/Dockerfile）
+export_cad_private_image_mode:
+  stage: export
+  image: registry.internal.mycompany.com/cad/dockersw-with-sw:latest
+  variables:
+    # 私有镜像已内置许可守护进程，容器启动时自动拉起
+    START_LOCAL_LICENSE: "true"
+  script:
+    - echo "=== 使用私有完整镜像执行 SolidWorks 导出 ==="
+    - mkdir -p ./dist
+    - >
+      dockersw-export
+      --list ./export_list.txt
+      --workspace "$CI_PROJECT_DIR"
+      --outdir ./dist
+  artifacts:
+    name: "CAD_Exports_Private_${CI_COMMIT_SHORT_SHA}"
+    when: on_success
+    paths:
+      - ./dist/
+  when: manual # 示例设为手动触发，按需调整

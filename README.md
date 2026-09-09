@@ -1,0 +1,186 @@
+# DockerSW: 无头 SolidWorks Linux 容器化与 CI 自动化导出环境
+
+[![Build and Test DockerSW](https://github.com/YJBeetle/DockerSW/actions/workflows/docker-build.yml/badge.svg)](https://github.com/YJBeetle/DockerSW/actions/workflows/docker-build.yml)
+[![Docker Image](https://img.shields.io/badge/ghcr.io-DockerSW-blue?logo=docker)](https://github.com/YJBeetle/DockerSW/pkgs/container/dockersw)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+**DockerSW** 专为在 **Linux Docker 容器**（如 GitLab CI Runner、Kubernetes 集群、Linux 物理机）中通过 **Wine** 无头（Headless）静默运行 SolidWorks 并进行 CAD 资产批量自动化导出而设计。
+
+与针对桌面图形界面的方案（如 WineSW）不同，本项目**彻底剔除**了 macOS 视口避让（`sw_ui_daemon`）、字体软链接、双缓冲重绘等所有与 UI 相关的冗余代码，专注于实现**最精简、高可靠、无弹窗阻塞**的 CI 导出底座。
+
+---
+
+## 🌟 核心特性
+
+- 📦 **版权完全隔离与两阶段构建**：公开仓库**不包含任何 SolidWorks 商业专有二进制或授权文件**，仅构建通用轻量运行时（Ubuntu + Wine 64 + Xvfb + Windows Python 3.11 + pywin32）。
+- 🚀 **开箱即用的导出引擎 (`dockersw-export`)**：
+  - 零件与装配体 (`.SLDPRT` / `.SLDASM`) ➡️ 导出为 `.STEP`；
+  - 工程图 (`.SLDDRW`) ➡️ 同步导出为 `.PDF` 与 `.DWG`；
+  - 渲染模型 (`*.REND.SLDASM`) ➡️ 导出为 `.GLB`；
+  - 自动识别 Linux / Wine Windows 绝对与相对路径，清单无需反斜杠改造。
+- 🛡️ **CI 静默保障与异常兜底**：
+  - 底层注册表自动屏蔽登录窗口（`EnableSldLoginManager=0`）与崩溃阻断弹窗（`AeDebug=0`）；
+  - 核心 API 采用 `OpenDoc6(swOpenDocOptions_Silent)` 与 `SaveAs3(swSaveAsOptions_Silent)`；
+  - 单个文件失败不中断批处理，最终统计并输出清晰的 Exit Code（全部成功返回 0，失败返回 1）。
+- 🔌 **智能许可管理**：支持内网浮动授权（`SW_LICENSE_SERVER`）与本地授权守护自启（`START_LOCAL_LICENSE`）双模式。
+
+---
+
+## 🏗️ 架构概览
+
+```
+               [ GitHub Actions 构建发布 ]
+                             │
+                             ▼
+         [ 公开基础镜像: ghcr.io/yjbeetle/dockersw:latest ]
+         ┌──────────────────────────────────────────────┐
+         │ Ubuntu 22.04 LTS x86_64                      │
+         │  ├─ Xvfb (:99 无头虚拟屏幕, 保障 COM 消息泵) │
+         │  ├─ Wine 64-bit 运行时环境                   │
+         │  ├─ Windows Python 3.11 + pywin32            │
+         │  ├─ 无头优化注册表 (跳过登录/EULA/崩溃弹窗)   │
+         │  └─ dockersw-export 命令行批处理工具         │
+         └──────────────────────┬───────────────────────┘
+                                │
+        ┌───────────────────────┴───────────────────────┐
+        ▼ 运行方式 A: Volume 挂载 (推荐用于 CI)           ▼ 运行方式 B: 企业私有镜像
+┌────────────────────────────────┐              ┌────────────────────────────────┐
+│ GitLab CI Runner / Docker      │              │ 企业私有 Docker 镜像           │
+│ docker run -v /data/SW:/opt/sw │              │ FROM ghcr.io/yjbeetle/dockersw │
+│  -e SW_LICENSE_SERVER=...      │              │ COPY ./sw /opt/solidworks      │
+│  ghcr.io/yjbeetle/dockersw     │              │ ENV START_LOCAL_LICENSE=true   │
+└────────────────────────────────┘              └────────────────────────────────┘
+```
+
+---
+
+## ⚙️ 环境变量与配置参数
+
+| 环境变量 | 默认值 | 作用说明 |
+|---|---|---|
+| `SW_INSTALL_DIR` | `/opt/solidworks` | SolidWorks 根目录（包含 `SLDWORKS.exe`），容器启动时自动软链接至 Wine 虚拟 C 盘并注册 COM |
+| `SW_LICENSE_SERVER` | *(空)* | 远程 FlexNet 许可服务器地址（例如 `25734@192.168.1.100`），若配置则优先使用 |
+| `START_LOCAL_LICENSE`| `false` | 设为 `true` 时，若未提供远程许可且存在本地服务目录，容器启动时自动后台运行 `lmgrd.exe` |
+| `FLEXNET_DIR` | `/opt/SolidWorks_Flexnet_Server` | 本地 FlexNet 许可守护程序目录（包含 `lmgrd.exe` 与授权文件） |
+| `DISPLAY` | `:99` | 虚拟屏幕 DISPLAY，由容器内后台守护的 `Xvfb` 托管 |
+
+---
+
+## 🚀 快速上手与使用示例
+
+### 1. 本地 / 服务器 Docker Compose 挂载调试
+
+如果宿主机或网络存储上已有一份 SolidWorks 安装目录（例如由 WineSW 初始化生成的 `C` 盘目录），可直接使用 `examples/docker-compose.yml` 进行调试：
+
+```bash
+# 进入项目目录，指定 SW 实体目录启动（支持缺省回退）
+SW_DIR="/path/to/SOLIDWORKS" docker compose -f examples/docker-compose.yml up
+```
+
+`examples/docker-compose.yml` 关键配置示范：
+```yaml
+services:
+  dockersw-exporter:
+    image: ghcr.io/yjbeetle/dockersw:latest
+    environment:
+      - START_LOCAL_LICENSE=true
+    volumes:
+      - /path/to/SOLIDWORKS:/opt/solidworks:ro
+      - /path/to/SolidWorks_Flexnet_Server:/opt/SolidWorks_Flexnet_Server:ro
+      - ./:/workspace
+    working_dir: /workspace
+    command: >
+      dockersw-export
+      --list /workspace/examples/export-list-demo.txt
+      --workspace /workspace
+      --outdir /workspace/dist_output
+```
+
+---
+
+### 2. GitLab CI 流水线集成
+
+在 GitLab 项目的 `.gitlab-ci.yml` 中集成无头自动导出（完整示范见 [examples/gitlab-ci/.gitlab-ci.yml](examples/gitlab-ci/.gitlab-ci.yml)）：
+
+```yaml
+export_cad_assets:
+  stage: build
+  image: ghcr.io/yjbeetle/dockersw:latest
+  variables:
+    # 指定公司内部的浮动许可服务器
+    SW_LICENSE_SERVER: "25734@192.168.1.100"
+  script:
+    - mkdir -p ./dist
+    - >
+      dockersw-export
+      --list ./export_list.txt
+      --workspace "$CI_PROJECT_DIR"
+      --outdir ./dist
+  artifacts:
+    name: "CAD_Export_${CI_COMMIT_SHORT_SHA}"
+    paths:
+      - ./dist/
+```
+
+> **提示**：若使用基于 Docker 的 GitLab Runner，只需在 Runner 宿主机的 `/etc/gitlab-runner/config.toml` 中的 `volumes` 字段加上 SolidWorks 缓存路径即可：
+> ```toml
+> volumes = ["/data/solidworks:/opt/solidworks:ro", "/cache"]
+> ```
+
+---
+
+### 3. 构建企业私有定制镜像（零挂载依赖）
+
+在企业内部的私有 Git 仓库中，仅需编写如下 5 行 `Dockerfile`（参考 [examples/private-image/Dockerfile](examples/private-image/Dockerfile)）：
+
+```dockerfile
+FROM ghcr.io/yjbeetle/dockersw:latest
+
+# 装配内部保存的 SolidWorks 程序与授权
+COPY ./SOLIDWORKS /opt/solidworks
+COPY ./SolidWorks_Flexnet_Server /opt/SolidWorks_Flexnet_Server
+
+# 激活自动拉起授权服务开关
+ENV START_LOCAL_LICENSE=true
+```
+
+编译并推送到内部私有镜像仓库后，任意机器拉取即可开箱即用，无需配置额外挂载！
+
+---
+
+### 4. 导出清单格式范例 (`export_list.txt`)
+
+清单文本支持标准相对路径、UTF-8 编码、行内注释（`#`）及空行（参考 [examples/export-list-demo.txt](examples/export-list-demo.txt)）：
+
+```text
+# 装配体工程图（自动输出 .PDF 与 .DWG）
+COT[N]/Main/N_MainAssembly.SLDDRW
+
+# 关键零件（自动输出 .STEP）与零件工程图
+COT[N]/Main/N_Antenna.SLDPRT
+COT[N]/Main/N_Antenna.SLDDRW
+COT[N]/Main/N_Casing.SLDPRT
+COT[N]/Main/N_Casing.SLDDRW
+
+# 专用渲染装配体（自动输出 .GLB）
+Render/Main_Assembly.REND.SLDASM
+```
+
+---
+
+## 🧪 本地测试与自检
+
+本项目包含了对路径转换与导出规则推导的独立单元测试：
+
+```bash
+python3 -m unittest discover -s tests -p "test_*.py" -v
+```
+
+CI 构建期间，GitHub Actions 还会拉起真实容器测试 Wine 虚拟系统环境与 Windows Python `win32com` 模块的就绪情况。
+
+---
+
+## 📄 版权与免责声明
+
+1. 本项目仅包含 Wine 环境与自动化导出脚本，不提供任何 SOLIDWORKS® 商业软件的二进制程序或破解授权。
+2. SOLIDWORKS® 为达索系统（Dassault Systèmes）的注册商标。请在拥有正版商业授权的前提下使用自动化集成功能。

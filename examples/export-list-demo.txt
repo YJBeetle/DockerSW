@@ -1,0 +1,30 @@
+# DockerSW 批量导出清单范例
+# 支持注释（以 # 开头）与空行
+# 相对路径将自动基于 --workspace 参数进行拼接
+
+# 主装配体工程图（将自动导出为 .PDF 与 .DWG）
+COT[N]/Main/N_MainAssembly.SLDDRW
+
+# 核心零件与工程图（零件将导出为 .STEP，工程图将导出为 .PDF 与 .DWG）
+COT[N]/Main/N_Antenna.SLDPRT
+COT[N]/Main/N_Antenna.SLDDRW
+COT[N]/Main/N_AntennaBar.SLDPRT
+COT[N]/Main/N_AntennaBar.SLDDRW
+COT[N]/Main/N_AntennaFix.SLDPRT
+COT[N]/Main/N_AntennaFix.SLDDRW
+COT[N]/Main/N_Casing.SLDPRT
+COT[N]/Main/N_Casing.SLDDRW
+COT[N]/Main/N_Window.SLDPRT
+COT[N]/Main/N_Window.SLDDRW
+
+# 通用配件模块
+Universal/AntennaBarHolder.SLDPRT
+Universal/AntennaBarHolder.SLDDRW
+Universal/AntennaCover.SLDPRT
+Universal/AntennaCover.SLDDRW
+Universal/BatteryCover.SLDPRT
+Universal/BatteryCover.SLDDRW
+Universal/PcbHolder.SLDPRT
+Universal/PcbHolder.SLDDRW
+Universal/WindowCover.SLDPRT
+Universal/WindowCover.SLDDRW

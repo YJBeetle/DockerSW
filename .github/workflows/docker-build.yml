@@ -1,0 +1,90 @@
+name: Build and Test DockerSW
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  unit-tests:
+    name: Run Python Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run Logic Tests
+        run: |
+          python -m unittest discover -s tests -p "test_*.py" -v
+
+  build-and-publish:
+    name: Build & Smoke Test Docker Image
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+
+      - name: Build Docker Image Locally for Self-Check
+        run: |
+          echo "[CI] 正在构建 DockerSW 基础镜像..."
+          docker build -f docker/Dockerfile -t dockersw:local-test .
+
+      - name: Smoke Test (Wine, Python, pywin32 & CLI)
+        run: |
+          echo "[CI] 验证 1: 测试 Wine Windows 虚拟版本..."
+          docker run --rm dockersw:local-test wine cmd /c ver
+
+          echo "[CI] 验证 2: 测试 Windows Python 3.11 与 pywin32 COM 模块就绪..."
+          docker run --rm dockersw:local-test wine "C:\\Python311\\python.exe" -c "import win32com.client, pythoncom; print('[HEALTH CHECK OK] Windows Python & pywin32 ready')"
+
+          echo "[CI] 验证 3: 运行 dockersw-export 导出工具命令行..."
+          docker run --rm dockersw:local-test dockersw-export --help
+
+      - name: Push Image to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
