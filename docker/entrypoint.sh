@@ -64,6 +64,20 @@ else
     echo "[DockerSW][NOTICE] 未挂载外部 SolidWorks 目录 (SW_INSTALL_DIR=${SW_INSTALL_DIR})"
 fi
 
+# 自动扫描并导入挂载的 SolidWorks 注册表文件（如 SWHKLM.reg / SWHKCU.reg）
+SW_REG_SEARCH_DIRS=("/opt/solidworks_reg" "/opt/solidworks_c" "${SW_INSTALL_DIR}")
+for reg_dir in "${SW_REG_SEARCH_DIRS[@]}"; do
+    if [ -d "${reg_dir}" ]; then
+        for reg_file in "${reg_dir}"/SWHKLM.reg "${reg_dir}"/SWHKCU.reg; do
+            if [ -f "${reg_file}" ]; then
+                echo "[DockerSW] 正在导入 SolidWorks 注册表: ${reg_file}..."
+                wine reg import "${reg_file}" >/dev/null 2>&1 || true
+            fi
+        done
+    fi
+done
+wineserver -w >/dev/null 2>&1 || true
+
 # 映射 ProgramData（如果提供）
 if [ -d "${SW_PROGRAMDATA}" ]; then
     C_PD_TARGET="${WINEPREFIX}/drive_c/ProgramData/SOLIDWORKS"
