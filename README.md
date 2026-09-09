@@ -166,6 +166,31 @@ Render/Main_Assembly.REND.SLDASM
 
 ---
 
+### 5. 在 Windows 真机上一键获取 SolidWorks 资产与注册表
+
+本项目在 `tools/windows-collector/` 下提供了 Windows 真机一键资产抽取工具：
+* [`collect_sw.bat`](tools/windows-collector/collect_sw.bat)：双击即自动以管理员权限调用抽取脚本；
+* [`collect_sw.ps1`](tools/windows-collector/collect_sw.ps1)：基于 PowerShell 的全自动智能探测与收集器。
+
+**功能与效果：**
+1. 自动从注册表和磁盘探测已安装的 SolidWorks 主程序目录（`SLDWORKS.exe`）；
+2. 自动导出干净无损的核心注册表：`SWHKLM.reg`、`SWHKCU.reg` 与 COM 接口注册表 `SW_COM_CLASSES.reg`；
+3. 自动探测并打包本地 FlexNet 授权服务器（若存在）；
+4. 通过高性能多线程 `robocopy` 镜像复制程序与数据文件，排除临时缓存。
+
+**在 Windows 上的运行方式：**
+在安装了 SolidWorks 的 Windows 机器上，右键点击 `collect_sw.bat` 选择 **「以管理员身份运行」**，脚本将自动在当前目录下生成可以直接挂载给 DockerSW 使用的 `DockerSW_Assets/` 资产包：
+```
+DockerSW_Assets/
+├── SOLIDWORKS/                  # 主程序目录
+├── SolidWorks_Flexnet_Server/   # 授权服务（若存在）
+├── ProgramData/                 # 配置与模板（若存在）
+├── SWHKLM.reg                   # 机器注册表
+└── SWHKCU.reg                   # 用户注册表
+```
+
+---
+
 ## 🧪 本地测试与自检
 
 本项目包含了对路径转换与导出规则推导的独立单元测试：
