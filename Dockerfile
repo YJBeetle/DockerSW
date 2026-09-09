@@ -13,13 +13,13 @@ COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # 2. 复制 SolidWorks 完整程序包、激活服务、依赖 DLL 与注册表
-COPY assets/SOLIDWORKS "/root/.wine/drive_c/Program Files/SOLIDWORKS Corp/SOLIDWORKS"
+COPY ["assets/SOLIDWORKS", "/opt/solidworks/"]
 COPY assets/SolidWorks_Flexnet_Server /opt/SolidWorks_Flexnet_Server
 COPY assets/solidworks_reg /opt/solidworks_reg
 COPY assets/vc_redist_dlls /opt/vc_redist_dlls
 COPY assets/wine-mono-11.0.0-x86.msi /opt/wine-mono.msi
 
-# 3. 预热与持久化：在构建期静默安装 Mono、注入 DLL、导入注册表
+# 3. 预热与持久化：在构建期静默安装 Mono、注入 DLL、映射程序、导入注册表
 ENV START_LOCAL_LICENSE=true
 RUN /usr/local/bin/entrypoint.sh --init-only
 
