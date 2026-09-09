@@ -2,9 +2,8 @@ stages:
   - build-and-publish
 
 variables:
-  # 目标 Docker Hub 镜像名称（支持用户在 CI/CD Variables 覆盖，默认 yjbeetle/dockersw-complete）
-  DOCKER_IMAGE_NAME: ${DOCKERHUB_IMAGE:-"yjbeetle/dockersw-complete"}
-  DOCKER_IMAGE_TAG: ${CI_COMMIT_TAG:-"latest"}
+  DOCKER_IMAGE_NAME: "yjbeetle/dockersw-complete"
+  DOCKER_IMAGE_TAG: "latest"
   GIT_LFS_SKIP_SMUDGE: "0"
 
 build_and_push_image:
@@ -12,13 +11,21 @@ build_and_push_image:
   image: docker:24-cli
   before_script:
     - |
+      if [ -n "${DOCKERHUB_IMAGE:-}" ]; then
+        DOCKER_IMAGE_NAME="${DOCKERHUB_IMAGE}"
+      fi
+      if [ -n "${CI_COMMIT_TAG:-}" ]; then
+        DOCKER_IMAGE_TAG="${CI_COMMIT_TAG}"
+      fi
+    - |
       if [ -z "${DOCKERHUB_USERNAME:-}" ] || [ -z "${DOCKERHUB_PASSWORD:-}" ]; then
         echo "=================================================================================="
         echo " [ERROR] 未检测到 Docker Hub 凭据环境变量！"
-        echo " 请在 GitLab 项目的 Settings -> CI/CD -> Variables 中配置以下变量："
+        echo " 请在 GitLab 项目页面配置以下凭据变量："
+        echo "   路径: Settings -> CI/CD -> Variables -> Add variable"
         echo "   - DOCKERHUB_USERNAME: 你的 Docker Hub 用户名"
-        echo "   - DOCKERHUB_PASSWORD: 你的 Docker Hub Access Token 或密码"
-        echo "   - DOCKERHUB_IMAGE (可选): 镜像名，默认为 yjbeetle/dockersw-complete"
+        echo "   - DOCKERHUB_PASSWORD: 你的 Docker Hub Access Token 或密码 (Masked)"
+        echo "   - DOCKERHUB_IMAGE (可选): 目标镜像名，默认 yjbeetle/dockersw-complete"
         echo "=================================================================================="
         exit 1
       fi
