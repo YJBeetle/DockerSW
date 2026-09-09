@@ -6,8 +6,6 @@
 
 **DockerSW** 专为在 **Linux Docker 容器**（如 GitLab CI Runner、Kubernetes 集群、Linux 物理机）中通过 **Wine** 无头（Headless）静默运行 SolidWorks 并进行 CAD 资产批量自动化导出而设计。
 
-与针对桌面图形界面的方案（如 WineSW）不同，本项目**彻底剔除**了 macOS 视口避让（`sw_ui_daemon`）、字体软链接、双缓冲重绘等所有与 UI 相关的冗余代码，专注于实现**最精简、高可靠、无弹窗阻塞**的 CI 导出底座。
-
 ---
 
 ## 🌟 核心特性

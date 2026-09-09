@@ -2,11 +2,8 @@
 
 ## 1. 背景与目标
 
-当前 SolidWorks 主要运行在 Windows 物理机或虚拟机中。在现代 DevOps 与自动化制造流水线（CI/CD）中，依赖带图形界面的 Windows 节点（如 Windows Runner）存在资源开销大、难以并发扩容、授权维护复杂等痛点。
-在 macOS 下的 WineSW 项目探索中，虽然实现了 Wine 运行 SolidWorks，但包含了大量针对 macOS 独有视口（Metal/CAMetalLayer）、窗口层级、中文 UI 字体替换等复杂的图形修复代码。
-
-本项目 **DockerSW** 旨在提供一个专为 **Linux Docker 容器** 设计的、最精简的、面向 **GitLab CI / Headless 无头批处理导出** 的 Wine 运行环境：
-1. **彻底剥离 UI 冗余**：不包含任何 macOS 视口避让守护、双缓冲剥离、字体软链接等修饰逻辑；
+本项目 **DockerSW** 旨在提供一个专为 **Linux Docker 容器** 设计的、面向 **GitLab CI / Headless 无头批处理导出** 的 Wine 运行环境：
+1. **轻量纯粹**：专注提供无头执行与 COM 消息循环保障，专注于高可靠、无弹窗阻塞的 CI 导出；
 2. **两阶段解耦架构**：
    - **公开基础仓库（DockerSW）**：不含任何 SolidWorks 专有商业二进制代码，仅提供 Wine 64-bit、Xvfb 无头显示、Windows Python + pywin32 环境、无头注册表预配、智能入口与导出工具；由 GitHub Actions 自动化构建并推送到 GHCR；
    - **私有企业环境（下游使用方）**：通过挂载 Volume 或构建极简的下游私有镜像（`FROM ghcr.io/yjbeetle/dockersw:latest`）提供 SolidWorks 实体文件和 FlexNet 许可服务器；
