@@ -21,7 +21,7 @@ COPY assets/wine-mono-11.0.0-x86.msi /opt/wine-mono.msi
 
 # 3. 预热与持久化：在构建期静默安装 Mono、注入 DLL、映射程序、导入注册表
 ENV START_LOCAL_LICENSE=true
-RUN /usr/local/bin/entrypoint.sh --init-only
+RUN /usr/local/bin/entrypoint.sh --init-only && rm -rf /tmp/.X11-unix /tmp/*
 
 WORKDIR /workspace
 

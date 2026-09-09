@@ -110,7 +110,9 @@ if [ "${1:-}" = "--init-only" ]; then
     wineserver -w || true
     if [ -n "${XVFB_PID:-}" ]; then
         kill "${XVFB_PID}" 2>/dev/null || true
+        wait "${XVFB_PID}" 2>/dev/null || true
     fi
+    rm -rf /tmp/.X11-unix /tmp/* 2>/dev/null || true
     echo "[DockerSW] 无头运行环境构建预热完成 (--init-only)"
     exit 0
 fi
