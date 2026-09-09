@@ -31,7 +31,7 @@ RUN dpkg --add-architecture i386 && \
     wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key && \
     wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources && \
     apt-get update && \
-    apt-get install -y --install-recommends winehq-stable && \
+    apt-get install -y --install-recommends wine-stable-amd64 wine-stable-i386 winehq-stable && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
