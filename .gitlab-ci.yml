@@ -3,6 +3,7 @@ stages:
 
 variables:
   GIT_LFS_SKIP_SMUDGE: "0"
+  GIT_SUBMODULE_STRATEGY: normal
 
 build_and_push_image:
   stage: build-and-publish
