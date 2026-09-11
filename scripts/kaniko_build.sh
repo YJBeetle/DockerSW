@@ -12,5 +12,11 @@ if [ -n "${SUBMODULE_HASH}" ]; then
   DEST_ARGS="${DEST_ARGS} --destination ${DOCKERHUB_IMAGE:-yjbeetle/dockersw-complete}:sha-${SUBMODULE_HASH}"
 fi
 
-echo "开始执行 Kaniko 无特权用户态构建并发布..."
-/kaniko/executor --context "${CI_PROJECT_DIR}" --dockerfile "${CI_PROJECT_DIR}/Dockerfile" ${DEST_ARGS}
+echo "开始执行 Kaniko 无特权用户态构建并发布 (启用自动网络重试)..."
+/kaniko/executor \
+  --context "${CI_PROJECT_DIR}" \
+  --dockerfile "${CI_PROJECT_DIR}/Dockerfile" \
+  --push-retry 5 \
+  --image-download-retry 3 \
+  --image-fs-extract-retry 3 \
+  ${DEST_ARGS}
