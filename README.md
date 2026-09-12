@@ -11,13 +11,15 @@ DockerSWComplete 是仅在内网使用的私有构建与部署层。CI 从受控
 3. 最终镜像仅保留安装后的 Wine prefix 和本仓库的内部 FlexNet 服务，不包含 ISO、压缩包或安装日志。
 4. 成品推送为 `CI_REGISTRY_IMAGE:latest`、`sha-<commit>`；Git tag 流水线还会推送同名版本标签。
 
-## 必需的 GitLab CI/CD Variables
+## 安装介质配置
+
+当前私有仓库已在 `.gitlab-ci.yml` 中固定内网 ISO 下载地址及其 SHA-256，默认流水线无需额外变量即可下载、校验并安装。下列同名 GitLab CI/CD Variables 可在不修改仓库的情况下覆盖默认值：
 
 | 变量 | 要求 | 用途 |
 |---|---|---|
-| `SW_MEDIA_URL` | 与 `SW_MEDIA_LOCAL_PATH` 二选一 | 内网 HTTPS、WebDAV 或对象存储中的完整介质归档 |
+| `SW_MEDIA_URL` | 已提供默认值；与 `SW_MEDIA_LOCAL_PATH` 二选一 | 内网 HTTPS、WebDAV 或对象存储中的完整介质归档 |
 | `SW_MEDIA_LOCAL_PATH` | 与 `SW_MEDIA_URL` 二选一 | 私有 Runner 已挂载的介质文件 |
-| `SW_MEDIA_SHA256` | 必需 | 介质 SHA-256，校验失败立即停止 |
+| `SW_MEDIA_SHA256` | 已提供默认值 | 介质 SHA-256，校验失败立即停止 |
 | `SW_MEDIA_BEARER_TOKEN` | 可选、Masked | 内网下载 Bearer Token |
 | `SW_MEDIA_USERNAME` | 可选、Masked | HTTP Basic 用户名 |
 | `SW_MEDIA_PASSWORD` | 可选、Masked | HTTP Basic 密码 |
