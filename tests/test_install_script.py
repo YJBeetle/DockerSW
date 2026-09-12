@@ -93,6 +93,19 @@ esac
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("Validated complete media layout", result.stdout)
 
+    def test_installer_uses_documented_silent_deployment_defaults(self) -> None:
+        script = INSTALLER.read_text(encoding="utf-8")
+        self.assertIn(
+            r"""append_default_msi_property "INSTALLDIR" 'C:\Program Files\SOLIDWORKS'""",
+            script,
+        )
+        self.assertIn('append_default_msi_property "OFFICEOPTION" "3"', script)
+        self.assertIn('append_default_msi_property "ADDLOCAL" "SolidWorks"', script)
+        self.assertIn("msiexec /i \"${MSI_PATH}\" /qb /norestart", script)
+        self.assertIn(
+            'find "${WINEPREFIX}/drive_c" -type f -iname SLDWORKS.exe', script
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

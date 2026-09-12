@@ -224,6 +224,21 @@ run_installer() {
     esac
 }
 
+has_msi_property() {
+    local expected="$1" property
+    for property in "${MSI_PROPERTIES[@]}"; do
+        if [ "${property%%=*}" = "${expected}" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+append_default_msi_property() {
+    local name="$1" value="$2"
+    has_msi_property "${name}" || MSI_PROPERTIES+=("${name}=${value}")
+}
+
 start_xvfb
 
 if [ ! -s "${WINEPREFIX}/system.reg" ]; then
@@ -280,16 +295,25 @@ prepare_regasm_compatibility() {
 
 prepare_regasm_compatibility
 
+# SOLIDWORKS' quiet-mode custom action does not reliably select the core
+# feature under Wine when msiexec is invoked with only generic MSI switches.
+# Pass the documented command-line deployment properties explicitly. Callers
+# can still override every default with --property or SW_MSI_PROPERTIES_FILE.
+append_default_msi_property "INSTALLDIR" 'C:\Program Files\SOLIDWORKS'
+append_default_msi_property "ENABLEPERFORMANCE" "0"
+append_default_msi_property "OFFICEOPTION" "3"
+append_default_msi_property "ADDLOCAL" "SolidWorks"
+
 MSI_LOG_WINDOWS="$(winepath -w "${LOG_DIR}/solidworks-msi.log")"
 MSI_ARGUMENTS=(
-    msiexec /i "${MSI_PATH}" /qn /norestart DISABLEROLLBACK=1
+    msiexec /i "${MSI_PATH}" /qb /norestart DISABLEROLLBACK=1
     /l*v "${MSI_LOG_WINDOWS}"
 )
 MSI_ARGUMENTS+=("${MSI_PROPERTIES[@]}")
 run_installer "SOLIDWORKS MSI" wine "${MSI_ARGUMENTS[@]}"
 timeout --foreground 600 wineserver -w || die "wineserver did not settle after SOLIDWORKS installation"
 
-SW_EXE="$(find "${WINEPREFIX}/drive_c/Program Files" -type f -iname SLDWORKS.exe -print -quit)"
+SW_EXE="$(find "${WINEPREFIX}/drive_c" -type f -iname SLDWORKS.exe -print -quit)"
 [ -n "${SW_EXE}" ] || die "installer returned success but SLDWORKS.exe was not found"
 
 install_wpf_themes() {
