@@ -124,30 +124,57 @@ if [ "${1:-}" = "--init-only" ]; then
 fi
 
 # 6. 许可服务器配置与管理（运行时）
+configure_license_server() {
+    local address="$1"
+    wine reg add 'HKLM\SOFTWARE\FLEXlm License Manager' /v SW_D_LICENSE_FILE /t REG_SZ /d "${address}" /f >/dev/null
+    wine reg add 'HKCU\SOFTWARE\FLEXlm License Manager' /v SW_D_LICENSE_FILE /t REG_SZ /d "${address}" /f >/dev/null
+    wine reg add 'HKLM\System\CurrentControlSet\Control\Session Manager\Environment' /v SOLIDWORKS_LICENSE_FILE /t REG_SZ /d "${address}" /f >/dev/null
+    wine reg add 'HKLM\System\CurrentControlSet\Control\Session Manager\Environment' /v SW_D_LICENSE_FILE /t REG_SZ /d "${address}" /f >/dev/null
+    export SOLIDWORKS_LICENSE_FILE="${address}"
+    export SW_D_LICENSE_FILE="${address}"
+}
+
 if [ -n "${SW_LICENSE_SERVER}" ]; then
     echo "[DockerSW] 配置远程许可服务器: ${SW_LICENSE_SERVER}"
-    wine reg add 'HKLM\SOFTWARE\FLEXlm License Manager' /v SW_D_LICENSE_FILE /t REG_SZ /d "${SW_LICENSE_SERVER}" /f >/dev/null 2>&1 || true
-    wine reg add 'HKCU\SOFTWARE\FLEXlm License Manager' /v SW_D_LICENSE_FILE /t REG_SZ /d "${SW_LICENSE_SERVER}" /f >/dev/null 2>&1 || true
-    wine reg add 'HKLM\System\CurrentControlSet\Control\Session Manager\Environment' /v SOLIDWORKS_LICENSE_FILE /t REG_SZ /d "${SW_LICENSE_SERVER}" /f >/dev/null 2>&1 || true
-    wine reg add 'HKLM\System\CurrentControlSet\Control\Session Manager\Environment' /v SW_D_LICENSE_FILE /t REG_SZ /d "${SW_LICENSE_SERVER}" /f >/dev/null 2>&1 || true
+    configure_license_server "${SW_LICENSE_SERVER}"
 elif [ "${START_LOCAL_LICENSE}" = "true" ]; then
-    if [ -f "${FLEXNET_DIR}/lmgrd.exe" ]; then
-        echo "[DockerSW] 正在启动容器内本地 FlexNet 许可服务守护 (lmgrd.exe)..."
-        LIC_FILE="${FLEXNET_DIR}/sw_d_SSQ.lic"
-        if [ ! -f "${LIC_FILE}" ]; then
-            LIC_FILE=$(ls "${FLEXNET_DIR}"/*.lic 2>/dev/null | head -n 1 || true)
-        fi
-        
-        if [ -n "${LIC_FILE}" ] && [ -f "${LIC_FILE}" ]; then
-            (
-                cd "${FLEXNET_DIR}"
-                nohup wine "${FLEXNET_DIR}/lmgrd.exe" -c "${LIC_FILE}" -l /tmp/flexnet.log >/dev/null 2>&1 &
-            )
-            echo "[DockerSW] FlexNet 守护已在后台拉起，日志输出: /tmp/flexnet.log"
-        else
-            echo "[DockerSW][WARN] 未在 ${FLEXNET_DIR} 找到 .lic 授权文件，跳过启动"
-        fi
+    [ -f "${FLEXNET_DIR}/lmgrd.exe" ] || {
+        echo "[DockerSW][ERROR] 已启用本地许可服务，但缺少 ${FLEXNET_DIR}/lmgrd.exe" >&2
+        exit 1
+    }
+    echo "[DockerSW] 正在启动容器内本地 FlexNet 许可服务守护 (lmgrd.exe)..."
+    LIC_FILE="${FLEXNET_DIR}/sw_d_SSQ.lic"
+    if [ ! -f "${LIC_FILE}" ]; then
+        LIC_FILE=$(find "${FLEXNET_DIR}" -maxdepth 1 -type f -name '*.lic' -print -quit)
     fi
+    [ -n "${LIC_FILE}" ] && [ -f "${LIC_FILE}" ] || {
+        echo "[DockerSW][ERROR] 已启用本地许可服务，但未找到 .lic 文件" >&2
+        exit 1
+    }
+
+    (
+        cd "${FLEXNET_DIR}"
+        nohup wine "${FLEXNET_DIR}/lmgrd.exe" -c "${LIC_FILE}" -l /tmp/flexnet.log >/dev/null 2>&1 &
+    )
+
+    LOCAL_LICENSE_ADDRESS="25734@127.0.0.1"
+    configure_license_server "${LOCAL_LICENSE_ADDRESS}"
+
+    if [ -f "${FLEXNET_DIR}/lmutil.exe" ]; then
+        LICENSE_READY=false
+        for _ in $(seq 1 30); do
+            if timeout --foreground 5 wine "${FLEXNET_DIR}/lmutil.exe" lmstat -a -c "${LOCAL_LICENSE_ADDRESS}" >/dev/null 2>&1; then
+                LICENSE_READY=true
+                break
+            fi
+            sleep 1
+        done
+        [ "${LICENSE_READY}" = true ] || {
+            echo "[DockerSW][ERROR] 本地 FlexNet 服务未在期限内就绪，请检查 /tmp/flexnet.log" >&2
+            exit 1
+        }
+    fi
+    echo "[DockerSW] 本地 FlexNet 服务已就绪: ${LOCAL_LICENSE_ADDRESS}"
 else
     echo "[DockerSW][WARN] 未配置 SW_LICENSE_SERVER，且本地许可服务未启用"
 fi
