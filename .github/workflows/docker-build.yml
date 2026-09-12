@@ -30,6 +30,13 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Validate Shell Scripts
+        run: |
+          bash -n docker/init_wineprefix.sh
+          bash -n docker/entrypoint.sh
+          bash -n scripts/dockersw-export
+          bash -n scripts/install_solidworks.sh
+
       - name: Run Logic Tests
         run: |
           python -m unittest discover -s tests -p "test_*.py" -v
@@ -67,7 +74,7 @@ jobs:
       - name: Build Docker Image Locally for Self-Check
         run: |
           echo "[CI] 正在构建 DockerSW 基础镜像..."
-          docker build -f docker/Dockerfile -t dockersw:local-test .
+          docker build --progress=plain -f docker/Dockerfile -t dockersw:local-test .
 
       - name: Smoke Test (Wine, Python, pywin32 & CLI)
         run: |
@@ -79,6 +86,9 @@ jobs:
 
           echo "[CI] 验证 3: 运行 dockersw-export 导出工具命令行..."
           docker run --rm dockersw:local-test dockersw-export --help
+
+          echo "[CI] 验证 4: 安装器命令已内置..."
+          docker run --rm dockersw:local-test dockersw-install --help
 
       - name: Push Image to GHCR
         if: github.event_name != 'pull_request'

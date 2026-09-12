@@ -57,9 +57,15 @@ C_SW_TARGET="${C_SW_CORP}/SOLIDWORKS"
 mkdir -p "${C_SW_CORP}"
 
 if [ -d "${SW_INSTALL_DIR}" ] && [ "${SW_INSTALL_DIR}" != "${C_SW_TARGET}" ]; then
-    echo "[DockerSW] 映射 SolidWorks 目录: ${SW_INSTALL_DIR} -> ${C_SW_TARGET}"
-    rm -rf "${C_SW_TARGET}"
-    ln -sfn "${SW_INSTALL_DIR}" "${C_SW_TARGET}"
+    SW_SOURCE_REAL="$(readlink -f "${SW_INSTALL_DIR}")"
+    SW_TARGET_REAL="$(readlink -f "${C_SW_TARGET}" 2>/dev/null || true)"
+    if [ -n "${SW_TARGET_REAL}" ] && [ "${SW_SOURCE_REAL}" = "${SW_TARGET_REAL}" ]; then
+        echo "[DockerSW] 使用已映射的 SolidWorks 目录: ${C_SW_TARGET}"
+    else
+        echo "[DockerSW] 映射 SolidWorks 目录: ${SW_INSTALL_DIR} -> ${C_SW_TARGET}"
+        rm -rf "${C_SW_TARGET}"
+        ln -sfn "${SW_INSTALL_DIR}" "${C_SW_TARGET}"
+    fi
 elif [ -d "${C_SW_TARGET}" ]; then
     echo "[DockerSW] 使用内置 SolidWorks 目录: ${C_SW_TARGET}"
 fi
@@ -124,7 +130,7 @@ if [ -n "${SW_LICENSE_SERVER}" ]; then
     wine reg add 'HKCU\SOFTWARE\FLEXlm License Manager' /v SW_D_LICENSE_FILE /t REG_SZ /d "${SW_LICENSE_SERVER}" /f >/dev/null 2>&1 || true
     wine reg add 'HKLM\System\CurrentControlSet\Control\Session Manager\Environment' /v SOLIDWORKS_LICENSE_FILE /t REG_SZ /d "${SW_LICENSE_SERVER}" /f >/dev/null 2>&1 || true
     wine reg add 'HKLM\System\CurrentControlSet\Control\Session Manager\Environment' /v SW_D_LICENSE_FILE /t REG_SZ /d "${SW_LICENSE_SERVER}" /f >/dev/null 2>&1 || true
-elif [ "${START_LOCAL_LICENSE}" = "true" ] || [ -f "${FLEXNET_DIR}/lmgrd.exe" ]; then
+elif [ "${START_LOCAL_LICENSE}" = "true" ]; then
     if [ -f "${FLEXNET_DIR}/lmgrd.exe" ]; then
         echo "[DockerSW] 正在启动容器内本地 FlexNet 许可服务守护 (lmgrd.exe)..."
         LIC_FILE="${FLEXNET_DIR}/sw_d_SSQ.lic"
@@ -142,6 +148,8 @@ elif [ "${START_LOCAL_LICENSE}" = "true" ] || [ -f "${FLEXNET_DIR}/lmgrd.exe" ];
             echo "[DockerSW][WARN] 未在 ${FLEXNET_DIR} 找到 .lic 授权文件，跳过启动"
         fi
     fi
+else
+    echo "[DockerSW][WARN] 未配置 SW_LICENSE_SERVER，且本地许可服务未启用"
 fi
 
 # 7. 执行传入命令或进入交互终端

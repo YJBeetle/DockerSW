@@ -4,8 +4,9 @@ set -euo pipefail
 export WINEARCH="win64"
 export WINEPREFIX="${WINEPREFIX:-/root/.wine}"
 export WINEDEBUG="-all"
-# 仅禁用 mshtml (Gecko) 联网等待与弹窗，保留 mscoree 以启用 Wine-Mono (.NET CLR)
-export WINEDLLOVERRIDES="mshtml="
+# prefix 初始化期间禁止 Wine 自动发现/安装 Mono 和 Gecko。Mono 在 wineboot
+# 成功后从隔离缓存显式安装，避免自动安装与 msiexec 双重触发。
+export WINEDLLOVERRIDES="mscoree,mshtml="
 
 echo "=========================================="
 echo "[DockerSW Build] 初始化 WinePrefix 与 Windows Python 环境"
@@ -22,21 +23,27 @@ sleep 1
 
 # 2. 初始化 WinePrefix
 echo "[INFO] 执行 wineboot 初始化 64 位 Windows 环境..."
-wineboot -u
-wineserver -w
+timeout --foreground 300 wineboot -u
+timeout --foreground 300 wineserver -w
+timeout --foreground 60 wine cmd /c ver
 
 # 3. 静默安装 Wine-Mono (.NET CLR 运行时环境)
-MONO_INSTALLER=$(ls /usr/share/wine/mono/wine-mono*.msi /opt/wine-stable/share/wine/mono/wine-mono*.msi 2>/dev/null | head -n 1 || true)
+MONO_INSTALLER=$(find /opt/dockersw/cache -maxdepth 1 -type f -name 'wine-mono*.msi' -print -quit 2>/dev/null || true)
 if [ -n "${MONO_INSTALLER}" ] && [ -f "${MONO_INSTALLER}" ]; then
     echo "[INFO] 静默安装 Wine-Mono: ${MONO_INSTALLER}..."
-    wine msiexec /i "${MONO_INSTALLER}" /quiet
-    wineserver -w
+    WINEDLLOVERRIDES="mshtml=" timeout --foreground 600 wine msiexec /i "${MONO_INSTALLER}" /quiet /norestart
+    timeout --foreground 300 wineserver -w
+else
+    echo "[ERROR] 未找到隔离缓存中的 Wine-Mono 安装包" >&2
+    exit 1
 fi
 
+# 后续 Windows 程序使用已经显式安装的 Wine-Mono，仅继续禁用 Gecko。
+export WINEDLLOVERRIDES="mshtml="
+
 # 4. 导入无头预配注册表与 COM 类定义
-echo "[INFO] 导入无头优化注册表、许可模板与 COM 类映射..."
+echo "[INFO] 导入无头优化注册表与 COM 类映射..."
 wine regedit /S /tmp/headless_tweaks.reg
-wine regedit /S /tmp/license_template.reg
 if [ -f "/tmp/sw_com_classes.reg" ]; then
     wine regedit /S /tmp/sw_com_classes.reg
 fi
