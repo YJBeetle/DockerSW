@@ -1,0 +1,11 @@
+.git
+DockerSW/.git
+.DS_Store
+*.tmp
+__pycache__
+*.pyc
+
+# 旧的已安装程序资产不再进入构建上下文；CI 使用 .ci-media。
+assets/SOLIDWORKS
+assets/vc_redist_dlls
+assets/wine-mono-11.0.0-x86.msi

@@ -1,22 +1,29 @@
 #!/usr/bin/env sh
-set -e
+set -eu
 
-mkdir -p /kaniko/.docker
-echo "{\"auths\":{\"https://index.docker.io/v1/\":{\"auth\":\"$(printf "%s:%s" "${DOCKERHUB_USERNAME}" "${DOCKERHUB_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+: "${CI_PROJECT_DIR:?CI_PROJECT_DIR is required}"
+: "${CI_REGISTRY_IMAGE:?CI_REGISTRY_IMAGE is required}"
 
-SUBMODULE_HASH=$(head -c 7 .git/modules/DockerSW/HEAD 2>/dev/null || true)
-echo "检测到子模块 Hash: ${SUBMODULE_HASH}"
+SUBMODULE_HASH="$(sh "${CI_PROJECT_DIR}/scripts/resolve_submodule_hash.sh")"
+RUNTIME_IMAGE="${CI_REGISTRY_IMAGE}/runtime:sha-${SUBMODULE_HASH}"
 
-DEST_ARGS="--destination ${DOCKERHUB_IMAGE:-yjbeetle/dockersw-complete}:latest"
-if [ -n "${SUBMODULE_HASH}" ]; then
-  DEST_ARGS="${DEST_ARGS} --destination ${DOCKERHUB_IMAGE:-yjbeetle/dockersw-complete}:sha-${SUBMODULE_HASH}"
+set -- \
+  --destination "${CI_REGISTRY_IMAGE}:latest" \
+  --destination "${CI_REGISTRY_IMAGE}:sha-${CI_COMMIT_SHORT_SHA}"
+
+if [ -n "${CI_COMMIT_TAG:-}" ]; then
+  set -- "$@" --destination "${CI_REGISTRY_IMAGE}:${CI_COMMIT_TAG}"
 fi
 
-echo "开始执行 Kaniko 无特权用户态构建并发布 (启用自动网络重试)..."
+echo "Building private DockerSWComplete from runtime ${SUBMODULE_HASH}..."
 /kaniko/executor \
   --context "${CI_PROJECT_DIR}" \
   --dockerfile "${CI_PROJECT_DIR}/Dockerfile" \
+  --build-arg "BASE_IMAGE=${RUNTIME_IMAGE}" \
+  --build-arg "SW_INSTALL_TIMEOUT=${SW_INSTALL_TIMEOUT:-10800}" \
   --push-retry 5 \
   --image-download-retry 3 \
   --image-fs-extract-retry 3 \
-  ${DEST_ARGS}
+  "$@"
+
+echo "DockerSWComplete pushed to GitLab Registry: ${CI_REGISTRY_IMAGE}"

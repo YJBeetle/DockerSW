@@ -1,28 +1,57 @@
 # DockerSWComplete
 
-完整的 SolidWorks 2025 一体化无头容器（含内置 FlexNet 本地授权守护服务、Wine 运行栈、COM 批量静默导出 CLI 工具）。
+DockerSWComplete 是仅在内网使用的私有构建与部署层。CI 从受控的内网存储下载完整、合法取得的 SOLIDWORKS 官方安装介质，调用 DockerSW 提供的 `dockersw-install` 完成 Wine 无头 MSI 安装，然后将成品推送到本项目的 GitLab Container Registry。
 
-## 架构特性
+公开的 DockerSW 仓库负责 Wine 运行时、安装脚本和导出工具；本仓库负责安装介质来源、安装注册表、本地 FlexNet 服务和最终私有镜像。官方介质、序列号和许可证不得上传到公开镜像仓库。
 
-- **开箱即用（Zero-Mount）**：SolidWorks 二进制程序、注册表、运行库、License 全部内置于镜像中。
-- **自动授权**：容器启动时后台自动拉起轻量级 FlexNet 守护服务，无需外部授权服务器。
-- **自动化 CI 流水线**：推送分支或打 Tag 时，通过 GitLab CI 自动构建并发布至 Docker Hub。
+## 流水线
 
-## 环境变量配置 (GitLab CI/CD Variables)
+1. `build_dockersw_runtime` 从当前固定的 DockerSW 子模块构建基础运行时，并推送为 `CI_REGISTRY_IMAGE/runtime:sha-<DockerSW commit>`。
+2. `build_dockersw_complete` 从内网下载并校验官方介质，执行无头安装。
+3. 最终镜像仅保留安装后的 Wine prefix 和本仓库的内部 FlexNet 服务，不包含 ISO、压缩包或安装日志。
+4. 成品推送为 `CI_REGISTRY_IMAGE:latest`、`sha-<commit>`；Git tag 流水线还会推送同名版本标签。
 
-在 GitLab 项目设置中 (`Settings` -> `CI/CD` -> `Variables`) 添加以下变量：
+## 必需的 GitLab CI/CD Variables
 
-| 变量名 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `DOCKERHUB_USERNAME` | Variable | Docker Hub 注册用户名 |
-| `DOCKERHUB_PASSWORD` | Masked Variable | Docker Hub 访问令牌 (Personal Access Token) 或密码 |
-| `DOCKERHUB_IMAGE` | Variable (可选) | 目标镜像仓库名，默认为 `yjbeetle/dockersw-complete` |
+| 变量 | 要求 | 用途 |
+|---|---|---|
+| `SW_MEDIA_URL` | 与 `SW_MEDIA_LOCAL_PATH` 二选一 | 内网 HTTPS、WebDAV 或对象存储中的完整介质归档 |
+| `SW_MEDIA_LOCAL_PATH` | 与 `SW_MEDIA_URL` 二选一 | 私有 Runner 已挂载的介质文件 |
+| `SW_MEDIA_SHA256` | 必需 | 介质 SHA-256，校验失败立即停止 |
+| `SW_MEDIA_BEARER_TOKEN` | 可选、Masked | 内网下载 Bearer Token |
+| `SW_MEDIA_USERNAME` | 可选、Masked | HTTP Basic 用户名 |
+| `SW_MEDIA_PASSWORD` | 可选、Masked | HTTP Basic 密码 |
+| `SW_INSTALL_TIMEOUT` | 可选 | 单个安装步骤超时秒数，默认 10800 |
 
-## 快速使用
+`CI_REGISTRY`、`CI_REGISTRY_USER`、`CI_REGISTRY_PASSWORD` 和 `CI_REGISTRY_IMAGE` 使用 GitLab 自带变量，不再配置 Docker Hub 凭据。
+
+介质可以是 ISO、ZIP、7z 或 tar 系列归档，但解压后必须包含：
+
+```text
+swwi/data/solidworks.msi
+PreReqs/VCRedist17/VC_redist.x64.exe
+PreReqs/dotNetFx/ndp48-x86-x64-allos-enu.exe
+```
+
+安装前会导入私有的 `assets/solidworks_reg/*.reg`。MSI verbose 日志可能包含序列号，因此只存在于临时安装阶段，不复制进最终镜像。
+
+## 许可服务
+
+本仓库保留内部 `assets/SolidWorks_Flexnet_Server`，最终镜像默认设置：
+
+```text
+START_LOCAL_LICENSE=true
+FLEXNET_DIR=/opt/SolidWorks_Flexnet_Server
+```
+
+因此客户端在同一容器中使用本地许可服务。公开 DockerSW 用户仍可通过 `SW_LICENSE_SERVER=25734@host` 连接自己在局域网部署的服务器，或显式挂载并启用本地 `lmgrd`。
+
+## 使用
 
 ```bash
+docker login "$CI_REGISTRY"
 docker run --rm \
-  -v $(pwd):/workspace \
-  yjbeetle/dockersw-complete:latest \
+  -v "$(pwd):/workspace" \
+  "$CI_REGISTRY_IMAGE:latest" \
   dockersw-export --list list.txt --workspace /workspace --outdir /workspace/dist
 ```

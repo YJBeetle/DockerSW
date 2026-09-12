@@ -1,18 +1,39 @@
 stages:
-  - build-and-publish
+  - runtime
+  - complete
 
 variables:
+  # 旧的 7GB 安装目录已从当前版本移除；这里只拉取仍需内置的 FlexNet 小文件。
   GIT_LFS_SKIP_SMUDGE: "0"
-  GIT_SUBMODULE_STRATEGY: normal
-  DOCKERHUB_IMAGE: "yjbeetle/dockersw-complete"
+  GIT_SUBMODULE_STRATEGY: recursive
 
-build_and_push_image:
-  stage: build-and-publish
+.kaniko:
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
-  script:
-    - sh scripts/kaniko_build.sh
+  before_script:
+    - sh scripts/configure_kaniko_registry.sh
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_TAG
+
+build_dockersw_runtime:
+  extends: .kaniko
+  stage: runtime
+  script:
+    - sh scripts/kaniko_build_runtime.sh
+
+build_dockersw_complete:
+  extends: .kaniko
+  stage: complete
+  needs:
+    - build_dockersw_runtime
+  timeout: 3h
+  script:
+    - sh scripts/fetch_sw_media.sh
+    - sh scripts/kaniko_build.sh
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $SW_MEDIA_SHA256 && ($SW_MEDIA_URL || $SW_MEDIA_LOCAL_PATH)'
+    - if: '$CI_COMMIT_TAG && $SW_MEDIA_SHA256 && ($SW_MEDIA_URL || $SW_MEDIA_LOCAL_PATH)'
+    - when: manual
+      allow_failure: true
