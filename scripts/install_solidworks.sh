@@ -299,7 +299,8 @@ prepare_regasm_compatibility
 # feature under Wine when msiexec is invoked with only generic MSI switches.
 # Pass the documented command-line deployment properties explicitly. Callers
 # can still override every default with --property or SW_MSI_PROPERTIES_FILE.
-append_default_msi_property "INSTALLDIR" 'C:\Program Files\SOLIDWORKS'
+# Do not pass the package's default INSTALLDIR: Wine releases before the 2026
+# msiexec quoting fix can reject properties containing spaces with MSI 1639.
 append_default_msi_property "ENABLEPERFORMANCE" "0"
 append_default_msi_property "OFFICEOPTION" "3"
 append_default_msi_property "ADDLOCAL" "SolidWorks"

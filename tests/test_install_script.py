@@ -95,10 +95,9 @@ esac
 
     def test_installer_uses_documented_silent_deployment_defaults(self) -> None:
         script = INSTALLER.read_text(encoding="utf-8")
-        self.assertIn(
-            r"""append_default_msi_property "INSTALLDIR" 'C:\Program Files\SOLIDWORKS'""",
-            script,
-        )
+        # Keep the package's own default installation path. Older Wine releases
+        # can turn a property containing spaces into MSI error 1639.
+        self.assertNotIn('append_default_msi_property "INSTALLDIR"', script)
         self.assertIn('append_default_msi_property "OFFICEOPTION" "3"', script)
         self.assertIn('append_default_msi_property "ADDLOCAL" "SolidWorks"', script)
         self.assertIn("msiexec /i \"${MSI_PATH}\" /qb /norestart", script)
