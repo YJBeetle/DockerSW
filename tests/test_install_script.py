@@ -19,11 +19,16 @@ class InstallScriptValidationTests(unittest.TestCase):
             vc.parent.mkdir(parents=True)
             vc.write_bytes(b"test-vc")
 
-    def run_validation(self, media: Path) -> subprocess.CompletedProcess[str]:
+    def run_validation(
+        self, media: Path, *, extra_env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        environment = {**os.environ, "LC_ALL": "C"}
+        if extra_env:
+            environment.update(extra_env)
         return subprocess.run(
             ["bash", str(INSTALLER), "--media", str(media), "--validate-only"],
             cwd=ROOT,
-            env={**os.environ, "LC_ALL": "C"},
+            env=environment,
             text=True,
             capture_output=True,
             check=False,
@@ -44,6 +49,49 @@ class InstallScriptValidationTests(unittest.TestCase):
             result = self.run_validation(media)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("VC++ x64 prerequisite is missing", result.stderr)
+
+    def test_archive_uses_7z_before_a_false_positive_tar_probe(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "solidworks-media"
+            archive.write_bytes(b"fake-iso")
+            fake_bin = root / "bin"
+            fake_bin.mkdir()
+
+            tar = fake_bin / "tar"
+            tar.write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
+            tar.chmod(0o755)
+
+            seven_zip = fake_bin / "7z"
+            seven_zip.write_text(
+                """#!/bin/sh
+set -eu
+case "$1" in
+    t) exit 0 ;;
+    x)
+        destination=""
+        for argument in "$@"; do
+            case "$argument" in
+                -o*) destination="${argument#-o}" ;;
+            esac
+        done
+        test -n "$destination"
+        mkdir -p "$destination/swwi/data" "$destination/PreReqs/VCRedist17"
+        printf msi >"$destination/swwi/data/solidworks.msi"
+        printf vc >"$destination/PreReqs/VCRedist17/VC_redist.x64.exe"
+        ;;
+    *) exit 2 ;;
+esac
+""",
+                encoding="utf-8",
+            )
+            seven_zip.chmod(0o755)
+
+            result = self.run_validation(
+                archive, extra_env={"PATH": f"{fake_bin}:{os.environ['PATH']}"}
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("Validated complete media layout", result.stdout)
 
 
 if __name__ == "__main__":

@@ -137,12 +137,15 @@ prepare_media() {
     TEMP_DIRS+=("${destination}")
     info "Extracting the private installation-media archive..." >&2
 
-    if tar -tf "${source}" >/dev/null 2>&1; then
-        tar -xf "${source}" -C "${destination}"
-    elif command -v 7z >/dev/null 2>&1; then
+    # GNU tar can mistake the leading zero blocks in an ISO image for an empty
+    # tar archive and return success. Let 7-Zip identify arbitrary media first;
+    # keep tar only as a fallback for environments without a capable 7-Zip.
+    if command -v 7z >/dev/null 2>&1 && 7z t "${source}" >/dev/null 2>&1; then
         7z x -y -o"${destination}" "${source}" >/dev/null
+    elif tar -tf "${source}" >/dev/null 2>&1; then
+        tar -xf "${source}" -C "${destination}"
     else
-        die "media archive is not a tar archive and 7z is unavailable"
+        die "installation media is not a supported archive or ISO image"
     fi
     MEDIA_CONTAINER="${destination}"
 }
