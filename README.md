@@ -6,10 +6,11 @@ DockerSWComplete 是仅在内网使用的私有构建与部署层。CI 从受控
 
 ## 流水线
 
-1. `build_dockersw_complete` 根据当前固定的 DockerSW 子模块提交，直接拉取其 GitHub CI 已验证并发布的 `ghcr.io/yjbeetle/dockersw:sha-<短 SHA>` 基础镜像，不在内网重复构建 runtime。
-2. 流水线从内网下载并校验安装介质，执行无头安装。
-3. 最终镜像仅保留安装后的 Wine prefix 和本仓库的内部 FlexNet 服务，不包含 ISO、压缩包或安装日志。
-4. 成品只推送到 GitLab Registry，标签为 `CI_REGISTRY_IMAGE:latest`、`sha-<commit>`；Git tag 流水线还会推送同名版本标签。
+1. `mirror_dockersw_runtime` 根据当前固定的 DockerSW 子模块提交，将 GitHub CI 已验证并发布的 `ghcr.io/yjbeetle/dockersw:sha-<短 SHA>` 原样同步到本项目的 GitLab Registry。相同标签已存在时直接跳过，不重新构建或跨网下载。
+2. `build_dockersw_complete` 只从内网的 `CI_REGISTRY_IMAGE/runtime:sha-<短 SHA>` 拉取基础镜像。
+3. 流水线从内网下载并校验安装介质，执行无头安装。
+4. 最终镜像仅保留安装后的 Wine prefix 和本仓库的内部 FlexNet 服务，不包含 ISO、压缩包或安装日志。
+5. 成品只推送到 GitLab Registry，标签为 `CI_REGISTRY_IMAGE:latest`、`sha-<commit>`；Git tag 流水线还会推送同名版本标签。
 
 ## 安装介质配置
 
@@ -27,7 +28,7 @@ DockerSWComplete 是仅在内网使用的私有构建与部署层。CI 从受控
 
 `CI_REGISTRY`、`CI_REGISTRY_USER`、`CI_REGISTRY_PASSWORD` 和 `CI_REGISTRY_IMAGE` 使用 GitLab 自带变量，不再配置 Docker Hub 凭据。
 
-`DOCKERSW_RUNTIME_IMAGE` 可选；默认按 DockerSW 子模块短 SHA 从 GHCR 选择对应镜像，只在需要临时覆盖基础镜像时设置。
+`DOCKERSW_RUNTIME_IMAGE` 可选；默认使用按 DockerSW 子模块短 SHA 镜像到 GitLab Registry 的 runtime，只在需要临时覆盖基础镜像时设置。
 
 介质可以是 ISO、ZIP、7z 或 tar 系列归档，但解压后必须包含：
 
