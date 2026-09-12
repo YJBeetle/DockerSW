@@ -1,5 +1,4 @@
 stages:
-  - runtime
   - complete
 
 variables:
@@ -20,17 +19,9 @@ variables:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_TAG
 
-build_dockersw_runtime:
-  extends: .kaniko
-  stage: runtime
-  script:
-    - sh scripts/kaniko_build_runtime.sh
-
 build_dockersw_complete:
   extends: .kaniko
   stage: complete
-  needs:
-    - build_dockersw_runtime
   timeout: 3h
   script:
     - sh scripts/fetch_sw_media.sh

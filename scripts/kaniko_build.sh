@@ -5,7 +5,8 @@ set -eu
 : "${CI_REGISTRY_IMAGE:?CI_REGISTRY_IMAGE is required}"
 
 SUBMODULE_HASH="$(sh "${CI_PROJECT_DIR}/scripts/resolve_submodule_hash.sh")"
-RUNTIME_IMAGE="${CI_REGISTRY_IMAGE}/runtime:sha-${SUBMODULE_HASH}"
+RUNTIME_TAG="$(printf '%.7s' "${SUBMODULE_HASH}")"
+RUNTIME_IMAGE="${DOCKERSW_RUNTIME_IMAGE:-ghcr.io/yjbeetle/dockersw:sha-${RUNTIME_TAG}}"
 
 set -- \
   --destination "${CI_REGISTRY_IMAGE}:latest" \
@@ -15,7 +16,7 @@ if [ -n "${CI_COMMIT_TAG:-}" ]; then
   set -- "$@" --destination "${CI_REGISTRY_IMAGE}:${CI_COMMIT_TAG}"
 fi
 
-echo "Building private DockerSWComplete from runtime ${SUBMODULE_HASH}..."
+echo "Building private DockerSWComplete from GitHub runtime ${RUNTIME_IMAGE}..."
 /kaniko/executor \
   --context "${CI_PROJECT_DIR}" \
   --dockerfile "${CI_PROJECT_DIR}/Dockerfile" \
