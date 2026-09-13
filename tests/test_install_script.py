@@ -114,13 +114,23 @@ esac
         # can turn a property containing spaces into MSI error 1639.
         self.assertNotIn('append_default_msi_property "INSTALLDIR"', script)
         self.assertIn('append_default_msi_property "OFFICEOPTION" "3"', script)
-        self.assertIn('append_default_msi_property "ADDLOCAL" "SolidWorks"', script)
+        self.assertIn('append_default_msi_property "INSTALLLEVEL" "100"', script)
+        self.assertIn(
+            'append_default_msi_property "ADDLOCAL" "SolidWorks,ProgramFiles,'
+            'i386_ProgramFiles,i386_ThirdPtyFiles,i386_DCubeFiles,i386_SWFiles,'
+            'i386_VistaFiles"',
+            script,
+        )
         self.assertIn("msiexec /i \"${MSI_PATH}\" /qb /norestart", script)
         self.assertIn(
             'msiexec /i "${LOGIN_MANAGER_INSTALLER}" /qn /norestart', script
         )
         self.assertLess(
             script.index('msiexec /i "${LOGIN_MANAGER_INSTALLER}"'),
+            script.index('Importing private installer registry file:'),
+        )
+        self.assertLess(
+            script.index('Importing private installer registry file:'),
             script.index('msiexec /i "${MSI_PATH}"'),
         )
         self.assertIn("sldLoginManager.LoginManager", script)
@@ -129,6 +139,8 @@ esac
         self.assertIn(
             'find "${WINEPREFIX}/drive_c" -type f -iname SLDWORKS.exe', script
         )
+        self.assertIn('info "Stopping background Wine helpers', script)
+        self.assertIn("wineserver -k || true", script)
 
     def test_runtime_versions_and_both_mono_patches_are_pinned(self) -> None:
         config = (ROOT / "docker" / "managed_com.env").read_text(encoding="utf-8")

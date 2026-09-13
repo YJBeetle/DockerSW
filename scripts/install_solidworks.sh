@@ -266,14 +266,6 @@ fi
 info "Preparing the verified Wine-Mono stdcall and managed COM registration runtime."
 /usr/local/lib/dockersw/prepare_managed_com.sh
 
-if [ -n "${REGISTRY_DIR}" ]; then
-    [ -d "${REGISTRY_DIR}" ] || die "registry directory does not exist"
-    while IFS= read -r -d '' registry_file; do
-        info "Importing private installer registry file: $(basename "${registry_file}")"
-        run_installer "registry import" wine regedit /S "${registry_file}"
-    done < <(find "${REGISTRY_DIR}" -maxdepth 1 -type f -iname '*.reg' -print0 | sort -z)
-fi
-
 VC_LOG_WINDOWS="$(winepath -w "${LOG_DIR}/vcredist-x64.log")"
 run_installer "Microsoft VC++ x64 prerequisite" \
     wine "${VC_INSTALLER}" /install /quiet /norestart /log "${VC_LOG_WINDOWS}"
@@ -307,15 +299,31 @@ printf '%s' "${LOGIN_MANAGER_REGISTRY}" | grep -Fqi 'sldLoginManager.dll' \
     || die "Login Manager COM registration is missing the assembly CodeBase"
 info "Verified real SOLIDWORKS Login Manager managed COM registration."
 
-# SOLIDWORKS' quiet-mode custom action does not reliably select the core
-# feature under Wine when msiexec is invoked with only generic MSI switches.
-# Pass the documented command-line deployment properties explicitly. Callers
-# can still override every default with --property or SW_MSI_PROPERTIES_FILE.
+# Match the validated WineSW deployment order: prerequisites and the official
+# Login Manager first, then private installer settings immediately before the
+# main MSI performs AppSearch.
+if [ -n "${REGISTRY_DIR}" ]; then
+    [ -d "${REGISTRY_DIR}" ] || die "registry directory does not exist"
+    while IFS= read -r -d '' registry_file; do
+        info "Importing private installer registry file: $(basename "${registry_file}")"
+        run_installer "registry import" wine regedit /S "${registry_file}"
+    done < <(find "${REGISTRY_DIR}" -maxdepth 1 -type f -iname '*.reg' -print0 | sort -z)
+fi
+
+# SOLIDWORKS' MSI defines its core feature tree at level 100. Interactive
+# installation raises INSTALLLEVEL to 100 and explicitly selects nested
+# features through the feature-selection UI. A quiet msiexec has neither, and
+# ADDLOCAL=SolidWorks alone does not select every nested dependency under Wine.
+# Select the minimal core chain explicitly, including SLDWORKS.exe and the
+# native geometry dependencies needed by the package's registration actions.
+# Callers can still override every default with --property or
+# SW_MSI_PROPERTIES_FILE.
 # Do not pass the package's default INSTALLDIR: Wine releases before the 2026
 # msiexec quoting fix can reject properties containing spaces with MSI 1639.
 append_default_msi_property "ENABLEPERFORMANCE" "0"
 append_default_msi_property "OFFICEOPTION" "3"
-append_default_msi_property "ADDLOCAL" "SolidWorks"
+append_default_msi_property "INSTALLLEVEL" "100"
+append_default_msi_property "ADDLOCAL" "SolidWorks,ProgramFiles,i386_ProgramFiles,i386_ThirdPtyFiles,i386_DCubeFiles,i386_SWFiles,i386_VistaFiles"
 
 MSI_LOG_WINDOWS="$(winepath -w "${LOG_DIR}/solidworks-msi.log")"
 MSI_ARGUMENTS=(
@@ -324,7 +332,15 @@ MSI_ARGUMENTS=(
 )
 MSI_ARGUMENTS+=("${MSI_PROPERTIES[@]}")
 run_installer "SOLIDWORKS MSI" wine "${MSI_ARGUMENTS[@]}"
-timeout --foreground 600 wineserver -w || die "wineserver did not settle after SOLIDWORKS installation"
+if ! timeout --foreground 600 wineserver -w; then
+    # The package can leave optional updater/UI helpers alive after msiexec has
+    # committed the installation. They are not part of the installed runtime
+    # and must not keep an image build open indefinitely.
+    info "Stopping background Wine helpers left after SOLIDWORKS installation."
+    wineserver -k || true
+    timeout --foreground 60 wineserver -w \
+        || die "wineserver did not stop after SOLIDWORKS installation"
+fi
 
 SW_EXE="$(find "${WINEPREFIX}/drive_c" -type f -iname SLDWORKS.exe -print -quit)"
 [ -n "${SW_EXE}" ] || die "installer returned success but SLDWORKS.exe was not found"
