@@ -24,7 +24,7 @@ fi
 
 echo "Mirroring DockerSW runtime from GHCR to GitLab Registry..."
 attempt=1
-while ! crane copy "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}"; do
+while ! crane copy --platform linux/amd64 "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}"; do
   if [ "${attempt}" -ge 5 ]; then
     echo "Unable to mirror DockerSW runtime after ${attempt} attempts" >&2
     exit 1
