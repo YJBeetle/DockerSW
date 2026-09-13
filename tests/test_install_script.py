@@ -132,11 +132,18 @@ esac
 
     def test_runtime_versions_and_both_mono_patches_are_pinned(self) -> None:
         config = (ROOT / "docker" / "managed_com.env").read_text(encoding="utf-8")
+        dockerfile = (ROOT / "docker" / "Dockerfile").read_text(encoding="utf-8")
         prepare = (ROOT / "docker" / "prepare_managed_com.sh").read_text(
             encoding="utf-8"
         )
         self.assertIn('WINE_VERSION="11.16"', config)
         self.assertIn('WINE_MONO_VERSION="11.3.0"', config)
+        # Pin every package in the WineHQ dependency chain. Otherwise apt picks
+        # the newest wine-devel candidate and rejects the older meta-package.
+        self.assertIn('"wine-devel-amd64=${WINE_PACKAGE_VERSION}"', dockerfile)
+        self.assertIn('"wine-devel-i386:i386=${WINE_PACKAGE_VERSION}"', dockerfile)
+        self.assertIn('"wine-devel=${WINE_PACKAGE_VERSION}"', dockerfile)
+        self.assertIn('"winehq-devel=${WINE_PACKAGE_VERSION}"', dockerfile)
         self.assertIn("libmono-2.0-x86.dll", prepare)
         self.assertIn("mscorlib.dll", prepare)
         self.assertIn("regasm-x86.exe", prepare)

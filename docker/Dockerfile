@@ -38,7 +38,11 @@ RUN dpkg --add-architecture i386 && \
 COPY docker/managed_com.env /opt/dockersw/managed_com.env
 RUN . /opt/dockersw/managed_com.env && \
     apt-get update && \
-    apt-get install -y --install-recommends "winehq-devel=${WINE_PACKAGE_VERSION}" && \
+    apt-get install -y --install-recommends \
+        "wine-devel-amd64=${WINE_PACKAGE_VERSION}" \
+        "wine-devel-i386:i386=${WINE_PACKAGE_VERSION}" \
+        "wine-devel=${WINE_PACKAGE_VERSION}" \
+        "winehq-devel=${WINE_PACKAGE_VERSION}" && \
     test "$(wine --version)" = "wine-${WINE_VERSION}" && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
