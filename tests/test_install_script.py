@@ -10,7 +10,9 @@ INSTALLER = ROOT / "scripts" / "install_solidworks.sh"
 
 
 class InstallScriptValidationTests(unittest.TestCase):
-    def create_media(self, root: Path, include_vc: bool = True) -> None:
+    def create_media(
+        self, root: Path, include_vc: bool = True, include_login_manager: bool = True
+    ) -> None:
         msi = root / "swwi" / "data" / "solidworks.msi"
         msi.parent.mkdir(parents=True)
         msi.write_bytes(b"test-msi")
@@ -18,6 +20,10 @@ class InstallScriptValidationTests(unittest.TestCase):
             vc = root / "PreReqs" / "VCRedist17" / "VC_redist.x64.exe"
             vc.parent.mkdir(parents=True)
             vc.write_bytes(b"test-vc")
+        if include_login_manager:
+            login_manager = root / "swloginmgr" / "SOLIDWORKS Login Manager.msi"
+            login_manager.parent.mkdir(parents=True)
+            login_manager.write_bytes(b"test-login-manager")
 
     def run_validation(
         self, media: Path, *, extra_env: dict[str, str] | None = None
@@ -50,6 +56,14 @@ class InstallScriptValidationTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("VC++ x64 prerequisite is missing", result.stderr)
 
+    def test_rejects_media_without_login_manager(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            media = Path(temporary)
+            self.create_media(media, include_login_manager=False)
+            result = self.run_validation(media)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("SOLIDWORKS Login Manager MSI is missing", result.stderr)
+
     def test_archive_uses_7z_before_a_false_positive_tar_probe(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -76,9 +90,10 @@ case "$1" in
             esac
         done
         test -n "$destination"
-        mkdir -p "$destination/swwi/data" "$destination/PreReqs/VCRedist17"
+        mkdir -p "$destination/swwi/data" "$destination/PreReqs/VCRedist17" "$destination/swloginmgr"
         printf msi >"$destination/swwi/data/solidworks.msi"
         printf vc >"$destination/PreReqs/VCRedist17/VC_redist.x64.exe"
+        printf login >"$destination/swloginmgr/SOLIDWORKS Login Manager.msi"
         ;;
     *) exit 2 ;;
 esac
@@ -102,8 +117,30 @@ esac
         self.assertIn('append_default_msi_property "ADDLOCAL" "SolidWorks"', script)
         self.assertIn("msiexec /i \"${MSI_PATH}\" /qb /norestart", script)
         self.assertIn(
+            'msiexec /i "${LOGIN_MANAGER_INSTALLER}" /qn /norestart', script
+        )
+        self.assertLess(
+            script.index('msiexec /i "${LOGIN_MANAGER_INSTALLER}"'),
+            script.index('msiexec /i "${MSI_PATH}"'),
+        )
+        self.assertIn("sldLoginManager.LoginManager", script)
+        self.assertIn("mscoree.dll", script)
+        self.assertNotIn("RegAsm compatibility stub", script)
+        self.assertIn(
             'find "${WINEPREFIX}/drive_c" -type f -iname SLDWORKS.exe', script
         )
+
+    def test_runtime_versions_and_both_mono_patches_are_pinned(self) -> None:
+        config = (ROOT / "docker" / "managed_com.env").read_text(encoding="utf-8")
+        prepare = (ROOT / "docker" / "prepare_managed_com.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('WINE_VERSION="11.16"', config)
+        self.assertIn('WINE_MONO_VERSION="11.3.0"', config)
+        self.assertIn("libmono-2.0-x86.dll", prepare)
+        self.assertIn("mscorlib.dll", prepare)
+        self.assertIn("regasm-x86.exe", prepare)
+        self.assertIn("regasm-x86_64.exe", prepare)
 
 
 if __name__ == "__main__":

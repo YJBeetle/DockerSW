@@ -13,7 +13,7 @@ ENV PYTHON_VERSION=3.11.9
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 
-# 1. 配置系统基础依赖与 WineHQ 仓库
+# 1. 配置系统基础依赖与 WineHQ 仓库。
 RUN dpkg --add-architecture i386 && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -31,26 +31,35 @@ RUN dpkg --add-architecture i386 && \
         locales && \
     mkdir -pm755 /etc/apt/keyrings && \
     wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key && \
-    wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources && \
+    wget -O /etc/apt/sources.list.d/winehq-jammy.sources https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources
+
+# 与 WineSW 已验证环境保持 Wine 11.16 / Wine-Mono 11.3.0 一致，但不引入
+# 仅适用于 macOS 的 winemac/win32u 补丁。
+COPY docker/managed_com.env /opt/dockersw/managed_com.env
+RUN . /opt/dockersw/managed_com.env && \
     apt-get update && \
-    apt-get install -y --install-recommends wine-stable-amd64 wine-stable-i386 winehq-stable && \
+    apt-get install -y --install-recommends "winehq-devel=${WINE_PACKAGE_VERSION}" && \
+    test "$(wine --version)" = "wine-${WINE_VERSION}" && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 2. 下载 Windows Python 官方安装包与 Wine-Mono 官方运行时。
-# Wine-Mono MSI 必须避开 Wine 的自动发现目录，等 wineboot 完成后再显式安装。
+# 2. 下载 Windows Python、Wine-Mono 以及已验证的 stdcall/COM 注册组件。
+# 所有外部二进制均固定版本并执行 SHA256 校验，不提交到公开仓库。
+COPY docker/fetch_managed_com.sh /tmp/fetch_managed_com.sh
 RUN wget -q "https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-amd64.exe" -O /tmp/python-installer.exe && \
-    mkdir -p /opt/dockersw/cache && \
-    wget -q "https://dl.winehq.org/wine/wine-mono/11.0.0/wine-mono-11.0.0-x86.msi" -O /opt/dockersw/cache/wine-mono-11.0.0-x86.msi
+    chmod +x /tmp/fetch_managed_com.sh && \
+    /tmp/fetch_managed_com.sh && \
+    rm -f /tmp/fetch_managed_com.sh
 
 # 3. 复制注册表配置与初始化脚本
 COPY docker/registry/headless_tweaks.reg /tmp/headless_tweaks.reg
 COPY docker/registry/license_template.reg /tmp/license_template.reg
 COPY docker/registry/sw_com_classes.reg /tmp/sw_com_classes.reg
 COPY docker/init_wineprefix.sh /tmp/init_wineprefix.sh
+COPY docker/prepare_managed_com.sh /usr/local/lib/dockersw/prepare_managed_com.sh
 
-# 4. 执行 WinePrefix 初始化（先创建干净 prefix，再显式安装 Mono、Python 与 pywin32）
-RUN chmod +x /tmp/init_wineprefix.sh && \
+# 4. 执行 WinePrefix 初始化（先创建干净 prefix，再显式安装并修补 Mono、Python 与 pywin32）
+RUN chmod +x /tmp/init_wineprefix.sh /usr/local/lib/dockersw/prepare_managed_com.sh && \
     /tmp/init_wineprefix.sh && \
     rm -rf /tmp/*
 

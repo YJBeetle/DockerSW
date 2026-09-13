@@ -42,14 +42,22 @@ if [ -d "${VC_DLLS_DIR}" ]; then
     cp -n "${VC_DLLS_DIR}"/*.dll "${WINEPREFIX}/drive_c/windows/system32/" 2>/dev/null || true
 fi
 
-# 3. 自动检测并安装 Wine-Mono (.NET CLR 运行时，若未预装)
-if [ ! -d "${WINEPREFIX}/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319" ]; then
-    MONO_MSI=$(ls /opt/wine-mono*.msi /tmp/wine-mono*.msi /usr/share/wine/mono/wine-mono*.msi /opt/wine-stable/share/wine/mono/wine-mono*.msi 2>/dev/null | head -n 1 || true)
-    if [ -n "${MONO_MSI}" ] && [ -f "${MONO_MSI}" ]; then
-        echo "[DockerSW] 正在静默安装 Wine-Mono 运行库 (${MONO_MSI})..."
-        wine msiexec /i "${MONO_MSI}" /quiet >/dev/null 2>&1 || true
+# 3. 自动检测并安装 Wine-Mono，然后校验/配置 stdcall 与托管 COM 注册组件。
+# 这也覆盖用户挂载一个全新 WINEPREFIX 的场景。
+MONO_ROOT="${WINEPREFIX}/drive_c/windows/mono/mono-2.0"
+if [ ! -d "${MONO_ROOT}" ]; then
+    MONO_MSI=$(find /opt/dockersw/cache -maxdepth 1 -type f -name 'wine-mono*.msi' -print -quit 2>/dev/null || true)
+    if [ -z "${MONO_MSI}" ] || [ ! -f "${MONO_MSI}" ]; then
+        echo "[DockerSW][ERROR] 未找到内置 Wine-Mono 安装包" >&2
+        exit 1
     fi
+    echo "[DockerSW] 正在静默安装 Wine-Mono 运行库 (${MONO_MSI})..."
+    WINEDLLOVERRIDES="mshtml=" wine msiexec /i "${MONO_MSI}" /quiet /norestart
+    wineserver -w
 fi
+
+echo "[DockerSW] 正在校验 Wine-Mono stdcall 与托管 COM 注册组件..."
+/usr/local/lib/dockersw/prepare_managed_com.sh
 
 # 4. 映射或验证 SolidWorks 程序目录
 C_SW_CORP="${WINEPREFIX}/drive_c/Program Files/SOLIDWORKS Corp"

@@ -8,7 +8,6 @@ MSI_RELATIVE_PATH="${SW_MSI_RELATIVE_PATH:-swwi/data/solidworks.msi}"
 LOG_DIR="${SW_INSTALL_LOG_DIR:-/var/log/dockersw-install}"
 INSTALL_TIMEOUT="${SW_INSTALL_TIMEOUT:-10800}"
 VALIDATE_ONLY=false
-REGASM_COMPAT="${SW_REGASM_COMPAT:-true}"
 INSTALL_WPF_THEMES="${SW_INSTALL_WPF_THEMES:-true}"
 MSI_PROPERTIES=()
 TEMP_DIRS=()
@@ -35,7 +34,7 @@ Options:
 Environment equivalents:
   SW_MEDIA_PATH, SW_INSTALL_REGISTRY_DIR, SW_MSI_RELATIVE_PATH,
   SW_MSI_PROPERTIES_FILE, SW_INSTALL_LOG_DIR, SW_INSTALL_TIMEOUT,
-  SW_REGASM_COMPAT, SW_INSTALL_WPF_THEMES, WINEPREFIX.
+  SW_INSTALL_WPF_THEMES, WINEPREFIX.
 
 The MSI log can contain serial-number properties. Keep the log directory private.
 EOF
@@ -164,8 +163,10 @@ else
 fi
 
 VC_INSTALLER="${MEDIA_ROOT}/PreReqs/VCRedist17/VC_redist.x64.exe"
+LOGIN_MANAGER_INSTALLER="${MEDIA_ROOT}/swloginmgr/SOLIDWORKS Login Manager.msi"
 [ -s "${MSI_PATH}" ] || die "SOLIDWORKS MSI is empty"
 [ -s "${VC_INSTALLER}" ] || die "official VC++ x64 prerequisite is missing"
+[ -s "${LOGIN_MANAGER_INSTALLER}" ] || die "official SOLIDWORKS Login Manager MSI is missing"
 
 info "Validated complete media layout and official prerequisite files."
 if [ "${VALIDATE_ONLY}" = true ]; then
@@ -250,6 +251,21 @@ fi
 
 run_installer "Wine prefix probe" wine cmd /c ver
 
+MONO_ROOT="${WINEPREFIX}/drive_c/windows/mono/mono-2.0"
+if [ ! -d "${MONO_ROOT}" ]; then
+    MONO_INSTALLER="$(find /opt/dockersw/cache -maxdepth 1 -type f -name 'wine-mono*.msi' -print -quit 2>/dev/null || true)"
+    [ -n "${MONO_INSTALLER}" ] && [ -f "${MONO_INSTALLER}" ] \
+        || die "Wine-Mono is not installed and the verified installer cache is missing"
+    run_installer "Wine-Mono" env WINEDLLOVERRIDES="mshtml=" \
+        wine msiexec /i "${MONO_INSTALLER}" /quiet /norestart
+    timeout --foreground 300 wineserver -w || die "wineserver did not settle after Wine-Mono installation"
+fi
+
+[ -x /usr/local/lib/dockersw/prepare_managed_com.sh ] \
+    || die "managed COM preparation helper is unavailable"
+info "Preparing the verified Wine-Mono stdcall and managed COM registration runtime."
+/usr/local/lib/dockersw/prepare_managed_com.sh
+
 if [ -n "${REGISTRY_DIR}" ]; then
     [ -d "${REGISTRY_DIR}" ] || die "registry directory does not exist"
     while IFS= read -r -d '' registry_file; do
@@ -271,29 +287,25 @@ for library in "${VC_LIBRARIES[@]}"; do
         || die "VC++ prerequisite completed but ${library}.dll is missing"
 done
 
-prepare_regasm_compatibility() {
-    [ "${REGASM_COMPAT}" = true ] || return
-    local architecture framework source target existing
-    for mapping in "x86_64-windows:Framework64" "i386-windows:Framework"; do
-        architecture="${mapping%%:*}"
-        framework="${mapping#*:}"
-        source="$(find /opt/wine-stable /usr/lib -type f -path "*/${architecture}/regasm.exe" -print -quit 2>/dev/null || true)"
-        [ -n "${source}" ] || die "Wine ${architecture} RegAsm compatibility stub was not found"
-        target="${WINEPREFIX}/drive_c/windows/Microsoft.NET/${framework}/v4.0.30319/regasm.exe"
-        mkdir -p "$(dirname "${target}")"
-        existing="$(find "$(dirname "${target}")" -maxdepth 1 -type f -iname regasm.exe -print -quit)"
-        if [ -n "${existing}" ] && ! cmp -s "${source}" "${existing}"; then
-            die "refusing to replace a different RegAsm implementation at ${existing}"
-        fi
-        cp "${source}" "${target}"
-    done
-    printf '%s\n' \
-        'Wine RegAsm compatibility is enabled for installation continuity.' \
-        'Managed COM registration is skipped, not completed.' \
-        >"${LOG_DIR}/regasm-compatibility.log"
-}
+LOGIN_MANAGER_LOG_WINDOWS="$(winepath -w "${LOG_DIR}/login-manager-install.log")"
+run_installer "SOLIDWORKS Login Manager MSI" \
+    wine msiexec /i "${LOGIN_MANAGER_INSTALLER}" /qn /norestart DISABLEROLLBACK=1 \
+    /l*v "${LOGIN_MANAGER_LOG_WINDOWS}"
+timeout --foreground 300 wineserver -w || die "wineserver did not settle after Login Manager installation"
 
-prepare_regasm_compatibility
+LOGIN_MANAGER_DLL="${WINEPREFIX}/drive_c/Program Files/Common Files/SOLIDWORKS Shared/LoginManager/sldLoginManager.dll"
+[ -s "${LOGIN_MANAGER_DLL}" ] \
+    || die "Login Manager installer exited successfully but sldLoginManager.dll is missing"
+
+LOGIN_MANAGER_CLSID='{69EF7FA2-6705-47CF-AA78-2E4264D24EB3}'
+LOGIN_MANAGER_REGISTRY="$(wine reg query "HKCR\\CLSID\\${LOGIN_MANAGER_CLSID}\\InprocServer32" /s 2>/dev/null || true)"
+printf '%s' "${LOGIN_MANAGER_REGISTRY}" | grep -Fqi 'mscoree.dll' \
+    || die "Login Manager COM registration is missing the mscoree.dll host"
+printf '%s' "${LOGIN_MANAGER_REGISTRY}" | grep -Fqi 'sldLoginManager.LoginManager' \
+    || die "Login Manager COM registration is missing its managed class"
+printf '%s' "${LOGIN_MANAGER_REGISTRY}" | grep -Fqi 'sldLoginManager.dll' \
+    || die "Login Manager COM registration is missing the assembly CodeBase"
+info "Verified real SOLIDWORKS Login Manager managed COM registration."
 
 # SOLIDWORKS' quiet-mode custom action does not reliably select the core
 # feature under Wine when msiexec is invoked with only generic MSI switches.

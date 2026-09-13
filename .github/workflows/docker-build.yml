@@ -34,6 +34,8 @@ jobs:
         run: |
           bash -n docker/init_wineprefix.sh
           bash -n docker/entrypoint.sh
+          bash -n docker/fetch_managed_com.sh
+          bash -n docker/prepare_managed_com.sh
           bash -n scripts/dockersw-export
           bash -n scripts/install_solidworks.sh
 
@@ -76,18 +78,22 @@ jobs:
           echo "[CI] 正在构建 DockerSW 基础镜像..."
           docker build --progress=plain -f docker/Dockerfile -t dockersw:local-test .
 
-      - name: Smoke Test (Wine, Python, pywin32 & CLI)
+      - name: Smoke Test (Wine, Mono COM, Python, pywin32 & CLI)
         run: |
-          echo "[CI] 验证 1: 测试 Wine Windows 虚拟版本..."
+          echo "[CI] 验证 1: 测试固定 Wine 版本与 Windows 虚拟版本..."
+          test "$(docker run --rm --entrypoint wine dockersw:local-test --version)" = "wine-11.16"
           docker run --rm dockersw:local-test wine cmd /c ver
 
-          echo "[CI] 验证 2: 测试 Windows Python 3.11 与 pywin32 COM 模块就绪..."
+          echo "[CI] 验证 2: 测试 Wine-Mono stdcall 与托管 COM 注册组件..."
+          docker run --rm dockersw:local-test /usr/local/lib/dockersw/prepare_managed_com.sh
+
+          echo "[CI] 验证 3: 测试 Windows Python 3.11 与 pywin32 COM 模块就绪..."
           docker run --rm dockersw:local-test wine "C:\\Python311\\python.exe" -c "import win32com.client, pythoncom; print('[HEALTH CHECK OK] Windows Python & pywin32 ready')"
 
-          echo "[CI] 验证 3: 运行 dockersw-export 导出工具命令行..."
+          echo "[CI] 验证 4: 运行 dockersw-export 导出工具命令行..."
           docker run --rm dockersw:local-test dockersw-export --help
 
-          echo "[CI] 验证 4: 安装器命令已内置..."
+          echo "[CI] 验证 5: 安装器命令已内置..."
           docker run --rm dockersw:local-test dockersw-install --help
 
       - name: Push Image to GHCR

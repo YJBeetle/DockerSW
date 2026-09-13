@@ -10,14 +10,16 @@
 
 ## 🌟 核心特性
 
-- 📦 **版权完全隔离与两阶段构建**：公开仓库**不包含任何 SolidWorks 商业专有二进制或授权文件**，仅构建通用轻量运行时（Ubuntu + Wine 64 + Xvfb + Windows Python 3.11 + pywin32）。
+- 📦 **版权完全隔离与两阶段构建**：公开仓库**不包含任何 SolidWorks 商业专有二进制或授权文件**，仅构建通用运行时（Ubuntu + Wine 11.16 + Wine-Mono 11.3.0 + Xvfb + Windows Python 3.11 + pywin32）。
+- 🧩 **真实 Login Manager/COM 安装链**：运行时内置与 WineSW 相同的 x86 stdcall、`RegistrationServices`、x86/x64 托管 RegAsm 与 `stdole` 修复；`dockersw-install` 会在主 MSI 前安装介质中的官方 Login Manager，并校验真实 CLSID、`mscoree.dll`、托管类与 CodeBase。
 - 🚀 **开箱即用的导出引擎 (`dockersw-export`)**：
   - 零件与装配体 (`.SLDPRT` / `.SLDASM`) ➡️ 导出为 `.STEP`；
   - 工程图 (`.SLDDRW`) ➡️ 同步导出为 `.PDF` 与 `.DWG`；
   - 渲染模型 (`*.REND.SLDASM`) ➡️ 导出为 `.GLB`；
   - 自动识别 Linux / Wine Windows 绝对与相对路径，清单无需反斜杠改造。
 - 🛡️ **CI 静默保障与异常兜底**：
-  - 底层注册表自动屏蔽登录窗口（`EnableSldLoginManager=0`）与崩溃阻断弹窗（`AeDebug=0`）；
+  - 安装所需的 Login Manager 与托管 COM，不把缺少组件导致的致命弹窗误判为可忽略提示；
+  - 底层注册表关闭登录入口（`EnableSldLoginManager=0`）与崩溃调试器（`AeDebug=0`）；
   - 核心 API 采用 `OpenDoc6(swOpenDocOptions_Silent)` 与 `SaveAs3(swSaveAsOptions_Silent)`；
   - 单个文件失败不中断批处理，最终统计并输出清晰的 Exit Code（全部成功返回 0，失败返回 1）。
 - 🔌 **智能许可管理**：支持内网浮动授权（`SW_LICENSE_SERVER`）与本地授权守护自启（`START_LOCAL_LICENSE`）双模式。
@@ -34,7 +36,8 @@
          ┌──────────────────────────────────────────────┐
          │ Ubuntu 22.04 LTS x86_64                      │
          │  ├─ Xvfb (:99 无头虚拟屏幕, 保障 COM 消息泵) │
-         │  ├─ Wine 64-bit 运行时环境                   │
+         │  ├─ Wine 11.16 + Wine-Mono 11.3.0           │
+         │  ├─ stdcall 与托管 COM 注册修复              │
          │  ├─ Windows Python 3.11 + pywin32            │
          │  ├─ 无头优化注册表 (跳过登录/EULA/崩溃弹窗)   │
          │  └─ dockersw-export 命令行批处理工具         │
@@ -65,6 +68,16 @@
 ---
 
 ## 🚀 快速上手与使用示例
+
+### 0. 从合法取得的官方完整介质静默安装
+
+`dockersw-install` 接受已解压目录、ISO 或受支持的归档。介质必须同时包含主 MSI、VC++ 运行库以及 `swloginmgr/SOLIDWORKS Login Manager.msi`：
+
+```bash
+dockersw-install --media /private-media/SOLIDWORKS.iso
+```
+
+脚本会依次准备固定版本的 Wine-Mono COM 运行时、安装 VC++、静默安装 Login Manager、验证其真实 COM 注册，再执行 SOLIDWORKS 主 MSI。安装日志可能包含序列号属性，默认仅保存在权限受限的 `/var/log/dockersw-install`。公开镜像不下载、不内置 SOLIDWORKS 安装介质或授权内容。
 
 ### 1. 本地 / 服务器 Docker Compose 挂载调试
 
@@ -199,7 +212,7 @@ DockerSW_Assets/
 python3 -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-CI 构建期间，GitHub Actions 还会拉起真实容器测试 Wine 虚拟系统环境与 Windows Python `win32com` 模块的就绪情况。
+CI 构建期间，GitHub Actions 还会拉起真实容器，校验 Wine 11.16、Wine-Mono 11.3.0 的 stdcall/托管 COM 注册组件，以及 Windows Python `win32com` 模块。SOLIDWORKS 与 Login Manager 的实际安装测试由持有合法介质的私有下游流水线完成。
 
 ---
 

@@ -41,6 +41,11 @@ fi
 # 后续 Windows 程序使用已经显式安装的 Wine-Mono，仅继续禁用 Gecko。
 export WINEDLLOVERRIDES="mshtml="
 
+# 使用与 WineSW 相同、同源构建且经过校验的 x86 stdcall 与托管 COM
+# 注册组件。这里只替换 Wine-Mono 组件，不引入任何 macOS Wine 补丁。
+echo "[INFO] 配置 Wine-Mono stdcall 与托管 COM 注册运行时..."
+/usr/local/lib/dockersw/prepare_managed_com.sh
+
 # 4. 导入无头预配注册表与 COM 类定义
 echo "[INFO] 导入无头优化注册表与 COM 类映射..."
 wine regedit /S /tmp/headless_tweaks.reg
