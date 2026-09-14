@@ -37,7 +37,7 @@ jobs:
           bash -n docker/fetch_managed_com.sh
           bash -n docker/prepare_managed_com.sh
           bash -n scripts/sw-export
-          bash -n scripts/install_solidworks.sh
+          bash -n scripts/sw-install
 
       - name: Run Logic Tests
         run: |
