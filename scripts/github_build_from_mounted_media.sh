@@ -114,5 +114,3 @@ docker commit \
     "${install_container}" "${SW_IMAGE}:${SW_IMAGE_SHA_TAG}"
 
 docker tag "${SW_IMAGE}:${SW_IMAGE_SHA_TAG}" "${SW_IMAGE}:latest"
-docker push "${SW_IMAGE}:${SW_IMAGE_SHA_TAG}"
-docker push "${SW_IMAGE}:latest"

@@ -73,7 +73,11 @@ ghcr.io/yjbeetle/sw-preinstalled:latest
 ghcr.io/yjbeetle/sw-preinstalled:sha-<仓库提交>
 ```
 
-流水线只在 Google Drive 配置步骤中读取 Secret，将临时配置文件设为 `0600`，并在结束时删除。它通过临时安装容器和 `docker commit` 固化 Wine prefix，以保留 FUSE/loop mount 的按需读取特性；挂载目录不会进入成品镜像。安装成功时日志会在提交镜像前删除；安装失败时会上传保留 1 天的私有 Actions artifact 供排查。
+流水线只在 Google Drive 配置步骤中读取 Secret，将临时配置文件设为 `0600`，并在结束时删除。它通过临时安装容器和 `docker commit` 固化 Wine prefix，以保留 FUSE/loop mount 的按需读取特性；挂载目录不会进入成品镜像。
+
+镜像生成后、推送 GHCR 前，CI 会使用镜像内置的 SOLIDWORKS 样例真实运行一次 `sw-export`：两个工程图分别导出 PDF 与 DWG，一个装配体和一个零件分别导出 STEP，并验证全部 6 个结果文件非空。只有该端到端测试成功后才发布 SHA 标签和 `latest`。
+
+安装成功时日志会在提交镜像前删除；安装失败时会上传保留 14 天的私有 Actions artifact 供排查。导出测试失败时也会上传保留 14 天的独立诊断日志。
 
 ## 许可服务
 
