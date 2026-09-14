@@ -15,8 +15,8 @@ DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、�
 ## 核心能力
 
 - **可复现的公开运行时**：Ubuntu 22.04、Wine 11.16、Wine-Mono 11.3.0、Xvfb、Windows Python 3.11 与 pywin32。
-- **完整安装链**：检查介质布局，安装 VC++ 运行库与官方 Login Manager，再执行 SOLIDWORKS 主 MSI。
-- **Wine COM 兼容修复**：包含与 WineSW 对齐的 x86 stdcall、`RegistrationServices`、x86/x64 托管 RegAsm 与 `stdole` 修复，并验证 Login Manager 的真实 COM 注册。
+- **完整安装链**：检查介质布局，安装 VC++ 运行库与官方 Login Manager，再执行 SOLIDWORKS 主 MSI，并验证 MSI 产生的主程序 COM 注册。
+- **Wine COM 兼容修复**：包含与 WineSW 对齐的 x86 stdcall、`RegistrationServices`、x86/x64 托管 RegAsm 与 `stdole` 修复，并验证 Login Manager 的真实托管 COM 注册。
 - **显式 EULA 处理**：仅在调用者传入 `--accept-eula` 后，才根据 MSI 版本写入对应的接受标记；公共运行时不预置接受状态。
 - **无头批量导出**：
   - `.SLDPRT` / `.SLDASM` 导出为 `.STEP`；
@@ -81,7 +81,7 @@ sw-install \
 - 该参数不会下载软件、授予许可证、配置序列号，也不能替代调用者审阅和遵守实际协议；
 - 出于需要显式确认的考虑，`--accept-eula` **没有环境变量等价项**。
 
-脚本随后会准备固定版本的 Wine-Mono COM 环境，安装 VC++ 与官方 Login Manager，验证真实 COM 注册，执行主 MSI，并确认 `SLDWORKS.exe` 已产生。安装日志默认写入权限受限的 `/var/log/sw-install`；日志可能包含 MSI 属性或序列号，应仅保存在可信私有环境。
+脚本随后会准备固定版本的 Wine-Mono COM 环境，安装 VC++ 与官方 Login Manager，验证真实托管 COM 注册，执行主 MSI，确认 `SLDWORKS.exe` 已产生，并检查 `SldWorks.Application`、`LocalServer32`、`VersionIndependentProgID` 和 TypeLib 均由 MSI 正确注册。安装日志默认写入权限受限的 `/var/log/sw-install`；日志可能包含 MSI 属性或序列号，应仅保存在可信私有环境。
 
 > [!NOTE]
 > 直接在一次性 `docker run --rm` 容器中安装不会保留结果。生产使用应在私有 Dockerfile 中执行安装，或将整个 `WINEPREFIX` 持久化。

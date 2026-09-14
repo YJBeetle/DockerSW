@@ -59,7 +59,6 @@ RUN wget -q "https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON
 # 3. 复制注册表配置与初始化脚本
 COPY docker/registry/headless_tweaks.reg /tmp/headless_tweaks.reg
 COPY docker/registry/license_template.reg /tmp/license_template.reg
-COPY docker/registry/sw_com_classes.reg /tmp/sw_com_classes.reg
 COPY docker/init_wineprefix.sh /tmp/init_wineprefix.sh
 COPY docker/prepare_managed_com.sh /usr/local/lib/sw-runtime/prepare_managed_com.sh
 
@@ -68,10 +67,9 @@ RUN chmod +x /tmp/init_wineprefix.sh /usr/local/lib/sw-runtime/prepare_managed_c
     /tmp/init_wineprefix.sh && \
     rm -rf /tmp/*
 
-# 5. 安装核心导出脚本、全局 CLI 命令与内置注册表
-RUN mkdir -p /opt/sw-runtime/scripts /opt/sw-runtime/registry
+# 5. 安装核心导出脚本与全局 CLI 命令
+RUN mkdir -p /opt/sw-runtime/scripts
 COPY scripts/export_sw.py /opt/sw-runtime/scripts/export_sw.py
-COPY docker/registry/sw_com_classes.reg /opt/sw-runtime/registry/sw_com_classes.reg
 COPY scripts/sw-export /usr/local/bin/sw-export
 COPY scripts/install_solidworks.sh /usr/local/bin/sw-install
 RUN chmod +x /usr/local/bin/sw-export /usr/local/bin/sw-install

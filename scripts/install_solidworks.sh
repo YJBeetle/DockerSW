@@ -385,6 +385,33 @@ fi
 SW_EXE="$(find "${WINEPREFIX}/drive_c" -type f -iname SLDWORKS.exe -print -quit)"
 [ -n "${SW_EXE}" ] || die "installer returned success but SLDWORKS.exe was not found"
 
+validate_solidworks_com_registration() {
+    local progid_registry application_clsid class_registry
+    progid_registry="$(wine reg query 'HKCR\SldWorks.Application\CLSID' /ve 2>/dev/null || true)"
+    application_clsid="$(
+        printf '%s\n' "${progid_registry}" \
+            | sed -nE 's/.*REG_SZ[[:space:]]+(\{[0-9A-Fa-f-]{36}\}).*/\1/p' \
+            | head -n 1
+    )"
+    [[ "${application_clsid}" =~ ^\{[0-9A-Fa-f-]{36}\}$ ]] \
+        || die "SOLIDWORKS MSI did not register the SldWorks.Application ProgID"
+
+    class_registry="$(wine reg query "HKCR\\CLSID\\${application_clsid}" /s 2>/dev/null || true)"
+    printf '%s\n' "${class_registry}" | grep -Fqi 'LocalServer32' \
+        || die "SOLIDWORKS COM registration is missing LocalServer32"
+    printf '%s\n' "${class_registry}" | grep -Fqi 'SLDWORKS.exe' \
+        || die "SOLIDWORKS COM LocalServer32 does not point to SLDWORKS.exe"
+    printf '%s\n' "${class_registry}" | grep -Fqi 'VersionIndependentProgID' \
+        || die "SOLIDWORKS COM registration is missing VersionIndependentProgID"
+    printf '%s\n' "${class_registry}" | grep -Fqi 'SldWorks.Application' \
+        || die "SOLIDWORKS COM registration has an invalid version-independent ProgID"
+    printf '%s\n' "${class_registry}" | grep -Fqi 'TypeLib' \
+        || die "SOLIDWORKS COM registration is missing its type library mapping"
+    info "Verified SOLIDWORKS MSI-provided COM registration for ${application_clsid}."
+}
+
+validate_solidworks_com_registration
+
 install_wpf_themes() {
     [ "${INSTALL_WPF_THEMES}" = true ] || return
     command -v 7z >/dev/null 2>&1 || die "7z is required to extract WPF themes"

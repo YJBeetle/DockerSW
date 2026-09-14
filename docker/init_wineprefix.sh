@@ -46,12 +46,10 @@ export WINEDLLOVERRIDES="mshtml="
 echo "[INFO] 配置 Wine-Mono stdcall 与托管 COM 注册运行时..."
 /usr/local/lib/sw-runtime/prepare_managed_com.sh
 
-# 4. 导入无头预配注册表与 COM 类定义
-echo "[INFO] 导入无头优化注册表与 COM 类映射..."
+# 4. 导入与商业软件无关的无头运行时配置。SOLIDWORKS 自身的 COM
+# 类定义由使用者提供的官方 MSI 注册，公共运行时不预造这些映射。
+echo "[INFO] 导入无头运行时注册表配置..."
 wine regedit /S /tmp/headless_tweaks.reg
-if [ -f "/tmp/sw_com_classes.reg" ]; then
-    wine regedit /S /tmp/sw_com_classes.reg
-fi
 wineserver -w
 
 # 4. 静默安装 64 位 Windows Python 3.11

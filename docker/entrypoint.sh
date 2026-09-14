@@ -105,11 +105,6 @@ for reg_dir in "${SW_REG_SEARCH_DIRS[@]}"; do
     fi
 done
 
-# 导入内置的 COM 类定义（若存在）
-if [ -f "/opt/sw-runtime/registry/sw_com_classes.reg" ]; then
-    wine reg import "/opt/sw-runtime/registry/sw_com_classes.reg" >/dev/null 2>&1 || true
-fi
-
 # 映射 ProgramData（如果提供）
 if [ -d "${SW_PROGRAMDATA}" ]; then
     C_PD_TARGET="${WINEPREFIX}/drive_c/ProgramData/SOLIDWORKS"
