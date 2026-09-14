@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-PROGRAM_NAME="dockersw-install"
+PROGRAM_NAME="sw-install"
 MEDIA_PATH="${SW_MEDIA_PATH:-}"
 REGISTRY_DIR="${SW_INSTALL_REGISTRY_DIR:-}"
 MSI_RELATIVE_PATH="${SW_MSI_RELATIVE_PATH:-swwi/data/solidworks.msi}"
-LOG_DIR="${SW_INSTALL_LOG_DIR:-/var/log/dockersw-install}"
+LOG_DIR="${SW_INSTALL_LOG_DIR:-/var/log/sw-install}"
 INSTALL_TIMEOUT="${SW_INSTALL_TIMEOUT:-10800}"
 VALIDATE_ONLY=false
 INSTALL_WPF_THEMES="${SW_INSTALL_WPF_THEMES:-true}"
@@ -16,7 +16,7 @@ XVFB_PID=""
 usage() {
     cat <<'EOF'
 Usage:
-  dockersw-install --media PATH [options]
+  sw-install --media PATH [options]
 
 Required:
   --media PATH             Complete official SOLIDWORKS media directory or archive.

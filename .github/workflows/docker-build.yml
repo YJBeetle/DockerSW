@@ -36,7 +36,7 @@ jobs:
           bash -n docker/entrypoint.sh
           bash -n docker/fetch_managed_com.sh
           bash -n docker/prepare_managed_com.sh
-          bash -n scripts/dockersw-export
+          bash -n scripts/sw-export
           bash -n scripts/install_solidworks.sh
 
       - name: Run Logic Tests
@@ -90,11 +90,11 @@ jobs:
           echo "[CI] 验证 3: 测试 Windows Python 3.11 与 pywin32 COM 模块就绪..."
           docker run --rm dockersw:local-test wine "C:\\Python311\\python.exe" -c "import win32com.client, pythoncom; print('[HEALTH CHECK OK] Windows Python & pywin32 ready')"
 
-          echo "[CI] 验证 4: 运行 dockersw-export 导出工具命令行..."
-          docker run --rm dockersw:local-test dockersw-export --help
+          echo "[CI] 验证 4: 运行 sw-export 导出工具命令行..."
+          docker run --rm dockersw:local-test sw-export --help
 
           echo "[CI] 验证 5: 安装器命令已内置..."
-          docker run --rm dockersw:local-test dockersw-install --help
+          docker run --rm dockersw:local-test sw-install --help
 
       - name: Push Image to GHCR
         if: github.event_name != 'pull_request'

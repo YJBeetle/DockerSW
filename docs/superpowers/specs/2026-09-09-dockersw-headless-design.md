@@ -7,7 +7,7 @@
 2. **两阶段解耦架构**：
    - **公开基础仓库（DockerSW）**：不含任何 SolidWorks 专有商业二进制代码，仅提供 Wine 64-bit、Xvfb 无头显示、Windows Python + pywin32 环境、无头注册表预配、智能入口与导出工具；由 GitHub Actions 自动化构建并推送到 GHCR；
    - **私有企业环境（下游使用方）**：通过挂载 Volume 或构建极简的下游私有镜像（`FROM ghcr.io/yjbeetle/sw-runtime:latest`）提供 SolidWorks 实体文件和 FlexNet 许可服务器；
-3. **开箱即用的自动化导出**：提供完善的 `dockersw-export` 命令行工具，适配 GitLab CI 流水线，支持 `.SLDPRT`/`.SLDASM` 导出 `.STEP`、`.SLDDRW` 导出 `.PDF` 和 `.DWG`、渲染装配体导出 `.GLB`。
+3. **开箱即用的自动化导出**：提供完善的 `sw-export` 命令行工具，适配 GitLab CI 流水线，支持 `.SLDPRT`/`.SLDASM` 导出 `.STEP`、`.SLDDRW` 导出 `.PDF` 和 `.DWG`、渲染装配体导出 `.GLB`。
 
 ---
 
@@ -24,7 +24,7 @@
          │  ├─ Wine 64-bit 运行时环境                   │
          │  ├─ Windows Python 3.11 + pywin32            │
          │  ├─ 无头注册表预配 (EULA/禁用登录/禁用崩溃)   │
-         │  └─ dockersw-export 统一导出 CLI 工具        │
+         │  └─ sw-export 统一导出 CLI 工具              │
          └──────────────────────┬───────────────────────┘
                                 │
         ┌───────────────────────┴───────────────────────┐
@@ -51,9 +51,9 @@
 3. **许可服务智能判定与开关**：
    - **远程许可模式**：若指定环境变量 `SW_LICENSE_SERVER`（例如 `25734@10.0.0.1`），动态注入注册表指向该服务器，跳过本地守护；
    - **本地自启模式**：若环境变量 `START_LOCAL_LICENSE=true`（或未指定远程服务器且检测到 `/opt/SolidWorks_Flexnet_Server/lmgrd.exe`），自动在后台拉起 `lmgrd.exe` 并等待端口监听就绪，注册表指向 `25734@127.0.0.1`；
-4. **命令分发**：若传入参数则执行传入命令（如 `dockersw-export` 或 bash），若无参数则默认打印就绪状态并保活或退出。
+4. **命令分发**：若传入参数则执行传入命令（如 `sw-export` 或 bash），若无参数则默认打印就绪状态并保活或退出。
 
-### 3.2 无头静默导出引擎 (`export_sw.py` & `dockersw-export`)
+### 3.2 无头静默导出引擎 (`export_sw.py` & `sw-export`)
 1. **Linux / Windows 路径智能透明转换**：
    - 脚本接收 Linux 格式的文件清单（支持相对路径与绝对路径）；
    - 自动在内部转换为 Wine 可识别的 Windows 格式路径（如 `/workspace/foo.SLDPRT` -> `Z:\workspace\foo.SLDPRT`）；

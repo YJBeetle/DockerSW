@@ -30,4 +30,4 @@ SolidWorks_Flexnet_Server/
 
 # 允许 scripts 目录下的代码与 shell 脚本
 !scripts/*.py
-!scripts/dockersw-export
+!scripts/sw-export

@@ -71,9 +71,9 @@ RUN chmod +x /tmp/init_wineprefix.sh /usr/local/lib/dockersw/prepare_managed_com
 RUN mkdir -p /opt/dockersw/scripts /opt/dockersw/registry
 COPY scripts/export_sw.py /opt/dockersw/scripts/export_sw.py
 COPY docker/registry/sw_com_classes.reg /opt/dockersw/registry/sw_com_classes.reg
-COPY scripts/dockersw-export /usr/local/bin/dockersw-export
-COPY scripts/install_solidworks.sh /usr/local/bin/dockersw-install
-RUN chmod +x /usr/local/bin/dockersw-export /usr/local/bin/dockersw-install
+COPY scripts/sw-export /usr/local/bin/sw-export
+COPY scripts/install_solidworks.sh /usr/local/bin/sw-install
+RUN chmod +x /usr/local/bin/sw-export /usr/local/bin/sw-install
 
 # 6. 配置容器 Entrypoint
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
@@ -82,4 +82,4 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 WORKDIR /workspace
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["/usr/local/bin/dockersw-export", "--help"]
+CMD ["/usr/local/bin/sw-export", "--help"]

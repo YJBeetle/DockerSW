@@ -11,8 +11,8 @@
 ## 🌟 核心特性
 
 - 📦 **版权完全隔离与两阶段构建**：公开仓库**不包含任何 SolidWorks 商业专有二进制或授权文件**，仅构建通用运行时（Ubuntu + Wine 11.16 + Wine-Mono 11.3.0 + Xvfb + Windows Python 3.11 + pywin32）。
-- 🧩 **真实 Login Manager/COM 安装链**：运行时内置与 WineSW 相同的 x86 stdcall、`RegistrationServices`、x86/x64 托管 RegAsm 与 `stdole` 修复；`dockersw-install` 会在主 MSI 前安装介质中的官方 Login Manager，并校验真实 CLSID、`mscoree.dll`、托管类与 CodeBase。
-- 🚀 **开箱即用的导出引擎 (`dockersw-export`)**：
+- 🧩 **真实 Login Manager/COM 安装链**：运行时内置与 WineSW 相同的 x86 stdcall、`RegistrationServices`、x86/x64 托管 RegAsm 与 `stdole` 修复；`sw-install` 会在主 MSI 前安装介质中的官方 Login Manager，并校验真实 CLSID、`mscoree.dll`、托管类与 CodeBase。
+- 🚀 **开箱即用的导出引擎 (`sw-export`)**：
   - 零件与装配体 (`.SLDPRT` / `.SLDASM`) ➡️ 导出为 `.STEP`；
   - 工程图 (`.SLDDRW`) ➡️ 同步导出为 `.PDF` 与 `.DWG`；
   - 渲染模型 (`*.REND.SLDASM`) ➡️ 导出为 `.GLB`；
@@ -40,7 +40,7 @@
          │  ├─ stdcall 与托管 COM 注册修复              │
          │  ├─ Windows Python 3.11 + pywin32            │
          │  ├─ 无头优化注册表 (跳过登录/EULA/崩溃弹窗)   │
-         │  └─ dockersw-export 命令行批处理工具         │
+         │  └─ sw-export 命令行批处理工具               │
          └──────────────────────┬───────────────────────┘
                                 │
         ┌───────────────────────┴───────────────────────┐
@@ -71,13 +71,13 @@
 
 ### 0. 从合法取得的官方完整介质静默安装
 
-`dockersw-install` 接受已解压目录、ISO 或受支持的归档。介质必须同时包含主 MSI、VC++ 运行库以及 `swloginmgr/SOLIDWORKS Login Manager.msi`：
+`sw-install` 接受已解压目录、ISO 或受支持的归档。介质必须同时包含主 MSI、VC++ 运行库以及 `swloginmgr/SOLIDWORKS Login Manager.msi`：
 
 ```bash
-dockersw-install --media /private-media/SOLIDWORKS.iso
+sw-install --media /private-media/SOLIDWORKS.iso
 ```
 
-脚本会依次准备固定版本的 Wine-Mono COM 运行时、安装 VC++、静默安装 Login Manager、验证其真实 COM 注册，再执行 SOLIDWORKS 主 MSI。安装日志可能包含序列号属性，默认仅保存在权限受限的 `/var/log/dockersw-install`。公开镜像不下载、不内置 SOLIDWORKS 安装介质或授权内容。
+脚本会依次准备固定版本的 Wine-Mono COM 运行时、安装 VC++、静默安装 Login Manager、验证其真实 COM 注册，再执行 SOLIDWORKS 主 MSI。安装日志可能包含序列号属性，默认仅保存在权限受限的 `/var/log/sw-install`。公开镜像不下载、不内置 SOLIDWORKS 安装介质或授权内容。
 
 ### 1. 本地 / 服务器 Docker Compose 挂载调试
 
@@ -101,7 +101,7 @@ services:
       - ./:/workspace
     working_dir: /workspace
     command: >
-      dockersw-export
+      sw-export
       --list /workspace/examples/export-list-demo.txt
       --workspace /workspace
       --outdir /workspace/dist_output
@@ -123,7 +123,7 @@ export_cad_assets:
   script:
     - mkdir -p ./dist
     - >
-      dockersw-export
+      sw-export
       --list ./export_list.txt
       --workspace "$CI_PROJECT_DIR"
       --outdir ./dist

@@ -31,7 +31,7 @@ export_cad_volume_mode:
     - echo "=== 开始执行 SolidWorks 静默无头导出流水线 ==="
     - mkdir -p ./dist
     - >
-      dockersw-export
+      sw-export
       --list ./export_list.txt
       --workspace "$CI_PROJECT_DIR"
       --outdir ./dist
@@ -60,7 +60,7 @@ export_cad_private_image_mode:
     - echo "=== 使用私有完整镜像执行 SolidWorks 导出 ==="
     - mkdir -p ./dist
     - >
-      dockersw-export
+      sw-export
       --list ./export_list.txt
       --workspace "$CI_PROJECT_DIR"
       --outdir ./dist

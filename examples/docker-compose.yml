@@ -33,7 +33,7 @@ services:
     working_dir: /workspace
     # 执行无头批量静默导出命令
     command: >
-      dockersw-export
+      sw-export
       --list /workspace/examples/export-list-demo.txt
       --workspace /workspace
       --outdir /workspace/dist_output

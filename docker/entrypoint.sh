@@ -192,6 +192,6 @@ if [ "$#" -gt 0 ]; then
     echo "[DockerSW] 执行指令: $@"
     exec "$@"
 else
-    echo "[DockerSW] 容器就绪。可以通过 'dockersw-export' 命令进行批量文件导出。"
+    echo "[DockerSW] 容器就绪。可以通过 'sw-export' 命令进行批量文件导出。"
     exec /bin/bash
 fi
