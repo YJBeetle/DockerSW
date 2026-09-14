@@ -1,6 +1,6 @@
-# DockerSWComplete
+# DockerSWPreinstalled
 
-DockerSWComplete 是仅在内网使用的私有构建与部署层。CI 从受控的内网存储下载完整、合法取得的 SOLIDWORKS 官方安装介质，调用 DockerSW 提供的 `dockersw-install` 完成 Wine 无头 MSI 安装，然后将成品推送到本项目的 GitLab Container Registry。
+DockerSWPreinstalled 是仅在内网使用的私有构建与部署层。CI 从受控的内网存储下载完整、合法取得的 SOLIDWORKS 官方安装介质，调用 DockerSW 提供的 `dockersw-install` 完成 Wine 无头 MSI 安装，然后将成品推送到本项目的 GitLab Container Registry。
 
 公开的 DockerSW 仓库负责 Wine 运行时、安装脚本和导出工具；本仓库负责安装介质来源、安装注册表、本地 FlexNet 服务和最终私有镜像。官方介质、序列号和许可证不得上传到公开镜像仓库。
 

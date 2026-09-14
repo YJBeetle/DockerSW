@@ -16,7 +16,7 @@ if [ -n "${CI_COMMIT_TAG:-}" ]; then
   set -- "$@" --destination "${CI_REGISTRY_IMAGE}:${CI_COMMIT_TAG}"
 fi
 
-echo "Building private DockerSWComplete from mirrored runtime ${RUNTIME_IMAGE}..."
+echo "Building private DockerSWPreinstalled from mirrored runtime ${RUNTIME_IMAGE}..."
 /kaniko/executor \
   --context "${CI_PROJECT_DIR}" \
   --dockerfile "${CI_PROJECT_DIR}/Dockerfile" \
@@ -27,4 +27,4 @@ echo "Building private DockerSWComplete from mirrored runtime ${RUNTIME_IMAGE}..
   --image-fs-extract-retry 3 \
   "$@"
 
-echo "DockerSWComplete pushed to GitLab Registry: ${CI_REGISTRY_IMAGE}"
+echo "DockerSWPreinstalled pushed to GitLab Registry: ${CI_REGISTRY_IMAGE}"

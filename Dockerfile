@@ -1,4 +1,4 @@
-# DockerSWComplete: 从私有介质执行官方 MSI 安装，并内置内部 FlexNet 服务。
+# DockerSWPreinstalled: 从私有介质执行官方 MSI 安装，并内置内部 FlexNet 服务。
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE} AS solidworks-installer
 
