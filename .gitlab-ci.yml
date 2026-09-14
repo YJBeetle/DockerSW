@@ -1,6 +1,6 @@
 stages:
   - mirror
-  - complete
+  - preinstall
 
 variables:
   # 旧的 7GB 安装目录已从当前版本移除；这里只拉取仍需内置的 FlexNet 小文件。
@@ -20,7 +20,7 @@ variables:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_TAG
 
-mirror_dockersw_runtime:
+mirror_sw_runtime:
   stage: mirror
   image:
     name: gcr.io/go-containerregistry/crane:debug
@@ -34,12 +34,12 @@ mirror_dockersw_runtime:
     - when: manual
       allow_failure: true
 
-build_dockersw_complete:
+build_sw_preinstalled:
   extends: .kaniko
-  stage: complete
+  stage: preinstall
   timeout: 3h
   needs:
-    - mirror_dockersw_runtime
+    - mirror_sw_runtime
   script:
     - sh scripts/fetch_sw_media.sh
     - sh scripts/kaniko_build.sh

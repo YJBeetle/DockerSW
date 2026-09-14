@@ -6,14 +6,15 @@ set -eu
 
 SUBMODULE_HASH="$(sh "${CI_PROJECT_DIR}/scripts/resolve_submodule_hash.sh")"
 RUNTIME_TAG="$(printf '%.7s' "${SUBMODULE_HASH}")"
-RUNTIME_IMAGE="${DOCKERSW_RUNTIME_IMAGE:-${CI_REGISTRY_IMAGE}/runtime:sha-${RUNTIME_TAG}}"
+RUNTIME_IMAGE="${SW_RUNTIME_IMAGE:-${CI_REGISTRY_IMAGE}/sw-runtime:sha-${RUNTIME_TAG}}"
+PREINSTALLED_IMAGE="${CI_REGISTRY_IMAGE}/sw-preinstalled"
 
 set -- \
-  --destination "${CI_REGISTRY_IMAGE}:latest" \
-  --destination "${CI_REGISTRY_IMAGE}:sha-${CI_COMMIT_SHORT_SHA}"
+  --destination "${PREINSTALLED_IMAGE}:latest" \
+  --destination "${PREINSTALLED_IMAGE}:sha-${CI_COMMIT_SHORT_SHA}"
 
 if [ -n "${CI_COMMIT_TAG:-}" ]; then
-  set -- "$@" --destination "${CI_REGISTRY_IMAGE}:${CI_COMMIT_TAG}"
+  set -- "$@" --destination "${PREINSTALLED_IMAGE}:${CI_COMMIT_TAG}"
 fi
 
 echo "Building private DockerSWPreinstalled from mirrored runtime ${RUNTIME_IMAGE}..."
@@ -27,4 +28,4 @@ echo "Building private DockerSWPreinstalled from mirrored runtime ${RUNTIME_IMAG
   --image-fs-extract-retry 3 \
   "$@"
 
-echo "DockerSWPreinstalled pushed to GitLab Registry: ${CI_REGISTRY_IMAGE}"
+echo "DockerSWPreinstalled pushed to GitLab Registry: ${PREINSTALLED_IMAGE}"

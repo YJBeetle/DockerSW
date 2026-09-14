@@ -1,7 +1,8 @@
 #!/usr/bin/env sh
 set -e
 
-DOCKER_IMAGE_NAME="${CI_REGISTRY_IMAGE:?Set CI_REGISTRY_IMAGE to the GitLab Registry repository}"
+REGISTRY_ROOT="${CI_REGISTRY_IMAGE:?Set CI_REGISTRY_IMAGE to the GitLab Registry repository}"
+DOCKER_IMAGE_NAME="${REGISTRY_ROOT}/sw-preinstalled"
 DOCKER_IMAGE_TAG="${CI_COMMIT_TAG:-latest}"
 SUBMODULE_HASH=$(git -C DockerSW rev-parse --short HEAD 2>/dev/null || echo "")
 
@@ -21,11 +22,9 @@ fi
 echo "[1/4] 正在登录 GitLab Container Registry (${CI_REGISTRY})..."
 echo "${CI_REGISTRY_PASSWORD}" | docker login "${CI_REGISTRY}" -u "${CI_REGISTRY_USER}" --password-stdin
 
-BUILD_ARGS=""
-if [ -n "${BASE_IMAGE:-}" ]; then
-  echo "指定基础镜像 BASE_IMAGE=${BASE_IMAGE}"
-  BUILD_ARGS="--build-arg BASE_IMAGE=${BASE_IMAGE}"
-fi
+BASE_IMAGE="${BASE_IMAGE:-${REGISTRY_ROOT}/sw-runtime:sha-${SUBMODULE_HASH}}"
+echo "使用基础镜像 BASE_IMAGE=${BASE_IMAGE}"
+BUILD_ARGS="--build-arg BASE_IMAGE=${BASE_IMAGE}"
 
 echo "[2/4] 正在构建一体化 SolidWorks 容器镜像: ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} (Submodule Hash: ${SUBMODULE_HASH:-unknown})..."
 docker build ${BUILD_ARGS} -t "${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}" .

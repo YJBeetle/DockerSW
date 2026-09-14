@@ -9,8 +9,8 @@ set -eu
 
 SUBMODULE_HASH="$(sh "${CI_PROJECT_DIR}/scripts/resolve_submodule_hash.sh")"
 RUNTIME_TAG="$(printf '%.7s' "${SUBMODULE_HASH}")"
-SOURCE_IMAGE="ghcr.io/yjbeetle/dockersw:sha-${RUNTIME_TAG}"
-DESTINATION_IMAGE="${CI_REGISTRY_IMAGE}/runtime:sha-${RUNTIME_TAG}"
+SOURCE_IMAGE="ghcr.io/yjbeetle/sw-runtime:sha-${RUNTIME_TAG}"
+DESTINATION_IMAGE="${CI_REGISTRY_IMAGE}/sw-runtime:sha-${RUNTIME_TAG}"
 
 printf '%s' "${CI_REGISTRY_PASSWORD}" | \
   crane auth login "${CI_REGISTRY}" \
@@ -18,15 +18,15 @@ printf '%s' "${CI_REGISTRY_PASSWORD}" | \
     --password-stdin >/dev/null
 
 if crane manifest "${DESTINATION_IMAGE}" >/dev/null 2>&1; then
-  echo "DockerSW runtime already exists in GitLab Registry: ${DESTINATION_IMAGE}"
+  echo "sw-runtime already exists in GitLab Registry: ${DESTINATION_IMAGE}"
   exit 0
 fi
 
-echo "Mirroring DockerSW runtime from GHCR to GitLab Registry..."
+echo "Mirroring sw-runtime from GHCR to GitLab Registry..."
 attempt=1
 while ! crane copy --platform linux/amd64 "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}"; do
   if [ "${attempt}" -ge 5 ]; then
-    echo "Unable to mirror DockerSW runtime after ${attempt} attempts" >&2
+    echo "Unable to mirror sw-runtime after ${attempt} attempts" >&2
     exit 1
   fi
   delay=$((attempt * 5))
@@ -36,4 +36,4 @@ while ! crane copy --platform linux/amd64 "${SOURCE_IMAGE}" "${DESTINATION_IMAGE
 done
 
 crane manifest "${DESTINATION_IMAGE}" >/dev/null
-echo "DockerSW runtime mirrored to GitLab Registry: ${DESTINATION_IMAGE}"
+echo "sw-runtime mirrored to GitLab Registry: ${DESTINATION_IMAGE}"

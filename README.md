@@ -1,16 +1,16 @@
 # DockerSWPreinstalled
 
-DockerSWPreinstalled 是仅在内网使用的私有构建与部署层。CI 从受控的内网存储下载完整、合法取得的 SOLIDWORKS 官方安装介质，调用 DockerSW 提供的 `dockersw-install` 完成 Wine 无头 MSI 安装，然后将成品推送到本项目的 GitLab Container Registry。
+DockerSWPreinstalled 是仅在内网使用的私有构建与部署层。CI 从受控的内网存储下载完整、合法取得的 SOLIDWORKS 官方安装介质，调用 DockerSW 提供的 `sw-install` 完成 Wine 无头 MSI 安装，然后将成品推送到本项目的 GitLab Container Registry。
 
 公开的 DockerSW 仓库负责 Wine 运行时、安装脚本和导出工具；本仓库负责安装介质来源、安装注册表、本地 FlexNet 服务和最终私有镜像。官方介质、序列号和许可证不得上传到公开镜像仓库。
 
 ## 流水线
 
-1. `mirror_dockersw_runtime` 根据当前固定的 DockerSW 子模块提交，将 GitHub CI 已验证并发布的 `ghcr.io/yjbeetle/dockersw:sha-<短 SHA>` 原样同步到本项目的 GitLab Registry。相同标签已存在时直接跳过，不重新构建或跨网下载。
-2. `build_dockersw_complete` 只从内网的 `CI_REGISTRY_IMAGE/runtime:sha-<短 SHA>` 拉取基础镜像。
+1. `mirror_sw_runtime` 根据当前固定的 DockerSW 子模块提交，将 GitHub CI 已验证并发布的 `ghcr.io/yjbeetle/sw-runtime:sha-<短 SHA>` 原样同步到本项目的 GitLab Registry。相同标签已存在时直接跳过，不重新构建或跨网下载。
+2. `build_sw_preinstalled` 只从内网的 `CI_REGISTRY_IMAGE/sw-runtime:sha-<短 SHA>` 拉取基础镜像。
 3. 流水线从内网下载并校验安装介质，执行无头安装。
 4. 最终镜像仅保留安装后的 Wine prefix 和本仓库的内部 FlexNet 服务，不包含 ISO、压缩包或安装日志。
-5. 成品只推送到 GitLab Registry，标签为 `CI_REGISTRY_IMAGE:latest`、`sha-<commit>`；Git tag 流水线还会推送同名版本标签。
+5. 成品只推送到 GitLab Registry 的 `CI_REGISTRY_IMAGE/sw-preinstalled`，标签为 `latest`、`sha-<commit>`；Git tag 流水线还会推送同名版本标签。
 
 ## 安装介质配置
 
@@ -28,7 +28,7 @@ DockerSWPreinstalled 是仅在内网使用的私有构建与部署层。CI 从�
 
 `CI_REGISTRY`、`CI_REGISTRY_USER`、`CI_REGISTRY_PASSWORD` 和 `CI_REGISTRY_IMAGE` 使用 GitLab 自带变量，不再配置 Docker Hub 凭据。
 
-`DOCKERSW_RUNTIME_IMAGE` 可选；默认使用按 DockerSW 子模块短 SHA 镜像到 GitLab Registry 的 runtime，只在需要临时覆盖基础镜像时设置。
+`SW_RUNTIME_IMAGE` 可选；默认使用按 DockerSW 子模块短 SHA 镜像到 GitLab Registry 的 `sw-runtime`，只在需要临时覆盖基础镜像时设置。
 
 介质可以是 ISO、ZIP、7z 或 tar 系列归档，但解压后必须包含：
 
@@ -46,7 +46,7 @@ PreReqs/dotNetFx/ndp48-x86-x64-allos-enu.exe
 
 ```text
 START_LOCAL_LICENSE=true
-FLEXNET_DIR=/opt/SolidWorks_Flexnet_Server
+FLEXNET_DIR=/opt/sw-preinstalled/flexnet
 ```
 
 因此客户端在同一容器中使用本地许可服务。公开 DockerSW 用户仍可通过 `SW_LICENSE_SERVER=25734@host` 连接自己在局域网部署的服务器，或显式挂载并启用本地 `lmgrd`。
@@ -57,6 +57,6 @@ FLEXNET_DIR=/opt/SolidWorks_Flexnet_Server
 docker login "$CI_REGISTRY"
 docker run --rm \
   -v "$(pwd):/workspace" \
-  "$CI_REGISTRY_IMAGE:latest" \
-  dockersw-export --list list.txt --workspace /workspace --outdir /workspace/dist
+  "$CI_REGISTRY_IMAGE/sw-preinstalled:latest" \
+  sw-export --list list.txt --workspace /workspace --outdir /workspace/dist
 ```
