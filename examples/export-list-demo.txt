@@ -3,28 +3,28 @@
 # 相对路径将自动基于 --workspace 参数进行拼接
 
 # 主装配体工程图（将自动导出为 .PDF 与 .DWG）
-COT[N]/Main/N_MainAssembly.SLDDRW
+SampleProject/Drawings/MainAssembly.SLDDRW
 
 # 核心零件与工程图（零件将导出为 .STEP，工程图将导出为 .PDF 与 .DWG）
-COT[N]/Main/N_Antenna.SLDPRT
-COT[N]/Main/N_Antenna.SLDDRW
-COT[N]/Main/N_AntennaBar.SLDPRT
-COT[N]/Main/N_AntennaBar.SLDDRW
-COT[N]/Main/N_AntennaFix.SLDPRT
-COT[N]/Main/N_AntennaFix.SLDDRW
-COT[N]/Main/N_Casing.SLDPRT
-COT[N]/Main/N_Casing.SLDDRW
-COT[N]/Main/N_Window.SLDPRT
-COT[N]/Main/N_Window.SLDDRW
+SampleProject/Parts/BasePlate.SLDPRT
+SampleProject/Drawings/BasePlate.SLDDRW
+SampleProject/Parts/MountingBracket.SLDPRT
+SampleProject/Drawings/MountingBracket.SLDDRW
+SampleProject/Parts/DriveShaft.SLDPRT
+SampleProject/Drawings/DriveShaft.SLDDRW
+SampleProject/Parts/Housing.SLDPRT
+SampleProject/Drawings/Housing.SLDDRW
+SampleProject/Parts/ProtectiveCover.SLDPRT
+SampleProject/Drawings/ProtectiveCover.SLDDRW
 
-# 通用配件模块
-Universal/AntennaBarHolder.SLDPRT
-Universal/AntennaBarHolder.SLDDRW
-Universal/AntennaCover.SLDPRT
-Universal/AntennaCover.SLDDRW
-Universal/BatteryCover.SLDPRT
-Universal/BatteryCover.SLDDRW
-Universal/PcbHolder.SLDPRT
-Universal/PcbHolder.SLDDRW
-Universal/WindowCover.SLDPRT
-Universal/WindowCover.SLDDRW
+# 通用配件
+SampleProject/StandardParts/Spacer.SLDPRT
+SampleProject/Drawings/Spacer.SLDDRW
+SampleProject/StandardParts/RetainingRing.SLDPRT
+SampleProject/Drawings/RetainingRing.SLDDRW
+SampleProject/StandardParts/SupportBlock.SLDPRT
+SampleProject/Drawings/SupportBlock.SLDDRW
+SampleProject/StandardParts/EndCap.SLDPRT
+SampleProject/Drawings/EndCap.SLDDRW
+SampleProject/StandardParts/Fastener.SLDPRT
+SampleProject/Drawings/Fastener.SLDDRW

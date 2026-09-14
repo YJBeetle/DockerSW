@@ -91,13 +91,13 @@ class TestExportParser(unittest.TestCase):
     def test_parse_list_line(self):
         # 常规有效行
         self.assertEqual(
-            parse_list_line("COT[N]/Main/N_MainAssembly.SLDDRW"),
-            "COT[N]/Main/N_MainAssembly.SLDDRW",
+            parse_list_line("SampleProject/Drawings/MainAssembly.SLDDRW"),
+            "SampleProject/Drawings/MainAssembly.SLDDRW",
         )
         # 带前后空白
         self.assertEqual(
-            parse_list_line("   Universal/WindowCover.SLDPRT   "),
-            "Universal/WindowCover.SLDPRT",
+            parse_list_line("   SampleProject/Parts/Housing.SLDPRT   "),
+            "SampleProject/Parts/Housing.SLDPRT",
         )
         # 全行注释
         self.assertIsNone(parse_list_line("# 这是一个注释行"))
@@ -106,8 +106,8 @@ class TestExportParser(unittest.TestCase):
         self.assertIsNone(parse_list_line("   "))
         # 行尾注释
         self.assertEqual(
-            parse_list_line("COT[N]/Main/N_Antenna.SLDPRT # 主天线零件"),
-            "COT[N]/Main/N_Antenna.SLDPRT",
+            parse_list_line("SampleProject/Parts/MountingBracket.SLDPRT # 通用零件"),
+            "SampleProject/Parts/MountingBracket.SLDPRT",
         )
 
 

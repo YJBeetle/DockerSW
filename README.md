@@ -165,16 +165,16 @@ ENV START_LOCAL_LICENSE=true
 
 ```text
 # 装配体工程图（自动输出 .PDF 与 .DWG）
-COT[N]/Main/N_MainAssembly.SLDDRW
+SampleProject/Drawings/MainAssembly.SLDDRW
 
 # 关键零件（自动输出 .STEP）与零件工程图
-COT[N]/Main/N_Antenna.SLDPRT
-COT[N]/Main/N_Antenna.SLDDRW
-COT[N]/Main/N_Casing.SLDPRT
-COT[N]/Main/N_Casing.SLDDRW
+SampleProject/Parts/MountingBracket.SLDPRT
+SampleProject/Drawings/MountingBracket.SLDDRW
+SampleProject/Parts/Housing.SLDPRT
+SampleProject/Drawings/Housing.SLDDRW
 
 # 专用渲染装配体（自动输出 .GLB）
-Render/Main_Assembly.REND.SLDASM
+SampleProject/Render/MainAssembly.REND.SLDASM
 ```
 
 ---
