@@ -1,0 +1,132 @@
+name: Build sw-preinstalled from MEGA
+
+on:
+  workflow_dispatch:
+    inputs:
+      media_path:
+        description: Path to the ISO inside the MEGA remote
+        required: true
+        default: Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/SolidWorks.2025.SP5.0.Premium.DVD.iso
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: sw-preinstalled-mega
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      RCLONE_CONFIG_MEGA_TYPE: mega
+      RCLONE_CONFIG_MEGA_USER: ${{ secrets.MEGA_USER }}
+      RCLONE_CONFIG_MEGA_PASS: ${{ secrets.MEGA_PASS }}
+      MEGA_MOUNT: /mnt/mega
+      SW_MEDIA_MOUNT: /mnt/sw-media
+      SW_IMAGE: ghcr.io/yjbeetle/sw-preinstalled
+
+    steps:
+      - name: Check out private repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Validate MEGA credentials
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -n "${RCLONE_CONFIG_MEGA_USER}" || {
+            echo "MEGA_USER is not configured" >&2
+            exit 1
+          }
+          test -n "${RCLONE_CONFIG_MEGA_PASS}" || {
+            echo "MEGA_PASS is not configured" >&2
+            exit 1
+          }
+
+      - name: Install rclone and FUSE
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes rclone fuse3
+          grep -qxF user_allow_other /etc/fuse.conf || \
+            echo user_allow_other | sudo tee -a /etc/fuse.conf >/dev/null
+
+      - name: Mount MEGA and the SOLIDWORKS ISO
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo mkdir -p "${MEGA_MOUNT}" "${SW_MEDIA_MOUNT}"
+          sudo chown "$(id -u):$(id -g)" "${MEGA_MOUNT}"
+
+          rclone mount mega: "${MEGA_MOUNT}" \
+            --daemon \
+            --read-only \
+            --allow-other \
+            --vfs-cache-mode off \
+            --buffer-size 0 \
+            --dir-cache-time 5m \
+            --log-file "${RUNNER_TEMP}/rclone-mega.log" \
+            --log-level INFO
+
+          for attempt in $(seq 1 30); do
+            mountpoint -q "${MEGA_MOUNT}" && break
+            sleep 2
+          done
+          mountpoint -q "${MEGA_MOUNT}" || {
+            tail -n 100 "${RUNNER_TEMP}/rclone-mega.log" >&2 || true
+            exit 1
+          }
+
+          iso_path="${MEGA_MOUNT}/${{ inputs.media_path }}"
+          test -f "${iso_path}" || {
+            echo "ISO not found: ${{ inputs.media_path }}" >&2
+            exit 1
+          }
+          sudo mount -o loop,ro "${iso_path}" "${SW_MEDIA_MOUNT}"
+          test -s "${SW_MEDIA_MOUNT}/swwi/data/solidworks.msi"
+
+          df -h /
+          findmnt --target "${MEGA_MOUNT}"
+          findmnt --target "${SW_MEDIA_MOUNT}"
+
+      - name: Resolve image names
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          runtime_sha="$(git -C DockerSW rev-parse --short=7 HEAD)"
+          commit_sha="$(git rev-parse --short=12 HEAD)"
+          echo "SW_RUNTIME_IMAGE=ghcr.io/yjbeetle/sw-runtime:sha-${runtime_sha}" >> "${GITHUB_ENV}"
+          echo "SW_IMAGE_SHA_TAG=sha-${commit_sha}" >> "${GITHUB_ENV}"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install SOLIDWORKS and publish image
+        shell: bash
+        run: bash scripts/github_build_from_mounted_media.sh
+
+      - name: Show storage usage
+        if: always()
+        shell: bash
+        run: |
+          df -h / || true
+          docker system df || true
+
+      - name: Unmount installation media
+        if: always()
+        shell: bash
+        run: |
+          sudo umount "${SW_MEDIA_MOUNT}" 2>/dev/null || true
+          fusermount3 -u "${MEGA_MOUNT}" 2>/dev/null || \
+            sudo umount "${MEGA_MOUNT}" 2>/dev/null || true
+          tail -n 100 "${RUNNER_TEMP}/rclone-mega.log" 2>/dev/null || true

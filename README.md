@@ -41,6 +41,32 @@ swloginmgr/SOLIDWORKS Login Manager.msi
 
 安装前会导入私有的 `assets/*.reg`。构建中的 `--accept-eula` 表示本仓库的实际维护者已审阅并接受该介质所适用的 EULA；该开关不会授予许可证，也不能替代协议审阅。MSI verbose 日志可能包含序列号，因此只存在于临时安装阶段，不复制进最终镜像。
 
+## GitHub Actions MEGA 挂载实验
+
+`.github/workflows/build-from-mega.yml` 提供手动触发的 GitHub Actions 构建。它以只读、无 VFS 磁盘缓存的方式挂载 MEGA，再对远端 ISO 建立只读 loop mount。安装容器直接 bind mount 已展开的 ISO 文件系统，因此不会下载、解压或复制完整 ISO 到 Docker 构建上下文；实际网络读取量由安装器访问的 ISO 区段决定。
+
+MEGA 的 rclone 后端使用账号和密码，不使用 OAuth access token。建议使用专门的 MEGA 账号，并在本地生成供 rclone 使用的混淆密码：
+
+```bash
+rclone obscure 'MEGA_ACCOUNT_PASSWORD'
+```
+
+随后在 GitHub 私有仓库的 `Settings -> Secrets and variables -> Actions` 中添加：
+
+| Secret | 内容 |
+|---|---|
+| `MEGA_USER` | MEGA 登录邮箱 |
+| `MEGA_PASS` | `rclone obscure` 的完整输出，而不是原始密码 |
+
+在 Actions 页面手动运行 `Build sw-preinstalled from MEGA`，必要时覆盖 ISO 在 MEGA remote 中的相对路径。成功后发布私有 GHCR 镜像：
+
+```text
+ghcr.io/yjbeetle/sw-preinstalled:latest
+ghcr.io/yjbeetle/sw-preinstalled:sha-<仓库提交>
+```
+
+这条实验流水线通过临时安装容器和 `docker commit` 固化 Wine prefix，目的是保留 FUSE/loop mount 的按需读取特性。挂载目录不会进入成品镜像；安装日志也会在提交镜像前删除。
+
 ## 许可服务
 
 本仓库保留内部 `assets/SolidWorks_Flexnet_Server`，最终镜像默认设置：
