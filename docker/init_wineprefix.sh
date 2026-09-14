@@ -28,7 +28,7 @@ timeout --foreground 300 wineserver -w
 timeout --foreground 60 wine cmd /c ver
 
 # 3. 静默安装 Wine-Mono (.NET CLR 运行时环境)
-MONO_INSTALLER=$(find /opt/dockersw/cache -maxdepth 1 -type f -name 'wine-mono*.msi' -print -quit 2>/dev/null || true)
+MONO_INSTALLER=$(find /opt/sw-runtime/cache -maxdepth 1 -type f -name 'wine-mono*.msi' -print -quit 2>/dev/null || true)
 if [ -n "${MONO_INSTALLER}" ] && [ -f "${MONO_INSTALLER}" ]; then
     echo "[INFO] 静默安装 Wine-Mono: ${MONO_INSTALLER}..."
     WINEDLLOVERRIDES="mshtml=" timeout --foreground 600 wine msiexec /i "${MONO_INSTALLER}" /quiet /norestart
@@ -44,7 +44,7 @@ export WINEDLLOVERRIDES="mshtml="
 # 使用与 WineSW 相同、同源构建且经过校验的 x86 stdcall 与托管 COM
 # 注册组件。这里只替换 Wine-Mono 组件，不引入任何 macOS Wine 补丁。
 echo "[INFO] 配置 Wine-Mono stdcall 与托管 COM 注册运行时..."
-/usr/local/lib/dockersw/prepare_managed_com.sh
+/usr/local/lib/sw-runtime/prepare_managed_com.sh
 
 # 4. 导入无头预配注册表与 COM 类定义
 echo "[INFO] 导入无头优化注册表与 COM 类映射..."

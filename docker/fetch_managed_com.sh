@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-CONFIG_FILE="${DOCKERSW_MANAGED_COM_CONFIG:-/opt/dockersw/managed_com.env}"
+CONFIG_FILE="${DOCKERSW_MANAGED_COM_CONFIG:-/opt/sw-runtime/managed_com.env}"
 # shellcheck source=/dev/null
 . "${CONFIG_FILE}"
 
-CACHE_DIR="${DOCKERSW_CACHE_DIR:-/opt/dockersw/cache}"
-ASSET_DIR="${DOCKERSW_MANAGED_COM_DIR:-/opt/dockersw/managed-com}"
+CACHE_DIR="${DOCKERSW_CACHE_DIR:-/opt/sw-runtime/cache}"
+ASSET_DIR="${DOCKERSW_MANAGED_COM_DIR:-/opt/sw-runtime/managed-com}"
 MONO_MSI="${CACHE_DIR}/wine-mono-${WINE_MONO_VERSION}-x86.msi"
 PATCH_BASE_URL="https://github.com/YJBeetle/wine-mono/releases/download/${MONO_PATCH_RELEASE}"
 STDOLE_PACKAGE="${CACHE_DIR}/stdole.${STDOLE_VERSION}.nupkg"

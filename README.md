@@ -91,7 +91,7 @@ SW_DIR="/path/to/SOLIDWORKS" docker compose -f examples/docker-compose.yml up
 `examples/docker-compose.yml` 关键配置示范：
 ```yaml
 services:
-  dockersw-exporter:
+  sw-exporter:
     image: ghcr.io/yjbeetle/sw-runtime:latest
     environment:
       - START_LOCAL_LICENSE=true

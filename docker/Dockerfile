@@ -35,8 +35,8 @@ RUN dpkg --add-architecture i386 && \
 
 # 与 WineSW 已验证环境保持 Wine 11.16 / Wine-Mono 11.3.0 一致，但不引入
 # 仅适用于 macOS 的 winemac/win32u 补丁。
-COPY docker/managed_com.env /opt/dockersw/managed_com.env
-RUN . /opt/dockersw/managed_com.env && \
+COPY docker/managed_com.env /opt/sw-runtime/managed_com.env
+RUN . /opt/sw-runtime/managed_com.env && \
     apt-get update && \
     apt-get install -y --install-recommends \
         "wine-devel-amd64=${WINE_PACKAGE_VERSION}" \
@@ -60,17 +60,17 @@ COPY docker/registry/headless_tweaks.reg /tmp/headless_tweaks.reg
 COPY docker/registry/license_template.reg /tmp/license_template.reg
 COPY docker/registry/sw_com_classes.reg /tmp/sw_com_classes.reg
 COPY docker/init_wineprefix.sh /tmp/init_wineprefix.sh
-COPY docker/prepare_managed_com.sh /usr/local/lib/dockersw/prepare_managed_com.sh
+COPY docker/prepare_managed_com.sh /usr/local/lib/sw-runtime/prepare_managed_com.sh
 
 # 4. 执行 WinePrefix 初始化（先创建干净 prefix，再显式安装并修补 Mono、Python 与 pywin32）
-RUN chmod +x /tmp/init_wineprefix.sh /usr/local/lib/dockersw/prepare_managed_com.sh && \
+RUN chmod +x /tmp/init_wineprefix.sh /usr/local/lib/sw-runtime/prepare_managed_com.sh && \
     /tmp/init_wineprefix.sh && \
     rm -rf /tmp/*
 
 # 5. 安装核心导出脚本、全局 CLI 命令与内置注册表
-RUN mkdir -p /opt/dockersw/scripts /opt/dockersw/registry
-COPY scripts/export_sw.py /opt/dockersw/scripts/export_sw.py
-COPY docker/registry/sw_com_classes.reg /opt/dockersw/registry/sw_com_classes.reg
+RUN mkdir -p /opt/sw-runtime/scripts /opt/sw-runtime/registry
+COPY scripts/export_sw.py /opt/sw-runtime/scripts/export_sw.py
+COPY docker/registry/sw_com_classes.reg /opt/sw-runtime/registry/sw_com_classes.reg
 COPY scripts/sw-export /usr/local/bin/sw-export
 COPY scripts/install_solidworks.sh /usr/local/bin/sw-install
 RUN chmod +x /usr/local/bin/sw-export /usr/local/bin/sw-install

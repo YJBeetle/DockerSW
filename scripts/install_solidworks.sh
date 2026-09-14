@@ -132,7 +132,7 @@ prepare_media() {
     fi
 
     local destination
-    destination="$(mktemp -d /tmp/dockersw-media.XXXXXX)"
+    destination="$(mktemp -d /tmp/sw-media.XXXXXX)"
     TEMP_DIRS+=("${destination}")
     info "Extracting the private installation-media archive..." >&2
 
@@ -253,7 +253,7 @@ run_installer "Wine prefix probe" wine cmd /c ver
 
 MONO_ROOT="${WINEPREFIX}/drive_c/windows/mono/mono-2.0"
 if [ ! -d "${MONO_ROOT}" ]; then
-    MONO_INSTALLER="$(find /opt/dockersw/cache -maxdepth 1 -type f -name 'wine-mono*.msi' -print -quit 2>/dev/null || true)"
+    MONO_INSTALLER="$(find /opt/sw-runtime/cache -maxdepth 1 -type f -name 'wine-mono*.msi' -print -quit 2>/dev/null || true)"
     [ -n "${MONO_INSTALLER}" ] && [ -f "${MONO_INSTALLER}" ] \
         || die "Wine-Mono is not installed and the verified installer cache is missing"
     run_installer "Wine-Mono" env WINEDLLOVERRIDES="mshtml=" \
@@ -261,10 +261,10 @@ if [ ! -d "${MONO_ROOT}" ]; then
     timeout --foreground 300 wineserver -w || die "wineserver did not settle after Wine-Mono installation"
 fi
 
-[ -x /usr/local/lib/dockersw/prepare_managed_com.sh ] \
+[ -x /usr/local/lib/sw-runtime/prepare_managed_com.sh ] \
     || die "managed COM preparation helper is unavailable"
 info "Preparing the verified Wine-Mono stdcall and managed COM registration runtime."
-/usr/local/lib/dockersw/prepare_managed_com.sh
+/usr/local/lib/sw-runtime/prepare_managed_com.sh
 
 VC_LOG_WINDOWS="$(winepath -w "${LOG_DIR}/vcredist-x64.log")"
 run_installer "Microsoft VC++ x64 prerequisite" \
@@ -351,7 +351,7 @@ install_wpf_themes() {
     local dotnet temp mzz system_wpf source_name theme filename
     dotnet="${MEDIA_ROOT}/PreReqs/dotNetFx/ndp48-x86-x64-allos-enu.exe"
     [ -s "${dotnet}" ] || die "official .NET 4.8 prerequisite is missing; cannot extract WPF themes"
-    temp="$(mktemp -d /tmp/dockersw-wpf.XXXXXX)"
+    temp="$(mktemp -d /tmp/sw-wpf.XXXXXX)"
     TEMP_DIRS+=("${temp}")
     7z e -y -o"${temp}" "${dotnet}" netfx_Full.mzz >>"${LOG_DIR}/wpf-themes.log" 2>&1
     mzz="${temp}/netfx_Full.mzz"

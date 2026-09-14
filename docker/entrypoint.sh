@@ -46,7 +46,7 @@ fi
 # 这也覆盖用户挂载一个全新 WINEPREFIX 的场景。
 MONO_ROOT="${WINEPREFIX}/drive_c/windows/mono/mono-2.0"
 if [ ! -d "${MONO_ROOT}" ]; then
-    MONO_MSI=$(find /opt/dockersw/cache -maxdepth 1 -type f -name 'wine-mono*.msi' -print -quit 2>/dev/null || true)
+    MONO_MSI=$(find /opt/sw-runtime/cache -maxdepth 1 -type f -name 'wine-mono*.msi' -print -quit 2>/dev/null || true)
     if [ -z "${MONO_MSI}" ] || [ ! -f "${MONO_MSI}" ]; then
         echo "[DockerSW][ERROR] 未找到内置 Wine-Mono 安装包" >&2
         exit 1
@@ -57,7 +57,7 @@ if [ ! -d "${MONO_ROOT}" ]; then
 fi
 
 echo "[DockerSW] 正在校验 Wine-Mono stdcall 与托管 COM 注册组件..."
-/usr/local/lib/dockersw/prepare_managed_com.sh
+/usr/local/lib/sw-runtime/prepare_managed_com.sh
 
 # 4. 映射或验证 SolidWorks 程序目录
 C_SW_CORP="${WINEPREFIX}/drive_c/Program Files/SOLIDWORKS Corp"
@@ -106,8 +106,8 @@ for reg_dir in "${SW_REG_SEARCH_DIRS[@]}"; do
 done
 
 # 导入内置的 COM 类定义（若存在）
-if [ -f "/opt/dockersw/registry/sw_com_classes.reg" ]; then
-    wine reg import "/opt/dockersw/registry/sw_com_classes.reg" >/dev/null 2>&1 || true
+if [ -f "/opt/sw-runtime/registry/sw_com_classes.reg" ]; then
+    wine reg import "/opt/sw-runtime/registry/sw_com_classes.reg" >/dev/null 2>&1 || true
 fi
 
 # 映射 ProgramData（如果提供）

@@ -5,13 +5,13 @@ version: "3.8"
 #   SW_DIR=/path/to/SOLIDWORKS docker compose -f examples/docker-compose.yml up
 
 services:
-  dockersw-exporter:
+  sw-exporter:
     image: ghcr.io/yjbeetle/sw-runtime:latest
     # 若在本地从源码构建测试，可切换为 build 上下文：
     # build:
     #   context: ..
     #   dockerfile: docker/Dockerfile
-    container_name: dockersw-export-runner
+    container_name: sw-export-runner
     environment:
       # 模式 1: 容器内自动拉起本地挂载的 FlexNet 许可服务
       - START_LOCAL_LICENSE=true

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-CONFIG_FILE="${DOCKERSW_MANAGED_COM_CONFIG:-/opt/dockersw/managed_com.env}"
+CONFIG_FILE="${DOCKERSW_MANAGED_COM_CONFIG:-/opt/sw-runtime/managed_com.env}"
 # shellcheck source=/dev/null
 . "${CONFIG_FILE}"
 
 export WINEPREFIX="${WINEPREFIX:-/root/.wine}"
-ASSET_DIR="${DOCKERSW_MANAGED_COM_DIR:-/opt/dockersw/managed-com}"
+ASSET_DIR="${DOCKERSW_MANAGED_COM_DIR:-/opt/sw-runtime/managed-com}"
 MONO_ROOT="${WINEPREFIX}/drive_c/windows/mono/mono-2.0"
 
 verify_sha256() {

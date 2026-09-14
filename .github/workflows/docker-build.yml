@@ -76,25 +76,25 @@ jobs:
       - name: Build Docker Image Locally for Self-Check
         run: |
           echo "[CI] 正在构建 DockerSW 基础镜像..."
-          docker build --progress=plain -f docker/Dockerfile -t dockersw:local-test .
+          docker build --progress=plain -f docker/Dockerfile -t sw-runtime:local-test .
 
       - name: Smoke Test (Wine, Mono COM, Python, pywin32 & CLI)
         run: |
           echo "[CI] 验证 1: 测试固定 Wine 版本与 Windows 虚拟版本..."
-          test "$(docker run --rm --entrypoint wine dockersw:local-test --version)" = "wine-11.16"
-          docker run --rm dockersw:local-test wine cmd /c ver
+          test "$(docker run --rm --entrypoint wine sw-runtime:local-test --version)" = "wine-11.16"
+          docker run --rm sw-runtime:local-test wine cmd /c ver
 
           echo "[CI] 验证 2: 测试 Wine-Mono stdcall 与托管 COM 注册组件..."
-          docker run --rm dockersw:local-test /usr/local/lib/dockersw/prepare_managed_com.sh
+          docker run --rm sw-runtime:local-test /usr/local/lib/sw-runtime/prepare_managed_com.sh
 
           echo "[CI] 验证 3: 测试 Windows Python 3.11 与 pywin32 COM 模块就绪..."
-          docker run --rm dockersw:local-test wine "C:\\Python311\\python.exe" -c "import win32com.client, pythoncom; print('[HEALTH CHECK OK] Windows Python & pywin32 ready')"
+          docker run --rm sw-runtime:local-test wine "C:\\Python311\\python.exe" -c "import win32com.client, pythoncom; print('[HEALTH CHECK OK] Windows Python & pywin32 ready')"
 
           echo "[CI] 验证 4: 运行 sw-export 导出工具命令行..."
-          docker run --rm dockersw:local-test sw-export --help
+          docker run --rm sw-runtime:local-test sw-export --help
 
           echo "[CI] 验证 5: 安装器命令已内置..."
-          docker run --rm dockersw:local-test sw-install --help
+          docker run --rm sw-runtime:local-test sw-install --help
 
       - name: Push Image to GHCR
         if: github.event_name != 'pull_request'
