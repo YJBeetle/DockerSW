@@ -1,0 +1,51 @@
+name: Check Google Drive access
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Every two months at 04:23 UTC. Avoid the top of the hour, when
+    # GitHub-hosted scheduled workflows are more likely to be delayed.
+    - cron: "23 4 1 1,3,5,7,9,11 *"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Install rclone
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rclone_version=1.75.1
+          rclone_archive="rclone-v${rclone_version}-linux-amd64.zip"
+          curl --fail --silent --show-error --location \
+            "https://downloads.rclone.org/v${rclone_version}/${rclone_archive}" \
+            --output "${RUNNER_TEMP}/${rclone_archive}"
+          echo "982b5aa772841168f8e380f139e9e787b2a105403e32b94da8676a0e1c0a13ab  ${RUNNER_TEMP}/${rclone_archive}" \
+            | sha256sum --check --strict
+          unzip -q "${RUNNER_TEMP}/${rclone_archive}" -d "${RUNNER_TEMP}/rclone"
+          sudo install -m 0755 \
+            "${RUNNER_TEMP}/rclone/rclone-v${rclone_version}-linux-amd64/rclone" \
+            /usr/local/bin/rclone
+
+      - name: Verify protected installation media
+        shell: bash
+        env:
+          RCLONE_CONFIG_B64: ${{ secrets.RCLONE_CONFIG_B64 }}
+        run: |
+          set -Eeuo pipefail
+          config_file="${RUNNER_TEMP}/rclone.conf"
+          trap 'rm -f "${config_file}"' EXIT
+
+          test -n "${RCLONE_CONFIG_B64}" || {
+            echo "RCLONE_CONFIG_B64 is not configured" >&2
+            exit 1
+          }
+          printf '%s' "${RCLONE_CONFIG_B64}" | base64 --decode > "${config_file}"
+          chmod 0600 "${config_file}"
+
+          rclone --config "${config_file}" \
