@@ -3,7 +3,6 @@
 __pycache__/
 *.pyc
 .wine/
-.ci-media/
 assets/SOLIDWORKS/
 assets/vc_redist_dlls/
 assets/wine-mono-11.0.0-x86.msi

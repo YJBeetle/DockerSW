@@ -1,53 +1,25 @@
 # DockerSWPreinstalled
 
-DockerSWPreinstalled 是仅在内网使用的私有构建与部署层。CI 从受控的内网存储下载完整、合法取得的 SOLIDWORKS 安装介质，调用 DockerSW 提供的 `sw-install --accept-eula` 完成 Wine 无头 MSI 安装，然后将成品推送到本项目的 GitLab Container Registry。
+DockerSWPreinstalled 是用于构建和发布预装 SOLIDWORKS 的私有镜像仓库。公开的 [DockerSW](https://github.com/YJBeetle/DockerSW) 提供 Wine 运行时、`sw-install` 和 `sw-export`；本仓库负责私有安装配置、本地 FlexNet 服务、完整安装和真实导出验证。
 
-公开的 DockerSW 仓库负责 Wine 运行时、安装脚本和导出工具；本仓库负责安装介质来源、安装注册表、本地 FlexNet 服务和最终私有镜像。官方介质、序列号和许可证不得上传到公开镜像仓库。
+安装介质、序列号、许可证及最终镜像均不得发布到公开仓库或公开镜像包。本仓库及 `ghcr.io/yjbeetle/sw-preinstalled` 应保持私有。
 
-## 流水线
+## 构建流程
 
-1. `mirror_sw_runtime` 根据当前固定的 DockerSW 子模块提交，将 GitHub CI 已验证并发布的 `ghcr.io/yjbeetle/sw-runtime:sha-<短 SHA>` 原样同步到本项目的 GitLab Registry。相同标签已存在时直接跳过，不重新构建或跨网下载。
-2. `build_sw_preinstalled` 只从内网的 `CI_REGISTRY_IMAGE/sw-runtime:sha-<短 SHA>` 拉取基础镜像。
-3. 流水线从内网下载并校验安装介质，执行无头安装。
-4. 最终镜像仅保留安装后的 Wine prefix 和本仓库的内部 FlexNet 服务，不包含 ISO、压缩包或安装日志。
-5. 成品只推送到 GitLab Registry 的 `CI_REGISTRY_IMAGE/sw-preinstalled`，标签为 `latest`、`sha-<commit>`；Git tag 流水线还会推送同名版本标签。
+`.github/workflows/build-from-google-drive.yml` 在影响镜像的内容推送到 `main` 时自动运行，也支持在 Actions 页面手动触发：
 
-## 安装介质配置
+1. 根据 DockerSW 子模块提交拉取对应的 `ghcr.io/yjbeetle/sw-runtime:sha-<短 SHA>`。
+2. 以只读、无 VFS 磁盘缓存的方式挂载 Google Drive，并对远端 ISO 建立只读 loop mount。
+3. 将展开后的 ISO 文件系统直接只读挂载给安装容器，执行 `sw-install --accept-eula`。
+4. 将安装结果和本仓库的内部 FlexNet 服务固化为临时镜像；ISO、rclone 配置和安装日志不会进入镜像。
+5. 使用镜像内置样例执行真实 `sw-export`，验证 2 个 PDF、2 个 DWG 和 2 个 STEP 均非空。
+6. 仅在验证成功后，将 `latest` 和 `sha-<仓库提交>` 推送到私有 GHCR 包 `ghcr.io/yjbeetle/sw-preinstalled`。
 
-当前私有仓库已在 `.gitlab-ci.yml` 中固定内网 ISO 下载地址及其 SHA-256，默认流水线无需额外变量即可下载、校验并安装。下列同名 GitLab CI/CD Variables 可在不修改仓库的情况下覆盖默认值：
+安装期间每 5 分钟输出累计耗时、容器资源占用、Runner 磁盘空间和最近的 rclone 日志。安装或导出失败时，相应诊断日志会作为私有 Actions artifact 保留 14 天。
 
-| 变量 | 要求 | 用途 |
-|---|---|---|
-| `SW_MEDIA_URL` | 已提供默认值；与 `SW_MEDIA_LOCAL_PATH` 二选一 | 内网 HTTPS、WebDAV 或对象存储中的完整介质归档 |
-| `SW_MEDIA_LOCAL_PATH` | 与 `SW_MEDIA_URL` 二选一 | 私有 Runner 已挂载的介质文件 |
-| `SW_MEDIA_SHA256` | 已提供默认值 | 介质 SHA-256，校验失败立即停止 |
-| `SW_MEDIA_BEARER_TOKEN` | 可选、Masked | 内网下载 Bearer Token |
-| `SW_MEDIA_USERNAME` | 可选、Masked | HTTP Basic 用户名 |
-| `SW_MEDIA_PASSWORD` | 可选、Masked | HTTP Basic 密码 |
-| `SW_INSTALL_TIMEOUT` | 可选 | 单个安装步骤超时秒数，默认 10800 |
+## Google Drive 配置
 
-`CI_REGISTRY`、`CI_REGISTRY_USER`、`CI_REGISTRY_PASSWORD` 和 `CI_REGISTRY_IMAGE` 使用 GitLab 自带变量，不再配置 Docker Hub 凭据。
-
-`SW_RUNTIME_IMAGE` 可选；默认使用按 DockerSW 子模块短 SHA 镜像到 GitLab Registry 的 `sw-runtime`，只在需要临时覆盖基础镜像时设置。
-
-介质可以是 ISO、ZIP、7z 或 tar 系列归档，但解压后必须包含：
-
-```text
-swwi/data/solidworks.msi
-PreReqs/VCRedist17/VC_redist.x64.exe
-PreReqs/dotNetFx/ndp48-x86-x64-allos-enu.exe
-swloginmgr/SOLIDWORKS Login Manager.msi
-```
-
-安装前会导入私有的 `assets/*.reg`。构建中的 `--accept-eula` 表示本仓库的实际维护者已审阅并接受该介质所适用的 EULA；该开关不会授予许可证，也不能替代协议审阅。MSI verbose 日志可能包含序列号，因此成功构建时不会复制进最终镜像；安装失败时只作为保留 1 天的私有 Actions artifact 上传。
-
-## GitHub Actions Google Drive 挂载
-
-`.github/workflows/build-from-google-drive.yml` 提供手动触发的 GitHub Actions 构建。它以只读、无 VFS 磁盘缓存的方式挂载 Google Drive，再对远端 ISO 建立只读 loop mount。安装容器直接 bind mount 已展开的 ISO 文件系统，因此不会下载、解压或复制完整 ISO 到 Docker 构建上下文；实际网络读取量由安装器访问的 ISO 区段决定。
-
-安装期间每 5 分钟输出一次累计耗时、安装容器状态与资源占用、Runner 磁盘空间和最近的 rclone 日志；可通过 `SW_PROGRESS_INTERVAL` 覆盖间隔秒数。
-
-先在 Google Cloud 中为本仓库创建 OAuth Client ID、启用 Google Drive API，然后在本地生成仅供 CI 使用的 `gdrive` remote。应使用自己的 OAuth Client ID，不要依赖 rclone 的共享 Client ID；授权范围选择只读的 `drive.readonly`：
+在 Google Cloud 中创建 OAuth Client ID、启用 Google Drive API，并将 OAuth 应用发布为正式版。建议使用自己的 Client ID、只读 `drive.readonly` 权限，并在本地生成专供 CI 使用的 `gdrive` remote：
 
 ```bash
 rclone config
@@ -60,42 +32,52 @@ rclone lsf 'gdrive:ISO所在目录'
 rclone config show gdrive | base64 | tr -d '\n'
 ```
 
-将输出原样保存到 GitHub 私有仓库的 `Settings -> Secrets and variables -> Actions`：
+将输出保存为 GitHub 仓库的 Actions Secret：
 
 | Secret | 内容 |
 |---|---|
-| `RCLONE_CONFIG_B64` | 上述命令输出的完整单行 Base64 文本 |
+| `RCLONE_CONFIG_B64` | `gdrive` remote 完整配置的单行 Base64 文本 |
 
-在 Actions 页面手动运行 `Build sw-preinstalled from Google Drive`，必要时覆盖 ISO 在 `gdrive:` remote 中的相对路径。成功后发布私有 GHCR 镜像：
+默认介质路径为：
 
 ```text
-ghcr.io/yjbeetle/sw-preinstalled:latest
-ghcr.io/yjbeetle/sw-preinstalled:sha-<仓库提交>
+Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/SolidWorks.2025.SP5.0.Premium.DVD.iso
 ```
 
-流水线只在 Google Drive 配置步骤中读取 Secret，将临时配置文件设为 `0600`，并在结束时删除。它通过临时安装容器和 `docker commit` 固化 Wine prefix，以保留 FUSE/loop mount 的按需读取特性；挂载目录不会进入成品镜像。
+手动运行 `Build sw-preinstalled from Google Drive` 时可以覆盖该路径。工作流使用 `--vfs-cache-mode off --buffer-size 0`，不会把整个 ISO 缓存到 Runner；安装器读取哪些 ISO 区段，rclone 才从远端读取相应数据。
 
-镜像生成后、推送 GHCR 前，CI 会使用镜像内置的 SOLIDWORKS 样例真实运行一次 `sw-export`：两个工程图分别导出 PDF 与 DWG，一个装配体和一个零件分别导出 STEP，并验证全部 6 个结果文件非空。只有该端到端测试成功后才发布 SHA 标签和 `latest`。
+`.github/workflows/check-google-drive.yml` 每两个月及手动触发时执行一次轻量目录读取，用于验证 Secret、OAuth refresh token 和目标文件仍然可访问。
 
-安装成功时日志会在提交镜像前删除；安装失败时会上传保留 14 天的私有 Actions artifact 供排查。导出测试失败时也会上传保留 14 天的独立诊断日志。
+## EULA 与安装输入
 
-## 许可服务
+构建中的 `--accept-eula` 表示本仓库维护者已审阅并接受安装介质所适用的 EULA。该参数不会授予软件许可证，也不能替代协议审阅。
 
-本仓库保留内部 `assets/SolidWorks_Flexnet_Server`，最终镜像默认设置：
+安装前会导入 `assets/*.reg` 中的私有安装配置，并从 `assets/SolidWorks_Flexnet_Server` 装入内部许可服务。最终镜像默认使用：
 
 ```text
 START_LOCAL_LICENSE=true
 FLEXNET_DIR=/opt/sw-preinstalled/flexnet
 ```
 
-因此客户端在同一容器中使用本地许可服务。公开 DockerSW 用户仍可通过 `SW_LICENSE_SERVER=25734@host` 连接自己在局域网部署的服务器，或显式挂载并启用本地 `lmgrd`。
+## 手动触发
+
+可以在 GitHub 的 `Actions` 页面选择 `Build sw-preinstalled from Google Drive`，点击 `Run workflow`；也可以使用 GitHub CLI：
+
+```bash
+gh workflow run build-from-google-drive.yml \
+  --repo YJBeetle/DockerSWPreinstalled \
+  --ref main
+```
 
 ## 使用
 
+先让 GitHub PAT 具备读取私有 package 的权限，再登录 GHCR：
+
 ```bash
-docker login "$CI_REGISTRY"
+printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u YJBeetle --password-stdin
+
 docker run --rm \
   -v "$(pwd):/workspace" \
-  "$CI_REGISTRY_IMAGE/sw-preinstalled:latest" \
+  ghcr.io/yjbeetle/sw-preinstalled:latest \
   sw-export --list list.txt --workspace /workspace --outdir /workspace/dist
 ```
