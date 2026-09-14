@@ -45,6 +45,8 @@ swloginmgr/SOLIDWORKS Login Manager.msi
 
 `.github/workflows/build-from-google-drive.yml` 提供手动触发的 GitHub Actions 构建。它以只读、无 VFS 磁盘缓存的方式挂载 Google Drive，再对远端 ISO 建立只读 loop mount。安装容器直接 bind mount 已展开的 ISO 文件系统，因此不会下载、解压或复制完整 ISO 到 Docker 构建上下文；实际网络读取量由安装器访问的 ISO 区段决定。
 
+安装期间每 5 分钟输出一次累计耗时、安装容器状态与资源占用、Runner 磁盘空间和最近的 rclone 日志；可通过 `SW_PROGRESS_INTERVAL` 覆盖间隔秒数。
+
 先在 Google Cloud 中为本仓库创建 OAuth Client ID、启用 Google Drive API，然后在本地生成仅供 CI 使用的 `gdrive` remote。应使用自己的 OAuth Client ID，不要依赖 rclone 的共享 Client ID；授权范围选择只读的 `drive.readonly`：
 
 ```bash
