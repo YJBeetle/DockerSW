@@ -39,33 +39,39 @@ PreReqs/dotNetFx/ndp48-x86-x64-allos-enu.exe
 swloginmgr/SOLIDWORKS Login Manager.msi
 ```
 
-安装前会导入私有的 `assets/*.reg`。构建中的 `--accept-eula` 表示本仓库的实际维护者已审阅并接受该介质所适用的 EULA；该开关不会授予许可证，也不能替代协议审阅。MSI verbose 日志可能包含序列号，因此只存在于临时安装阶段，不复制进最终镜像。
+安装前会导入私有的 `assets/*.reg`。构建中的 `--accept-eula` 表示本仓库的实际维护者已审阅并接受该介质所适用的 EULA；该开关不会授予许可证，也不能替代协议审阅。MSI verbose 日志可能包含序列号，因此成功构建时不会复制进最终镜像；安装失败时只作为保留 1 天的私有 Actions artifact 上传。
 
-## GitHub Actions MEGA 挂载实验
+## GitHub Actions Google Drive 挂载
 
-`.github/workflows/build-from-mega.yml` 提供手动触发的 GitHub Actions 构建。它以只读、无 VFS 磁盘缓存的方式挂载 MEGA，再对远端 ISO 建立只读 loop mount。安装容器直接 bind mount 已展开的 ISO 文件系统，因此不会下载、解压或复制完整 ISO 到 Docker 构建上下文；实际网络读取量由安装器访问的 ISO 区段决定。
+`.github/workflows/build-from-google-drive.yml` 提供手动触发的 GitHub Actions 构建。它以只读、无 VFS 磁盘缓存的方式挂载 Google Drive，再对远端 ISO 建立只读 loop mount。安装容器直接 bind mount 已展开的 ISO 文件系统，因此不会下载、解压或复制完整 ISO 到 Docker 构建上下文；实际网络读取量由安装器访问的 ISO 区段决定。
 
-MEGA 的 rclone 后端使用账号和密码，不使用 OAuth access token。建议使用专门的 MEGA 账号，并在本地生成供 rclone 使用的混淆密码：
+先在 Google Cloud 中为本仓库创建 OAuth Client ID、启用 Google Drive API，然后在本地生成仅供 CI 使用的 `gdrive` remote。应使用自己的 OAuth Client ID，不要依赖 rclone 的共享 Client ID；授权范围选择只读的 `drive.readonly`：
 
 ```bash
-rclone obscure 'MEGA_ACCOUNT_PASSWORD'
+rclone config
+rclone lsf 'gdrive:ISO所在目录'
 ```
 
-随后在 GitHub 私有仓库的 `Settings -> Secrets and variables -> Actions` 中添加：
+确认能够列出介质后，将该 remote 的完整配置编码为单行：
+
+```bash
+rclone config show gdrive | base64 | tr -d '\n'
+```
+
+将输出原样保存到 GitHub 私有仓库的 `Settings -> Secrets and variables -> Actions`：
 
 | Secret | 内容 |
 |---|---|
-| `MEGA_USER` | MEGA 登录邮箱 |
-| `MEGA_PASS` | `rclone obscure` 的完整输出，而不是原始密码 |
+| `RCLONE_CONFIG_B64` | 上述命令输出的完整单行 Base64 文本 |
 
-在 Actions 页面手动运行 `Build sw-preinstalled from MEGA`，必要时覆盖 ISO 在 MEGA remote 中的相对路径。成功后发布私有 GHCR 镜像：
+在 Actions 页面手动运行 `Build sw-preinstalled from Google Drive`，必要时覆盖 ISO 在 `gdrive:` remote 中的相对路径。成功后发布私有 GHCR 镜像：
 
 ```text
 ghcr.io/yjbeetle/sw-preinstalled:latest
 ghcr.io/yjbeetle/sw-preinstalled:sha-<仓库提交>
 ```
 
-这条实验流水线通过临时安装容器和 `docker commit` 固化 Wine prefix，目的是保留 FUSE/loop mount 的按需读取特性。挂载目录不会进入成品镜像；安装日志也会在提交镜像前删除。
+流水线只在 Google Drive 配置步骤中读取 Secret，将临时配置文件设为 `0600`，并在结束时删除。它通过临时安装容器和 `docker commit` 固化 Wine prefix，以保留 FUSE/loop mount 的按需读取特性；挂载目录不会进入成品镜像。安装成功时日志会在提交镜像前删除；安装失败时会上传保留 1 天的私有 Actions artifact 供排查。
 
 ## 许可服务
 

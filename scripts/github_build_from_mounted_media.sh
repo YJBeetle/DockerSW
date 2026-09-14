@@ -9,7 +9,17 @@ set -Eeuo pipefail
 install_container="sw-preinstall-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}"
 
 cleanup() {
+    local status=$?
+    local log_export_dir
+    if [ "${status}" -ne 0 ] && docker inspect "${install_container}" >/dev/null 2>&1; then
+        log_export_dir="${RUNNER_TEMP:-${PWD}/.ci-logs}/sw-install-logs"
+        umask 077
+        mkdir -p "${log_export_dir}"
+        docker cp "${install_container}:/var/log/sw-install/." "${log_export_dir}/" \
+            >/dev/null 2>&1 || true
+    fi
     docker rm -f "${install_container}" >/dev/null 2>&1 || true
+    return "${status}"
 }
 trap cleanup EXIT
 
