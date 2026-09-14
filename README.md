@@ -39,7 +39,7 @@ PreReqs/dotNetFx/ndp48-x86-x64-allos-enu.exe
 swloginmgr/SOLIDWORKS Login Manager.msi
 ```
 
-安装前会导入私有的 `assets/solidworks_reg/*.reg`。构建中的 `--accept-eula` 表示本仓库的实际维护者已审阅并接受该介质所适用的 EULA；该开关不会授予许可证，也不能替代协议审阅。MSI verbose 日志可能包含序列号，因此只存在于临时安装阶段，不复制进最终镜像。
+安装前会导入私有的 `assets/*.reg`。构建中的 `--accept-eula` 表示本仓库的实际维护者已审阅并接受该介质所适用的 EULA；该开关不会授予许可证，也不能替代协议审阅。MSI verbose 日志可能包含序列号，因此只存在于临时安装阶段，不复制进最终镜像。
 
 ## 许可服务
 

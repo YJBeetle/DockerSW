@@ -7,7 +7,7 @@ LABEL description="Private SolidWorks headless CI container built from official 
 
 # 安装介质由私有 GitLab CI 下载到固定路径，不存在于 Git 仓库中。
 COPY .ci-media/solidworks-media /opt/sw-preinstalled/private-media/solidworks-media
-COPY assets/solidworks_reg /opt/sw-preinstalled/private-registry
+COPY assets/*.reg /opt/sw-preinstalled/private-registry/
 
 ARG SW_INSTALL_TIMEOUT=10800
 RUN SW_INSTALL_TIMEOUT="${SW_INSTALL_TIMEOUT}" \
