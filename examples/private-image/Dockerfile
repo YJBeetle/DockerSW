@@ -1,23 +1,16 @@
-# =========================================================================
-# 企业内部私有仓库专用 Dockerfile 范例
-# 基于公开轻量的 DockerSW 基础运行时，装配企业内部的 SolidWorks 程序与授权
-# =========================================================================
+# syntax=docker/dockerfile:1.7
 
-# 1. 继承自公开基础运行时
-FROM ghcr.io/yjbeetle/sw-runtime:latest
+# 企业私有仓库示例：从公开运行时和合法取得的完整介质构建预安装镜像。
+# 构建上下文需要提供 private-media/SOLIDWORKS.iso，但不得将其提交到公开仓库。
+ARG BASE_IMAGE=ghcr.io/yjbeetle/sw-runtime:latest
+FROM ${BASE_IMAGE}
 
-# 2. 将企业私有存储或 Git LFS 中的 SolidWorks 程序目录装配入镜像
-COPY ./SOLIDWORKS /opt/solidworks
+# --accept-eula 表示执行构建的个人或组织已阅读并接受适用于该介质的 EULA。
+# BuildKit bind mount 不会把 ISO COPY 到最终镜像层；构建仍应只在可信私有环境中进行。
+RUN --mount=type=bind,source=private-media/SOLIDWORKS.iso,target=/tmp/SOLIDWORKS.iso,ro \
+    sw-install --media /tmp/SOLIDWORKS.iso --accept-eula \
+    && rm -rf /var/log/sw-install
 
-# 3. 将 FlexNet 授权服务器与激活文件拷贝至容器
-COPY ./SolidWorks_Flexnet_Server /opt/SolidWorks_Flexnet_Server
-
-# 4. 配置开箱即用环境变量：自动拉起容器内授权服务
-ENV START_LOCAL_LICENSE=true
-ENV SW_INSTALL_DIR=/opt/solidworks
-ENV FLEXNET_DIR=/opt/SolidWorks_Flexnet_Server
-
-# 5. （可选）如果使用公司局域网固定浮动许可，可覆盖为远程地址：
-# ENV SW_LICENSE_SERVER=25734@192.168.1.100
-
+# 推荐在运行时通过 SW_LICENSE_SERVER 注入局域网许可服务器地址。
+# 如需本地 lmgrd，可挂载 /opt/SolidWorks_Flexnet_Server 并设置 START_LOCAL_LICENSE=true。
 WORKDIR /workspace

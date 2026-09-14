@@ -1,39 +1,24 @@
-version: "3.8"
-
-# DockerSW 本地与服务器调试运行示范
-# 运行前可通过环境变量覆盖挂载路径：
-#   SW_DIR=/path/to/SOLIDWORKS docker compose -f examples/docker-compose.yml up
+# DockerSW 私有预安装镜像运行示例
+#
+# SW_IMAGE 必须指向已通过 sw-install 安装好 SOLIDWORKS 的私有镜像。
+# 推荐通过 SW_LICENSE_SERVER 使用局域网中的浮动许可服务器。
 
 services:
   sw-exporter:
-    image: ghcr.io/yjbeetle/sw-runtime:latest
-    # 若在本地从源码构建测试，可切换为 build 上下文：
-    # build:
-    #   context: ..
-    #   dockerfile: docker/Dockerfile
-    container_name: sw-export-runner
+    image: "${SW_IMAGE:?set SW_IMAGE to a private sw-preinstalled image}"
     environment:
-      # 模式 1: 容器内自动拉起本地挂载的 FlexNet 许可服务
-      - START_LOCAL_LICENSE=true
-      # 模式 2: 若有远程内网许可服务器，取消下方注释并填写实际 IP/端口
-      # - SW_LICENSE_SERVER=25734@192.168.1.100
-
-      # 容器内默认路径配置
-      - SW_INSTALL_DIR=/opt/solidworks
-      - FLEXNET_DIR=/opt/SolidWorks_Flexnet_Server
+      SW_LICENSE_SERVER: "${SW_LICENSE_SERVER:-}"
+      START_LOCAL_LICENSE: "${START_LOCAL_LICENSE:-false}"
+      SW_INSTALL_DIR: /opt/solidworks
+      FLEXNET_DIR: /opt/SolidWorks_Flexnet_Server
     volumes:
-      # 1. 挂载宿主机上的 SolidWorks 实体程序目录（例如 WineSW/C 路径）
-      - "${SW_DIR:-/Volumes/Data/Workspace/WineSW/C/Program Files/SOLIDWORKS Corp/SOLIDWORKS}:/opt/solidworks:ro"
-      
-      # 2. 挂载 FlexNet 授权服务器目录（包含 lmgrd.exe 与 .lic 许可文件）
-      - "${FLEXNET_DIR:-/Volumes/Data/Workspace/WineSW/C/opt/SolidWorks_Flexnet_Server}:/opt/SolidWorks_Flexnet_Server:ro"
-      
-      # 3. 挂载 CAD 项目工作区与输出目录
-      - "..:/workspace"
+      - "${CAD_WORKSPACE:-..}:/workspace:ro"
+      - "${EXPORT_OUTPUT:-./dist_output}:/output"
+      # 可选本地 lmgrd 模式：取消下一行注释，并设置 FLEXNET_HOST_DIR。
+      # - "${FLEXNET_HOST_DIR:?set FLEXNET_HOST_DIR}:/opt/SolidWorks_Flexnet_Server:ro"
     working_dir: /workspace
-    # 执行无头批量静默导出命令
     command: >
       sw-export
       --list /workspace/examples/export-list-demo.txt
       --workspace /workspace
-      --outdir /workspace/dist_output
+      --outdir /output
