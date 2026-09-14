@@ -35,6 +35,7 @@ jobs:
       RCLONE_CONFIG_FILE: /tmp/rclone-${{ github.run_id }}-${{ github.run_attempt }}.conf
       GDRIVE_MOUNT: /mnt/gdrive
       SW_MEDIA_MOUNT: /mnt/sw-media
+      SW_MEDIA_PATH: ${{ inputs.media_path || 'Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/SolidWorks.2025.SP5.0.Premium.DVD.iso' }}
       SW_IMAGE: ghcr.io/yjbeetle/sw-preinstalled
 
     steps:
@@ -133,9 +134,9 @@ jobs:
             exit 1
           }
 
-          iso_path="${GDRIVE_MOUNT}/${{ inputs.media_path }}"
+          iso_path="${GDRIVE_MOUNT}/${SW_MEDIA_PATH}"
           test -f "${iso_path}" || {
-            echo "ISO not found: ${{ inputs.media_path }}" >&2
+            echo "ISO not found: ${SW_MEDIA_PATH}" >&2
             exit 1
           }
           sudo mount -o loop,ro "${iso_path}" "${SW_MEDIA_MOUNT}"
