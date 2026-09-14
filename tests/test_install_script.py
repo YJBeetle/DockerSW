@@ -138,6 +138,9 @@ esac
             'i386_VistaFiles"',
             script,
         )
+        self.assertIn(
+            'append_default_msi_property "TOOLBOXFOLDER" "C:\\\\SWData"', script
+        )
         self.assertIn("msiexec /i \"${MSI_PATH}\" /qb /norestart", script)
         self.assertIn(
             'msiexec /i "${LOGIN_MANAGER_INSTALLER}" /qn /norestart', script

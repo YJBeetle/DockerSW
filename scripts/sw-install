@@ -368,6 +368,10 @@ append_default_msi_property "ENABLEPERFORMANCE" "0"
 append_default_msi_property "OFFICEOPTION" "3"
 append_default_msi_property "INSTALLLEVEL" "100"
 append_default_msi_property "ADDLOCAL" "SolidWorks,ProgramFiles,i386_ProgramFiles,i386_ThirdPtyFiles,i386_DCubeFiles,i386_SWFiles,i386_VistaFiles"
+# The MSI's bare "SOLIDWORKS Data" default is relative under Wine and makes
+# WriteToolboxStandardsXML fail during InstallFinalize. Use an absolute,
+# space-free Windows path while preserving explicit caller overrides.
+append_default_msi_property "TOOLBOXFOLDER" "C:\\SWData"
 
 MSI_LOG_WINDOWS="$(winepath -w "${LOG_DIR}/solidworks-msi.log")"
 MSI_ARGUMENTS=(
