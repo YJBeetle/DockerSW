@@ -4,44 +4,6 @@ Windows Registry Editor Version 5.00
 [HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\AeDebug]
 "Auto"="0"
 
-; 禁用 SolidWorks 登录管理器（防止弹出登录面板阻塞 CI）
-[HKEY_CURRENT_USER\Software\SolidWorks\SOLIDWORKS 2022\General]
-"EnableSldLoginManager"=dword:00000000
-
-[HKEY_LOCAL_MACHINE\Software\SolidWorks\SOLIDWORKS 2022\General]
-"EnableSldLoginManager"=dword:00000000
-
-[HKEY_CURRENT_USER\Software\SolidWorks\SOLIDWORKS 2023\General]
-"EnableSldLoginManager"=dword:00000000
-
-[HKEY_LOCAL_MACHINE\Software\SolidWorks\SOLIDWORKS 2023\General]
-"EnableSldLoginManager"=dword:00000000
-
-[HKEY_CURRENT_USER\Software\SolidWorks\SOLIDWORKS 2024\General]
-"EnableSldLoginManager"=dword:00000000
-
-[HKEY_LOCAL_MACHINE\Software\SolidWorks\SOLIDWORKS 2024\General]
-"EnableSldLoginManager"=dword:00000000
-
-[HKEY_CURRENT_USER\Software\SolidWorks\SOLIDWORKS 2025\General]
-"EnableSldLoginManager"=dword:00000000
-
-[HKEY_LOCAL_MACHINE\Software\SolidWorks\SOLIDWORKS 2025\General]
-"EnableSldLoginManager"=dword:00000000
-
-[HKEY_CURRENT_USER\Software\SolidWorks\SOLIDWORKS 2026\General]
-"EnableSldLoginManager"=dword:00000000
-
-[HKEY_LOCAL_MACHINE\Software\SolidWorks\SOLIDWORKS 2026\General]
-"EnableSldLoginManager"=dword:00000000
-
-; 自动接受 EULA 许可协议（防止弹窗）
-[HKEY_CURRENT_USER\Software\SolidWorks\IM\2024\Setup]
-"EULA Accepted SP5.0"=dword:00000001
-
-[HKEY_CURRENT_USER\Software\SolidWorks\IM\2025\Setup]
-"EULA Accepted SP5.0"=dword:00000001
-
 ; Wine DllOverrides: 默认原生 VC++ 运行库优先
 [HKEY_CURRENT_USER\Software\Wine\DllOverrides]
 "concrt140"="native,builtin"

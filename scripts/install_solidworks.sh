@@ -8,6 +8,7 @@ MSI_RELATIVE_PATH="${SW_MSI_RELATIVE_PATH:-swwi/data/solidworks.msi}"
 LOG_DIR="${SW_INSTALL_LOG_DIR:-/var/log/sw-install}"
 INSTALL_TIMEOUT="${SW_INSTALL_TIMEOUT:-10800}"
 VALIDATE_ONLY=false
+ACCEPT_EULA=false
 INSTALL_WPF_THEMES="${SW_INSTALL_WPF_THEMES:-true}"
 MSI_PROPERTIES=()
 TEMP_DIRS=()
@@ -28,6 +29,8 @@ Options:
   --property NAME=VALUE    Additional MSI property; may be repeated.
   --log-dir PATH           Protected installation log directory.
   --timeout SECONDS        Timeout for each long-running installer operation.
+  --accept-eula            Confirm acceptance of the applicable SOLIDWORKS EULA
+                           and record the media-version marker before installation.
   --validate-only          Validate/extract the media without running Wine.
   -h, --help               Show this help.
 
@@ -94,6 +97,10 @@ while [ "$#" -gt 0 ]; do
             [ "$#" -ge 2 ] || die "--timeout requires seconds"
             INSTALL_TIMEOUT="$2"
             shift 2
+            ;;
+        --accept-eula)
+            ACCEPT_EULA=true
+            shift
             ;;
         --validate-only)
             VALIDATE_ONLY=true
@@ -240,6 +247,38 @@ append_default_msi_property() {
     has_msi_property "${name}" || MSI_PROPERTIES+=("${name}=${value}")
 }
 
+record_eula_acceptance() {
+    [ "${ACCEPT_EULA}" = true ] || return
+    command -v msiinfo >/dev/null 2>&1 \
+        || die "msiinfo is required to derive the EULA marker from the SOLIDWORKS MSI"
+
+    local property_table product_version major_version service_pack_major service_pack_minor
+    local product_year eula_key eula_value
+    if ! property_table="$(msiinfo export "${MSI_PATH}" Property 2>/dev/null)"; then
+        die "could not read MSI Property table while deriving the EULA marker"
+    fi
+    product_version="$(
+        printf '%s\n' "${property_table}" \
+            | awk -F '\t' '$1 == "ProductVersion" { gsub(/\r/, "", $2); print $2; exit }'
+    )"
+    [[ "${product_version}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(\.|$) ]] \
+        || die "could not derive the SOLIDWORKS EULA marker from MSI ProductVersion"
+
+    major_version="${BASH_REMATCH[1]}"
+    service_pack_major="${BASH_REMATCH[2]}"
+    service_pack_minor="${BASH_REMATCH[3]}"
+    # SOLIDWORKS MSI major versions use 28 for 2020, 33 for 2025, and so on.
+    product_year="$((10#${major_version} + 1992))"
+    [ "${product_year}" -ge 2000 ] && [ "${product_year}" -le 2100 ] \
+        || die "derived SOLIDWORKS product year is outside the supported range"
+
+    eula_key="HKCU\\Software\\SolidWorks\\IM\\${product_year}\\Setup"
+    eula_value="EULA Accepted SP${service_pack_major}.${service_pack_minor}"
+    info "Recording explicit EULA acceptance for SOLIDWORKS ${product_year} SP${service_pack_major}.${service_pack_minor}."
+    run_installer "EULA acceptance registry update" \
+        wine reg add "${eula_key}" /v "${eula_value}" /t REG_DWORD /d 1 /f
+}
+
 start_xvfb
 
 if [ ! -s "${WINEPREFIX}/system.reg" ]; then
@@ -250,6 +289,7 @@ if [ ! -s "${WINEPREFIX}/system.reg" ]; then
 fi
 
 run_installer "Wine prefix probe" wine cmd /c ver
+record_eula_acceptance
 
 MONO_ROOT="${WINEPREFIX}/drive_c/windows/mono/mono-2.0"
 if [ ! -d "${MONO_ROOT}" ]; then

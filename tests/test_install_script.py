@@ -142,6 +142,22 @@ esac
         self.assertIn('info "Stopping background Wine helpers', script)
         self.assertIn("wineserver -k || true", script)
 
+    def test_eula_acceptance_is_explicit_and_not_preseeded(self) -> None:
+        script = INSTALLER.read_text(encoding="utf-8")
+        tweaks = (ROOT / "docker" / "registry" / "headless_tweaks.reg").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("--accept-eula", script)
+        self.assertIn("ACCEPT_EULA=false", script)
+        self.assertIn('msiinfo export "${MSI_PATH}" Property', script)
+        self.assertIn('product_year="$((10#${major_version} + 1992))"', script)
+        self.assertIn(
+            'eula_value="EULA Accepted SP${service_pack_major}.${service_pack_minor}"',
+            script,
+        )
+        self.assertNotIn("EULA Accepted", tweaks)
+        self.assertNotIn("EnableSldLoginManager", tweaks)
+
     def test_runtime_versions_and_both_mono_patches_are_pinned(self) -> None:
         config = (ROOT / "docker" / "managed_com.env").read_text(encoding="utf-8")
         dockerfile = (ROOT / "docker" / "Dockerfile").read_text(encoding="utf-8")

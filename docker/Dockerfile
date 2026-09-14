@@ -23,6 +23,7 @@ RUN dpkg --add-architecture i386 && \
         gnupg \
         xvfb \
         cabextract \
+        msitools \
         p7zip-full \
         zstd \
         procps \
