@@ -4,7 +4,7 @@
 # =========================================================================
 
 # 1. 继承自公开基础运行时
-FROM ghcr.io/yjbeetle/dockersw:latest
+FROM ghcr.io/yjbeetle/sw-runtime:latest
 
 # 2. 将企业私有存储或 Git LFS 中的 SolidWorks 程序目录装配入镜像
 COPY ./SOLIDWORKS /opt/solidworks

@@ -1,7 +1,7 @@
 # DockerSW: 无头 SolidWorks Linux 容器化与 CI 自动化导出环境
 
 [![Build and Test DockerSW](https://github.com/YJBeetle/DockerSW/actions/workflows/docker-build.yml/badge.svg)](https://github.com/YJBeetle/DockerSW/actions/workflows/docker-build.yml)
-[![Docker Image](https://img.shields.io/badge/ghcr.io-DockerSW-blue?logo=docker)](https://github.com/YJBeetle/DockerSW/pkgs/container/dockersw)
+[![Docker Image](https://img.shields.io/badge/ghcr.io-sw--runtime-blue?logo=docker)](https://github.com/YJBeetle/DockerSW/pkgs/container/sw-runtime)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 **DockerSW** 专为在 **Linux Docker 容器**（如 GitLab CI Runner、Kubernetes 集群、Linux 物理机）中通过 **Wine** 无头（Headless）静默运行 SolidWorks 并进行 CAD 资产批量自动化导出而设计。
@@ -32,7 +32,7 @@
                [ GitHub Actions 构建发布 ]
                              │
                              ▼
-         [ 公开基础镜像: ghcr.io/yjbeetle/dockersw:latest ]
+         [ 公开基础镜像: ghcr.io/yjbeetle/sw-runtime:latest ]
          ┌──────────────────────────────────────────────┐
          │ Ubuntu 22.04 LTS x86_64                      │
          │  ├─ Xvfb (:99 无头虚拟屏幕, 保障 COM 消息泵) │
@@ -47,9 +47,9 @@
         ▼ 运行方式 A: Volume 挂载 (推荐用于 CI)           ▼ 运行方式 B: 企业私有镜像
 ┌────────────────────────────────┐              ┌────────────────────────────────┐
 │ GitLab CI Runner / Docker      │              │ 企业私有 Docker 镜像           │
-│ docker run -v /data/SW:/opt/sw │              │ FROM ghcr.io/yjbeetle/dockersw │
+│ docker run -v /data/SW:/opt/sw │              │ FROM ghcr.io/.../sw-runtime     │
 │  -e SW_LICENSE_SERVER=...      │              │ COPY ./sw /opt/solidworks      │
-│  ghcr.io/yjbeetle/dockersw     │              │ ENV START_LOCAL_LICENSE=true   │
+│  ghcr.io/yjbeetle/sw-runtime   │              │ ENV START_LOCAL_LICENSE=true   │
 └────────────────────────────────┘              └────────────────────────────────┘
 ```
 
@@ -92,7 +92,7 @@ SW_DIR="/path/to/SOLIDWORKS" docker compose -f examples/docker-compose.yml up
 ```yaml
 services:
   dockersw-exporter:
-    image: ghcr.io/yjbeetle/dockersw:latest
+    image: ghcr.io/yjbeetle/sw-runtime:latest
     environment:
       - START_LOCAL_LICENSE=true
     volumes:
@@ -116,7 +116,7 @@ services:
 ```yaml
 export_cad_assets:
   stage: build
-  image: ghcr.io/yjbeetle/dockersw:latest
+  image: ghcr.io/yjbeetle/sw-runtime:latest
   variables:
     # 指定公司内部的浮动许可服务器
     SW_LICENSE_SERVER: "25734@192.168.1.100"
@@ -145,7 +145,7 @@ export_cad_assets:
 在企业内部的私有 Git 仓库中，仅需编写如下 5 行 `Dockerfile`（参考 [examples/private-image/Dockerfile](examples/private-image/Dockerfile)）：
 
 ```dockerfile
-FROM ghcr.io/yjbeetle/dockersw:latest
+FROM ghcr.io/yjbeetle/sw-runtime:latest
 
 # 装配内部保存的 SolidWorks 程序与授权
 COPY ./SOLIDWORKS /opt/solidworks

@@ -6,7 +6,7 @@
 1. **轻量纯粹**：专注提供无头执行与 COM 消息循环保障，专注于高可靠、无弹窗阻塞的 CI 导出；
 2. **两阶段解耦架构**：
    - **公开基础仓库（DockerSW）**：不含任何 SolidWorks 专有商业二进制代码，仅提供 Wine 64-bit、Xvfb 无头显示、Windows Python + pywin32 环境、无头注册表预配、智能入口与导出工具；由 GitHub Actions 自动化构建并推送到 GHCR；
-   - **私有企业环境（下游使用方）**：通过挂载 Volume 或构建极简的下游私有镜像（`FROM ghcr.io/yjbeetle/dockersw:latest`）提供 SolidWorks 实体文件和 FlexNet 许可服务器；
+   - **私有企业环境（下游使用方）**：通过挂载 Volume 或构建极简的下游私有镜像（`FROM ghcr.io/yjbeetle/sw-runtime:latest`）提供 SolidWorks 实体文件和 FlexNet 许可服务器；
 3. **开箱即用的自动化导出**：提供完善的 `dockersw-export` 命令行工具，适配 GitLab CI 流水线，支持 `.SLDPRT`/`.SLDASM` 导出 `.STEP`、`.SLDDRW` 导出 `.PDF` 和 `.DWG`、渲染装配体导出 `.GLB`。
 
 ---
@@ -17,7 +17,7 @@
                [ GitHub Actions 构建与发布 ]
                              │
                              ▼
-         [ Docker 镜像: ghcr.io/yjbeetle/dockersw:latest ]
+         [ Docker 镜像: ghcr.io/yjbeetle/sw-runtime:latest ]
          ┌──────────────────────────────────────────────┐
          │ Ubuntu 22.04 LTS x86_64                      │
          │  ├─ Xvfb (:99 无头虚拟屏幕, COM 消息循环保障)  │
@@ -31,9 +31,9 @@
         ▼ 运行方式 A: Volume 挂载                        ▼ 运行方式 B: 极简私有镜像
 ┌────────────────────────────────┐              ┌────────────────────────────────┐
 │ GitLab CI Runner / Docker      │              │ 企业私有 Docker 镜像           │
-│ docker run -v /data/SW:/opt/sw │              │ FROM ghcr.io/.../dockersw      │
+│ docker run -v /data/SW:/opt/sw │              │ FROM ghcr.io/.../sw-runtime     │
 │  -e SW_LICENSE_SERVER=...      │              │ COPY ./sw /opt/solidworks      │
-│  ghcr.io/yjbeetle/dockersw     │              │ ENV START_LOCAL_LICENSE=true   │
+│  ghcr.io/yjbeetle/sw-runtime   │              │ ENV START_LOCAL_LICENSE=true   │
 └────────────────────────────────┘              └────────────────────────────────┘
 ```
 
@@ -75,7 +75,7 @@
 1. **GitHub Actions (`.github/workflows/docker-build.yml`)**：
    - 自动触发构建；
    - 包含容器健康自检 step（Wine 验证、Windows Python 导入 `win32com.client` 验证）；
-   - 推送至 `ghcr.io/yjbeetle/dockersw`；
+   - 推送至 `ghcr.io/yjbeetle/sw-runtime`；
 2. **文档与范例**：
    - `examples/docker-compose.yml`：展示本地/自建宿主机如何使用 Volume 挂载和环境变量测试导出；
    - `examples/gitlab-ci/.gitlab-ci.yml`：展示在 GitLab CI 中如何无缝集成；

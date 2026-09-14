@@ -6,7 +6,7 @@ version: "3.8"
 
 services:
   dockersw-exporter:
-    image: ghcr.io/yjbeetle/dockersw:latest
+    image: ghcr.io/yjbeetle/sw-runtime:latest
     # 若在本地从源码构建测试，可切换为 build 上下文：
     # build:
     #   context: ..

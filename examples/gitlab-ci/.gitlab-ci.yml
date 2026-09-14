@@ -13,7 +13,7 @@ stages:
 #   [[runners]]
 #     executor = "docker"
 #     [runners.docker]
-#       image = "ghcr.io/yjbeetle/dockersw:latest"
+#       image = "ghcr.io/yjbeetle/sw-runtime:latest"
 #       volumes = [
 #         "/data/solidworks:/opt/solidworks:ro",
 #         "/data/SolidWorks_Flexnet_Server:/opt/SolidWorks_Flexnet_Server:ro",
@@ -21,7 +21,7 @@ stages:
 #       ]
 export_cad_volume_mode:
   stage: export
-  image: ghcr.io/yjbeetle/dockersw:latest
+  image: ghcr.io/yjbeetle/sw-runtime:latest
   variables:
     # 许可方式 1: 远程内网许可服务器（推荐）
     SW_LICENSE_SERVER: "25734@192.168.1.100"
