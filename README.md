@@ -1,6 +1,6 @@
 # DockerSWPreinstalled
 
-DockerSWPreinstalled 是仅在内网使用的私有构建与部署层。CI 从受控的内网存储下载完整、合法取得的 SOLIDWORKS 官方安装介质，调用 DockerSW 提供的 `sw-install` 完成 Wine 无头 MSI 安装，然后将成品推送到本项目的 GitLab Container Registry。
+DockerSWPreinstalled 是仅在内网使用的私有构建与部署层。CI 从受控的内网存储下载完整、合法取得的 SOLIDWORKS 安装介质，调用 DockerSW 提供的 `sw-install --accept-eula` 完成 Wine 无头 MSI 安装，然后将成品推送到本项目的 GitLab Container Registry。
 
 公开的 DockerSW 仓库负责 Wine 运行时、安装脚本和导出工具；本仓库负责安装介质来源、安装注册表、本地 FlexNet 服务和最终私有镜像。官方介质、序列号和许可证不得上传到公开镜像仓库。
 
@@ -36,9 +36,10 @@ DockerSWPreinstalled 是仅在内网使用的私有构建与部署层。CI 从�
 swwi/data/solidworks.msi
 PreReqs/VCRedist17/VC_redist.x64.exe
 PreReqs/dotNetFx/ndp48-x86-x64-allos-enu.exe
+swloginmgr/SOLIDWORKS Login Manager.msi
 ```
 
-安装前会导入私有的 `assets/solidworks_reg/*.reg`。MSI verbose 日志可能包含序列号，因此只存在于临时安装阶段，不复制进最终镜像。
+安装前会导入私有的 `assets/solidworks_reg/*.reg`。构建中的 `--accept-eula` 表示本仓库的实际维护者已审阅并接受该介质所适用的 EULA；该开关不会授予许可证，也不能替代协议审阅。MSI verbose 日志可能包含序列号，因此只存在于临时安装阶段，不复制进最终镜像。
 
 ## 许可服务
 

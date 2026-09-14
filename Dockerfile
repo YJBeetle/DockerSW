@@ -14,6 +14,7 @@ RUN SW_INSTALL_TIMEOUT="${SW_INSTALL_TIMEOUT}" \
     sw-install \
       --media /opt/sw-preinstalled/private-media/solidworks-media \
       --registry-dir /opt/sw-preinstalled/private-registry \
+      --accept-eula \
       --log-dir /var/log/sw-install && \
     rm -rf /opt/sw-preinstalled/private-media /opt/sw-preinstalled/private-registry
 
