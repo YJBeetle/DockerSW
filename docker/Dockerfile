@@ -69,7 +69,7 @@ RUN chmod +x /tmp/init_wineprefix.sh /usr/local/lib/sw-runtime/prepare_managed_c
 
 # 5. 安装核心导出脚本与全局 CLI 命令
 RUN mkdir -p /opt/sw-runtime/scripts
-COPY scripts/export_sw.py /opt/sw-runtime/scripts/export_sw.py
+COPY scripts/export_sw.py scripts/lib/solidworks_version.sh /opt/sw-runtime/scripts/
 COPY scripts/sw-export scripts/sw-install /usr/local/bin/
 RUN chmod +x /usr/local/bin/sw-export /usr/local/bin/sw-install
 

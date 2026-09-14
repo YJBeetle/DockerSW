@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+VERSION_HELPER="/opt/sw-runtime/scripts/solidworks_version.sh"
+if [ ! -r "${VERSION_HELPER}" ]; then
+    VERSION_HELPER="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/solidworks_version.sh"
+fi
+[ -r "${VERSION_HELPER}" ] || {
+    echo "[DockerSW Install][ERROR] SOLIDWORKS version helper is unavailable" >&2
+    exit 1
+}
+# shellcheck source=scripts/lib/solidworks_version.sh
+. "${VERSION_HELPER}"
+
 PROGRAM_NAME="sw-install"
 MEDIA_PATH="${SW_MEDIA_PATH:-}"
 REGISTRY_DIR="${SW_INSTALL_REGISTRY_DIR:-}"
@@ -252,7 +263,7 @@ record_eula_acceptance() {
     command -v msiinfo >/dev/null 2>&1 \
         || die "msiinfo is required to derive the EULA marker from the SOLIDWORKS MSI"
 
-    local property_table product_version major_version service_pack_major service_pack_minor
+    local property_table product_version release service_pack_major service_pack_minor
     local product_year eula_key eula_value
     if ! property_table="$(msiinfo export "${MSI_PATH}" Property 2>/dev/null)"; then
         die "could not read MSI Property table while deriving the EULA marker"
@@ -261,16 +272,9 @@ record_eula_acceptance() {
         printf '%s\n' "${property_table}" \
             | awk -F '\t' '$1 == "ProductVersion" { gsub(/\r/, "", $2); print $2; exit }'
     )"
-    [[ "${product_version}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(\.|$) ]] \
+    release="$(solidworks_release_from_product_version "${product_version}")" \
         || die "could not derive the SOLIDWORKS EULA marker from MSI ProductVersion"
-
-    major_version="${BASH_REMATCH[1]}"
-    service_pack_major="${BASH_REMATCH[2]}"
-    service_pack_minor="${BASH_REMATCH[3]}"
-    # SOLIDWORKS MSI major versions use 28 for 2020, 33 for 2025, and so on.
-    product_year="$((10#${major_version} + 1992))"
-    [ "${product_year}" -ge 2000 ] && [ "${product_year}" -le 2100 ] \
-        || die "derived SOLIDWORKS product year is outside the supported range"
+    IFS=$'\t' read -r product_year service_pack_major service_pack_minor <<<"${release}"
 
     eula_key="HKCU\\Software\\SolidWorks\\IM\\${product_year}\\Setup"
     eula_value="EULA Accepted SP${service_pack_major}.${service_pack_minor}"
