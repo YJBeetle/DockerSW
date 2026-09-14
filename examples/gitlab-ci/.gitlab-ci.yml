@@ -52,7 +52,7 @@ export_cad_volume_mode:
 #   使用企业私有镜像仓库预构建好的 DockerSW 镜像（参考 examples/private-image/Dockerfile）
 export_cad_private_image_mode:
   stage: export
-  image: registry.internal.mycompany.com/cad/dockersw-with-sw:latest
+  image: registry.internal.mycompany.com/cad/sw-preinstalled:latest
   variables:
     # 私有镜像已内置许可守护进程，容器启动时自动拉起
     START_LOCAL_LICENSE: "true"
