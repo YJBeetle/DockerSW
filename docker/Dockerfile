@@ -70,8 +70,7 @@ RUN chmod +x /tmp/init_wineprefix.sh /usr/local/lib/sw-runtime/prepare_managed_c
 # 5. 安装核心导出脚本与全局 CLI 命令
 RUN mkdir -p /opt/sw-runtime/scripts
 COPY scripts/export_sw.py /opt/sw-runtime/scripts/export_sw.py
-COPY scripts/sw-export /usr/local/bin/sw-export
-COPY scripts/install_solidworks.sh /usr/local/bin/sw-install
+COPY scripts/sw-export scripts/sw-install /usr/local/bin/
 RUN chmod +x /usr/local/bin/sw-export /usr/local/bin/sw-install
 
 # 6. 配置容器 Entrypoint

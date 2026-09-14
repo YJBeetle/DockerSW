@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-INSTALLER = ROOT / "scripts" / "install_solidworks.sh"
+INSTALLER = ROOT / "scripts" / "sw-install"
 
 
 class InstallScriptValidationTests(unittest.TestCase):
