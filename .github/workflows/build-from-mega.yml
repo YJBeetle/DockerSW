@@ -53,7 +53,17 @@ jobs:
         run: |
           set -Eeuo pipefail
           sudo apt-get update
-          sudo apt-get install --yes rclone fuse3
+          sudo apt-get install --yes curl fuse3 unzip
+          rclone_version=1.75.1
+          rclone_archive="rclone-v${rclone_version}-linux-amd64.zip"
+          curl --fail --silent --show-error --location \
+            "https://downloads.rclone.org/v${rclone_version}/${rclone_archive}" \
+            --output "${RUNNER_TEMP}/${rclone_archive}"
+          echo "982b5aa772841168f8e380f139e9e787b2a105403e32b94da8676a0e1c0a13ab  ${RUNNER_TEMP}/${rclone_archive}" \
+            | sha256sum --check --strict
+          unzip -q "${RUNNER_TEMP}/${rclone_archive}" -d "${RUNNER_TEMP}/rclone"
+          sudo install -m 0755 "${RUNNER_TEMP}/rclone/rclone-v${rclone_version}-linux-amd64/rclone" /usr/local/bin/rclone
+          rclone help backends | grep -q '^  mega '
           grep -qxF user_allow_other /etc/fuse.conf || \
             echo user_allow_other | sudo tee -a /etc/fuse.conf >/dev/null
 
