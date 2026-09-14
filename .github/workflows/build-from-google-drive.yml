@@ -1,6 +1,16 @@
 name: Build sw-preinstalled from Google Drive
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build-from-google-drive.yml
+      - .gitattributes
+      - .gitmodules
+      - DockerSW
+      - assets/**
+      - scripts/github_build_from_mounted_media.sh
   workflow_dispatch:
     inputs:
       media_path:
