@@ -214,6 +214,21 @@ esac
         self.assertIn("VersionIndependentProgID", script)
         self.assertIn("TypeLib", script)
 
+    def test_installer_flushes_registry_after_final_com_queries(self) -> None:
+        script = INSTALLER.read_text(encoding="utf-8")
+        final_wineserver_wait = script.rindex(
+            "timeout --foreground 60 wineserver -w"
+        )
+        self.assertGreater(
+            final_wineserver_wait,
+            script.index("validate_solidworks_com_registration\n"),
+        )
+        self.assertGreater(final_wineserver_wait, script.index("install_wpf_themes\n"))
+        self.assertLess(
+            final_wineserver_wait,
+            script.index('info "SOLIDWORKS installation completed'),
+        )
+
     def test_runtime_versions_and_both_mono_patches_are_pinned(self) -> None:
         config = (ROOT / "docker" / "managed_com.env").read_text(encoding="utf-8")
         dockerfile = (ROOT / "docker" / "Dockerfile").read_text(encoding="utf-8")
