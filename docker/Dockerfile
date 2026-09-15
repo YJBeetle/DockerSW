@@ -32,7 +32,9 @@ RUN dpkg --add-architecture i386 && \
         locales && \
     mkdir -pm755 /etc/apt/keyrings && \
     wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key && \
-    wget -O /etc/apt/sources.list.d/winehq-jammy.sources https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources
+    wget -O /etc/apt/sources.list.d/winehq-jammy.sources https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # 与 WineSW 已验证环境保持 Wine 11.16 / Wine-Mono 11.3.0 一致，但不引入
 # 仅适用于 macOS 的 winemac/win32u 补丁。
@@ -65,7 +67,7 @@ COPY docker/prepare_managed_com.sh /usr/local/lib/sw-runtime/prepare_managed_com
 # 4. 执行 WinePrefix 初始化（先创建干净 prefix，再显式安装并修补 Mono、Python 与 pywin32）
 RUN chmod +x /tmp/init_wineprefix.sh /usr/local/lib/sw-runtime/prepare_managed_com.sh && \
     /tmp/init_wineprefix.sh && \
-    rm -rf /tmp/*
+    rm -rf /tmp/* /root/.cache/*
 
 # 5. 安装核心导出脚本与全局 CLI 命令
 RUN mkdir -p /opt/sw-runtime/scripts
