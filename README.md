@@ -1,6 +1,6 @@
 # DockerSWPreinstalled
 
-DockerSWPreinstalled 是用于构建和发布预装 SOLIDWORKS 的私有镜像仓库。公开的 [DockerSW](https://github.com/YJBeetle/DockerSW) 提供 Wine 运行时、`sw-install` 和 `sw-export`；本仓库负责私有安装配置、本地 FlexNet 服务和完整安装。
+DockerSWPreinstalled 是用于构建和发布预装 SOLIDWORKS 的私有镜像仓库。公开的 [DockerSW](https://github.com/YJBeetle/DockerSW) 提供 Wine 运行时、`sw-install` 和 `sw-export`；本仓库负责私有安装配置、本地 FlexNet 服务、完整安装和真实导出验证。
 
 安装介质、序列号、许可证及最终镜像均不得发布到公开仓库或公开镜像包。本仓库及 `ghcr.io/yjbeetle/sw-preinstalled` 应保持私有。
 
@@ -12,10 +12,13 @@ DockerSWPreinstalled 是用于构建和发布预装 SOLIDWORKS 的私有镜像�
 2. 以只读、无 VFS 磁盘缓存的方式挂载 Google Drive，并对远端 ISO 建立只读 loop mount。
 3. 将展开后的 ISO 文件系统直接只读挂载给安装容器，执行 `sw-install --accept-eula`。
 4. 将安装结果和本仓库的内部 FlexNet 服务固化为临时镜像；ISO、rclone 配置和安装日志不会进入镜像。
-5. 将 `sha-<仓库提交>` 和 `latest` 推送到私有 GHCR 包 `ghcr.io/yjbeetle/sw-preinstalled`。
-6. 在 NAS 上拉取成品镜像，完成 COM、许可服务和真实导出验证；确认稳定后再恢复 CI 导出测试。
+5. 先将不可变的 `sha-<仓库提交>` 候选镜像推送到私有 GHCR，便于失败后在 NAS 上复现和调查。
+6. 使用安装后自带的零件、装配体和工程图执行真实 `sw-export`，并检查 6 个 PDF、DWG、STEP 输出均存在且非空。
+7. 只有真实导出通过后，才将同一成品镜像推送为 `latest`。
 
-安装期间每 5 分钟输出累计耗时、容器资源占用、Runner 磁盘空间和最近的 rclone 日志。安装失败时，诊断日志会作为私有 Actions artifact 保留 14 天。当前验证阶段由 NAS 上的真实运行结果判断镜像是否可用。
+真实导出覆盖以下四个随 SOLIDWORKS 安装的样例：`bezel moldbase.slddrw`、`bezel moldbase.sldasm`、`cabinet_bath.slddrw` 和 `Paper Airplane.SLDPRT`。工程图分别验证 PDF 与 DWG，装配体和零件验证 STEP。
+
+安装期间每 5 分钟输出累计耗时、容器资源占用、Runner 磁盘空间和最近的 rclone 日志。安装失败时，诊断日志会作为私有 Actions artifact 保留 14 天；导出失败时，导出日志和已生成文件同样保留 14 天。导出失败不会覆盖 `latest`，但对应 SHA 候选镜像会保留，便于在 NAS 上继续调查。
 
 ## Google Drive 配置
 
