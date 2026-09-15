@@ -464,17 +464,6 @@ if [ "${ACTUAL_SW_DIR}" != "${CANONICAL_SW_DIR}" ]; then
     ln -s "${ACTUAL_SW_DIR}" "${CANONICAL_SW_DIR}"
 fi
 
-# The COM validation queries start a fresh wineserver after the installer has
-# already been settled above. Let that server exit cleanly so its in-memory
-# registry state is flushed to the Wine prefix before a container layer or
-# docker commit snapshots the filesystem.
-if ! timeout --foreground 60 wineserver -w; then
-    info "Stopping Wine helpers before persisting the installed prefix."
-    wineserver -k || true
-    timeout --foreground 60 wineserver -w \
-        || die "wineserver did not stop while persisting the installed prefix"
-fi
-
 chmod -R go-rwx "${LOG_DIR}" 2>/dev/null || true
 info "SOLIDWORKS installation completed and SLDWORKS.exe was verified."
 info "Installation logs remain private at ${LOG_DIR}."
