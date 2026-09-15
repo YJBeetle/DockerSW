@@ -50,23 +50,19 @@ RUN . /opt/sw-runtime/managed_com.env && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 2. 下载 Windows Python、Wine-Mono 以及已验证的 stdcall/COM 注册组件。
+# 2. 下载 Wine-Mono 以及已验证的 stdcall/COM 注册组件。
 # 所有外部二进制均固定版本并执行 SHA256 校验，不提交到公开仓库。
-COPY docker/fetch_managed_com.sh /tmp/fetch_managed_com.sh
-RUN wget -q "https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-amd64.exe" -O /tmp/python-installer.exe && \
-    chmod +x /tmp/fetch_managed_com.sh && \
-    /tmp/fetch_managed_com.sh && \
-    rm -f /tmp/fetch_managed_com.sh
+RUN --mount=type=bind,source=docker/fetch_managed_com.sh,target=/tmp/fetch_managed_com.sh \
+    bash /tmp/fetch_managed_com.sh
 
-# 3. 复制注册表配置与初始化脚本
-COPY docker/registry/headless_tweaks.reg /tmp/headless_tweaks.reg
-COPY docker/registry/license_template.reg /tmp/license_template.reg
-COPY docker/init_wineprefix.sh /tmp/init_wineprefix.sh
+# 3. 复制运行时需要的组件
 COPY docker/prepare_managed_com.sh /usr/local/lib/sw-runtime/prepare_managed_com.sh
+RUN chmod +x /usr/local/lib/sw-runtime/prepare_managed_com.sh
 
 # 4. 执行 WinePrefix 初始化（先创建干净 prefix，再显式安装并修补 Mono、Python 与 pywin32）
-RUN chmod +x /tmp/init_wineprefix.sh /usr/local/lib/sw-runtime/prepare_managed_com.sh && \
-    /tmp/init_wineprefix.sh && \
+RUN --mount=type=bind,source=docker,target=/mnt/docker \
+    wget -q "https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-amd64.exe" -O /tmp/python-installer.exe && \
+    bash /mnt/docker/init_wineprefix.sh && \
     rm -rf /tmp/* /root/.cache/*
 
 # 5. 安装核心导出脚本与全局 CLI 命令
