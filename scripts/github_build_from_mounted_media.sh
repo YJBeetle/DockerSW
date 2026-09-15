@@ -102,8 +102,12 @@ docker create \
 
         test -f "/root/.wine/drive_c/Program Files/SOLIDWORKS Corp/SOLIDWORKS/SLDWORKS.exe"
         test -f /opt/sw-preinstalled/flexnet/lmgrd.exe
+        if [ -f "/usr/local/lib/sw-runtime/patch_win32u.pl" ]; then
+            perl /usr/local/lib/sw-runtime/patch_win32u.pl || true
+        fi
         rm -rf /var/log/sw-install
     '
+
 
 progress_heartbeat &
 progress_pid=$!
