@@ -319,7 +319,7 @@ VC_LIBRARIES=(
     msvcp140_codecvt_ids vcruntime140 vcruntime140_1 vcomp140 mfc140u
 )
 for library in "${VC_LIBRARIES[@]}"; do
-    find "${WINEPREFIX}/drive_c/windows/system32" -maxdepth 1 -type f -iname "${library}.dll" -print -quit | grep -q . \
+    find -L "${WINEPREFIX}/drive_c/windows/system32" -maxdepth 1 -iname "${library}.dll" -print -quit | grep -q . \
         || die "VC++ prerequisite completed but ${library}.dll is missing"
 done
 

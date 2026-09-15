@@ -69,39 +69,23 @@ if [ -f "${WINEPREFIX}/drive_c/Python311/Scripts/pywin32_postinstall.py" ]; then
     wineserver -w
 fi
 
-# 7. 符号链接去重：将 system32 / syswow64 中与 /opt/wine-devel 相同的 PE 文件替换为软链接
-# 消除 Docker 镜像分层中 540MB+ 物理重复数据
-echo "[INFO] 执行 Wine 系统核心库符号链接去重..."
-dedup_wine_dlls() {
-    local target_dir="$1"
-    local source_dir="$2"
-    local count=0
+# 7. 反向目录符号链接去重：system32 与 syswow64 100% 保留为真实普通实体目录，
+# 补充未拷贝的 Wine 核心工具后，彻底删除 /opt/wine-devel/lib/wine/*-windows 目录并创建指向 system32/syswow64 的目录软链接。
+# 消除 540MB 重复物理体积，同时彻底杜绝任何写穿透与 -type f 校验失效问题。
+echo "[INFO] 执行 Wine 核心模板目录反向整目录软链接去重..."
+if [ -d "/opt/wine-devel/lib/wine/x86_64-windows" ] && [ ! -L "/opt/wine-devel/lib/wine/x86_64-windows" ]; then
+    cp -rn /opt/wine-devel/lib/wine/x86_64-windows/* "${WINEPREFIX}/drive_c/windows/system32/" 2>/dev/null || true
+    rm -rf /opt/wine-devel/lib/wine/x86_64-windows
+    ln -s "${WINEPREFIX}/drive_c/windows/system32" /opt/wine-devel/lib/wine/x86_64-windows
+    echo "[INFO] /opt/wine-devel/lib/wine/x86_64-windows -> ${WINEPREFIX}/drive_c/windows/system32 (反向整目录软链接就绪)"
+fi
 
-    if [ ! -d "${target_dir}" ] || [ ! -d "${source_dir}" ]; then
-        return 0
-    fi
-
-    for file in "${target_dir}"/*; do
-        [ -f "${file}" ] && [ ! -L "${file}" ] || continue
-        local fname
-        fname="$(basename "${file}")"
-        local src="${source_dir}/${fname}"
-        if [ -f "${src}" ]; then
-            # 严格比对文件大小，仅当大小完全一致时安全替换为软链接
-            local sz_target sz_src
-            sz_target=$(stat -c%s "${file}" 2>/dev/null || stat -f%z "${file}")
-            sz_src=$(stat -c%s "${src}" 2>/dev/null || stat -f%z "${src}")
-            if [ "${sz_target}" -eq "${sz_src}" ]; then
-                ln -sf "${src}" "${file}"
-                count=$((count + 1))
-            fi
-        fi
-    done
-    echo "[INFO] ${target_dir}: 已将 ${count} 个系统文件替换为指向 ${source_dir} 的软链接"
-}
-
-dedup_wine_dlls "${WINEPREFIX}/drive_c/windows/system32" "/opt/wine-devel/lib/wine/x86_64-windows"
-dedup_wine_dlls "${WINEPREFIX}/drive_c/windows/syswow64" "/opt/wine-devel/lib/wine/i386-windows"
+if [ -d "/opt/wine-devel/lib/wine/i386-windows" ] && [ ! -L "/opt/wine-devel/lib/wine/i386-windows" ]; then
+    cp -rn /opt/wine-devel/lib/wine/i386-windows/* "${WINEPREFIX}/drive_c/windows/syswow64/" 2>/dev/null || true
+    rm -rf /opt/wine-devel/lib/wine/i386-windows
+    ln -s "${WINEPREFIX}/drive_c/windows/syswow64" /opt/wine-devel/lib/wine/i386-windows
+    echo "[INFO] /opt/wine-devel/lib/wine/i386-windows -> ${WINEPREFIX}/drive_c/windows/syswow64 (反向整目录软链接就绪)"
+fi
 
 # 8. 验证环境（确保软链接替换后 Windows 核心与 pywin32 依然完好）
 echo "[INFO] 验证 Windows 核心环境与 pywin32 COM 模块..."

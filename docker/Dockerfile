@@ -36,10 +36,15 @@ RUN dpkg --add-architecture i386 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# 2. 复制运行时需要的组件与配置
 # 与 WineSW 已验证环境保持 Wine 11.16 / Wine-Mono 11.3.0 一致，但不引入
 # 仅适用于 macOS 的 winemac/win32u 补丁。
 COPY docker/managed_com.env /opt/sw-runtime/managed_com.env
-RUN . /opt/sw-runtime/managed_com.env && \
+COPY --chmod=755 docker/prepare_managed_com.sh /usr/local/lib/sw-runtime/prepare_managed_com.sh
+
+# 3. 安装 Wine、下载 Mono 资产并初始化无头运行环境（合并在单层内执行反向去重，消除 540MB 重复物理占用）
+RUN --mount=type=bind,source=docker,target=/mnt/docker \
+    . /opt/sw-runtime/managed_com.env && \
     apt-get update && \
     apt-get install -y --install-recommends \
         "wine-devel-amd64=${WINE_PACKAGE_VERSION}" \
@@ -48,18 +53,8 @@ RUN . /opt/sw-runtime/managed_com.env && \
         "winehq-devel=${WINE_PACKAGE_VERSION}" && \
     test "$(wine --version)" = "wine-${WINE_VERSION}" && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# 2. 下载 Wine-Mono 以及已验证的 stdcall/COM 注册组件。
-# 所有外部二进制均固定版本并执行 SHA256 校验，不提交到公开仓库。
-RUN --mount=type=bind,source=docker/fetch_managed_com.sh,target=/tmp/fetch_managed_com.sh \
-    bash /tmp/fetch_managed_com.sh
-
-# 3. 复制运行时需要的组件
-COPY --chmod=755 docker/prepare_managed_com.sh /usr/local/lib/sw-runtime/prepare_managed_com.sh
-
-# 4. 执行 WinePrefix 初始化（先创建干净 prefix，再显式安装并修补 Mono、Python 与 pywin32）
-RUN --mount=type=bind,source=docker,target=/mnt/docker \
+    rm -rf /var/lib/apt/lists/* && \
+    bash /mnt/docker/fetch_managed_com.sh && \
     wget -q "https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-amd64.exe" -O /tmp/python-installer.exe && \
     bash /mnt/docker/init_wineprefix.sh && \
     rm -rf /tmp/* /root/.cache/*
