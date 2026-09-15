@@ -56,8 +56,7 @@ RUN --mount=type=bind,source=docker/fetch_managed_com.sh,target=/tmp/fetch_manag
     bash /tmp/fetch_managed_com.sh
 
 # 3. 复制运行时需要的组件
-COPY docker/prepare_managed_com.sh /usr/local/lib/sw-runtime/prepare_managed_com.sh
-RUN chmod +x /usr/local/lib/sw-runtime/prepare_managed_com.sh
+COPY --chmod=755 docker/prepare_managed_com.sh /usr/local/lib/sw-runtime/prepare_managed_com.sh
 
 # 4. 执行 WinePrefix 初始化（先创建干净 prefix，再显式安装并修补 Mono、Python 与 pywin32）
 RUN --mount=type=bind,source=docker,target=/mnt/docker \
@@ -66,14 +65,11 @@ RUN --mount=type=bind,source=docker,target=/mnt/docker \
     rm -rf /tmp/* /root/.cache/*
 
 # 5. 安装核心导出脚本与全局 CLI 命令
-RUN mkdir -p /opt/sw-runtime/scripts
 COPY scripts/export_sw.py scripts/lib/solidworks_version.sh /opt/sw-runtime/scripts/
-COPY scripts/sw-export scripts/sw-install /usr/local/bin/
-RUN chmod +x /usr/local/bin/sw-export /usr/local/bin/sw-install
+COPY --chmod=755 scripts/sw-export scripts/sw-install /usr/local/bin/
 
 # 6. 配置容器 Entrypoint
-COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 WORKDIR /workspace
 
