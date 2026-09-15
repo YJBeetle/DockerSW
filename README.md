@@ -47,7 +47,7 @@ rclone config show gdrive | base64 | tr -d '\n'
 Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/SolidWorks.2025.SP5.0.Premium.DVD.iso
 ```
 
-手动运行 `Build sw-preinstalled from Google Drive` 时可以覆盖该路径。工作流使用 `--vfs-cache-mode off --buffer-size 0`，不会把整个 ISO 缓存到 Runner；安装器读取哪些 ISO 区段，rclone 才从远端读取相应数据。
+手动运行 `Build sw-preinstalled from Google Drive` 时可以覆盖该路径。工作流使用 `--vfs-cache-mode full --vfs-cache-max-size 20G --vfs-read-ahead 256M --buffer-size 128M`，以稀疏文件方式在本地磁盘缓存 ISO 读取分块并启用 256MB 磁盘预读与 128MB 内存读缓冲，显著降低 Wine 安装器频繁随机读取和解包 CAB 时的远端往返网络延迟。
 
 `.github/workflows/check-google-drive.yml` 每两个月及手动触发时执行一次轻量目录读取，用于验证 Secret、OAuth refresh token 和目标文件仍然可访问。
 

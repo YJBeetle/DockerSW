@@ -119,8 +119,10 @@ jobs:
             --daemon \
             --read-only \
             --allow-other \
-            --vfs-cache-mode off \
-            --buffer-size 0 \
+            --vfs-cache-mode full \
+            --vfs-cache-max-size 20G \
+            --vfs-read-ahead 256M \
+            --buffer-size 128M \
             --dir-cache-time 5m \
             --log-file "${RUNNER_TEMP}/rclone-gdrive.log" \
             --log-level INFO
