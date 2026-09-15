@@ -93,4 +93,11 @@ wine cmd /c ver
 wine "C:\\Python311\\python.exe" -c "import win32com.client, pythoncom; print('[BUILD CHECK OK] Windows pywin32 ready')"
 wineserver -w
 
+# 9. 应用 Wine 11.x 24-bit DIB OpenGL 补丁，修复 SolidWorks 3D 着色视图导出四重重复与斜纹网格问题
+if [ -f "/usr/local/lib/sw-runtime/patch_win32u.pl" ]; then
+    echo "[INFO] 应用 Wine 11.x 24-bit DIB OpenGL 离屏渲染补丁..."
+    perl /usr/local/lib/sw-runtime/patch_win32u.pl
+fi
+
 echo "[SUCCESS] WinePrefix 与 Windows Python 初始化全部完成！"
+

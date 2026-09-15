@@ -41,6 +41,8 @@ RUN dpkg --add-architecture i386 && \
 # 仅适用于 macOS 的 winemac/win32u 补丁。
 COPY docker/managed_com.env /opt/sw-runtime/managed_com.env
 COPY --chmod=755 docker/prepare_managed_com.sh /usr/local/lib/sw-runtime/prepare_managed_com.sh
+COPY --chmod=755 docker/patch_win32u.pl /usr/local/lib/sw-runtime/patch_win32u.pl
+
 
 # 3. 安装 Wine、下载 Mono 资产并初始化无头运行环境（合并在单层内执行反向去重，消除 540MB 重复物理占用）
 RUN --mount=type=bind,source=docker,target=/mnt/docker \

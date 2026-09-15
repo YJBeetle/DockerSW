@@ -38,6 +38,8 @@ jobs:
           bash -n docker/prepare_managed_com.sh
           bash -n scripts/sw-export
           bash -n scripts/sw-install
+          perl -c docker/patch_win32u.pl
+
 
       - name: Run Logic Tests
         run: |
@@ -95,6 +97,10 @@ jobs:
 
           echo "[CI] 验证 5: 安装器命令已内置..."
           docker run --rm sw-runtime:local-test sw-install --help
+
+          echo "[CI] 验证 6: 检查 Wine OpenGL 24-bit DIB 补丁已应用..."
+          docker run --rm sw-runtime:local-test perl /usr/local/lib/sw-runtime/patch_win32u.pl
+
 
       - name: Push Image to GHCR
         if: github.event_name != 'pull_request'

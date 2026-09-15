@@ -18,7 +18,13 @@ echo "========================================================="
 echo "  DockerSW Headless Container (Wine SolidWorks Runtime)  "
 echo "========================================================="
 
+# 0. 自动应用/校验 Wine 11.x OpenGL 24-bit DIB 离屏渲染补丁（修复 SolidWorks 3D 视图导出四重复制与斜纹网格）
+if [ -f "/usr/local/lib/sw-runtime/patch_win32u.pl" ]; then
+    perl /usr/local/lib/sw-runtime/patch_win32u.pl >/dev/null 2>&1 || true
+fi
+
 # 1. 守护启动 Xvfb 无头虚拟显示服务（COM 消息循环必需）
+
 SCREEN_NUM=$(echo "${DISPLAY}" | sed -E 's/.*:([0-9]+).*/\1/')
 if [ ! -S "/tmp/.X11-unix/X${SCREEN_NUM}" ]; then
     echo "[DockerSW] 正在拉起 Xvfb 虚拟屏幕 (${DISPLAY})..."
