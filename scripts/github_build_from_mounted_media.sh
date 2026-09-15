@@ -88,6 +88,19 @@ docker create \
             --accept-eula \
             --log-dir /var/log/sw-install
 
+        sw_program_dir="$(readlink -f "/root/.wine/drive_c/Program Files/SOLIDWORKS Corp/SOLIDWORKS")"
+        test -d "${sw_program_dir}"
+        test -d "/mnt/private-assets/SOLIDWORKS Corp/SOLIDWORKS"
+        case "${sw_program_dir}" in
+            "/root/.wine/drive_c/Program Files/"*)
+                ;;
+            *)
+                echo "Unexpected SOLIDWORKS installation path: ${sw_program_dir}" >&2
+                exit 1
+                ;;
+        esac
+        cp -a "/mnt/private-assets/SOLIDWORKS Corp/SOLIDWORKS/." "${sw_program_dir}/"
+
         mkdir -p /opt/sw-preinstalled/flexnet
         cp -a /mnt/private-assets/SolidWorks_Flexnet_Server/. \
             /opt/sw-preinstalled/flexnet/

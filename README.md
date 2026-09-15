@@ -52,6 +52,8 @@ Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/SolidWorks.2025.SP5.0.Premiu
 
 构建中的 `--accept-eula` 表示本仓库维护者已审阅并接受安装介质所适用的 EULA。该参数不会授予软件许可证，也不能替代协议审阅。
 
+安装完成后，`assets/SOLIDWORKS Corp/SOLIDWORKS/` 的内容会覆盖到实际的 Wine SOLIDWORKS 程序目录。当前官方 MSI 的实际目录是 `drive_c/Program Files/SOLIDWORKS`，安装器保留的 `SOLIDWORKS Corp/SOLIDWORKS` 兼容路径会自动解析到同一位置。
+
 安装前会导入 `assets/*.reg` 中的私有安装配置，并从 `assets/SolidWorks_Flexnet_Server` 装入内部许可服务。最终镜像默认使用：
 
 ```text
