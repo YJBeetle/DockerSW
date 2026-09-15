@@ -32,14 +32,31 @@ swSaveAsCurrentVersion = 0        # 当前格式版本
 swSaveAsOptions_Silent = 1        # 静默保存
 
 
-def to_windows_path(path_str: str) -> str:
+def to_windows_path(path_str: str, wineprefix: Optional[str] = None) -> str:
     """
     将 Linux 路径转换为 Wine 可识别的 Windows 路径（例如 /workspace/a -> Z:\\workspace\\a）
-    如果已经是 Windows 盘符路径（如 C:\\ 或 Z:\\），则仅规范化斜杠。
+    Wine prefix 的 drive_c 路径转换为原生 C:\\，避免 SOLIDWORKS 通过 Z:\\ 打开
+    prefix 内文档时出现内部错误。其他绝对路径继续映射到 Z:\\。
     """
     s = str(path_str).strip()
     if not s:
         return s
+
+    normalized = s.replace("\\", "/")
+    prefix = (wineprefix or os.environ.get("WINEPREFIX") or "/root/.wine")
+    prefix = prefix.replace("\\", "/").rstrip("/")
+    drive_c_candidates = [f"{prefix}/drive_c"]
+    if prefix.startswith("/"):
+        drive_c_candidates.append(f"Z:{prefix}/drive_c")
+
+    for drive_c in drive_c_candidates:
+        normalized_folded = normalized.casefold()
+        drive_c_folded = drive_c.casefold()
+        if normalized_folded == drive_c_folded:
+            return "C:\\"
+        if normalized_folded.startswith(f"{drive_c_folded}/"):
+            suffix = normalized[len(drive_c) :].replace("/", "\\")
+            return f"C:{suffix}"
 
     # 已经是 Windows 驱动器盘符格式
     if len(s) >= 2 and s[1] == ":" and s[0].isalpha():

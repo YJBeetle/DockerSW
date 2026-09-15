@@ -31,6 +31,21 @@ class TestExportParser(unittest.TestCase):
             to_windows_path("/tmp/out"),
             "Z:\\tmp\\out",
         )
+        # Wine prefix 内部文件必须使用 C:，不能绕到 Z:\\root\\...\\drive_c。
+        self.assertEqual(
+            to_windows_path(
+                "/root/.wine/drive_c/users/Public/sample.SLDPRT",
+                wineprefix="/root/.wine",
+            ),
+            "C:\\users\\Public\\sample.SLDPRT",
+        )
+        self.assertEqual(
+            to_windows_path(
+                r"Z:\root\.wine\drive_c\Program Files\SOLIDWORKS\part.SLDPRT",
+                wineprefix="/root/.wine",
+            ),
+            "C:\\Program Files\\SOLIDWORKS\\part.SLDPRT",
+        )
         # Windows 路径保持盘符并转反斜杠
         self.assertEqual(
             to_windows_path("C:/Program Files/SW/SLDWORKS.exe"),
