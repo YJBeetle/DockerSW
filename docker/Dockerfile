@@ -1,5 +1,5 @@
 # DockerSW: 无头 SolidWorks Wine 运行与 CI 导出基础镜像
-FROM ubuntu:22.04
+FROM ubuntu:22.04 AS builder
 
 LABEL maintainer="YJBeetle"
 LABEL description="Headless Wine container for SolidWorks automated CI export (STEP/PDF/DWG/GLB)"
@@ -78,6 +78,24 @@ RUN chmod +x /usr/local/bin/sw-export /usr/local/bin/sw-install
 # 6. 配置容器 Entrypoint
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# 阶段 2: 单层收敛运行时 (Squashed Single-Layer Runtime)
+FROM scratch
+
+LABEL maintainer="YJBeetle"
+LABEL description="Headless Wine container for SolidWorks automated CI export (STEP/PDF/DWG/GLB)"
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    WINEARCH=win64 \
+    WINEPREFIX=/root/.wine \
+    WINEDEBUG=-all \
+    DISPLAY=:99 \
+    PYTHON_VERSION=3.11.9 \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+
+# 将构建阶段全部有效文件合入单层，彻底消除中间层历史冗余
+COPY --from=builder / /
 
 WORKDIR /workspace
 
