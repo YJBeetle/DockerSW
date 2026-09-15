@@ -10,7 +10,6 @@ install_container="sw-preinstall-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1
 progress_interval="${SW_PROGRESS_INTERVAL:-300}"
 progress_started_at="$(date +%s)"
 progress_pid=""
-rclone_log_file="${RCLONE_LOG_FILE:-${RUNNER_TEMP:-/tmp}/rclone-gdrive.log}"
 
 stop_progress_heartbeat() {
     if [ -n "${progress_pid}" ]; then
@@ -40,10 +39,6 @@ progress_heartbeat() {
             --format '[CI progress] {{.Name}} CPU={{.CPUPerc}} memory={{.MemUsage}}' \
             "${install_container}" 2>/dev/null || true
         df -h / | awk 'NR == 1 || NR == 2 { print "[CI progress] disk " $0 }' || true
-        if [ -f "${rclone_log_file}" ]; then
-            echo "[CI progress] latest rclone messages:"
-            tail -n 5 "${rclone_log_file}" || true
-        fi
     done
 }
 
