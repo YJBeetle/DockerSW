@@ -465,5 +465,12 @@ if [ "${ACTUAL_SW_DIR}" != "${CANONICAL_SW_DIR}" ]; then
 fi
 
 chmod -R go-rwx "${LOG_DIR}" 2>/dev/null || true
+
+# 校验并应用 Wine 11.x OpenGL 24-bit DIB 补丁，确保导出着色视图无瑕疵
+if [ -f "/usr/local/lib/sw-runtime/patch_win32u.pl" ]; then
+    perl /usr/local/lib/sw-runtime/patch_win32u.pl >/dev/null 2>&1 || true
+fi
+
 info "SOLIDWORKS installation completed and SLDWORKS.exe was verified."
 info "Installation logs remain private at ${LOG_DIR}."
+
