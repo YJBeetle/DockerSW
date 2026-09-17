@@ -76,7 +76,7 @@
    - 校验 Wine-Mono 并在全新前缀初始化时自动完成静默配置；
    - 执行 `prepare_managed_com.sh`，确保 x86/x64 托管 RegAsm、`RegistrationServices` 与 `stdole` 正确注册，消除 .NET 插件加载时的 COM 错误；
 4. **程序路径映射与 COM 自动补强**：
-   - 支持挂载或内置的 `SW_INSTALL_DIR`（默认 `/opt/solidworks`），并在 Wine 虚拟 C 盘中建立标准链接：`drive_c/Program Files/SOLIDWORKS Corp/SOLIDWORKS`；
+   - 支持挂载或内置的 `SW_INSTALL_DIR`（默认 `/opt/solidworks`），并在 Wine 虚拟 C 盘中建立标准链接：`drive_c/Program Files/SOLIDWORKS`；
    - 自动注册关键辅助 COM 组件：`sldshellutils.dll`, `sldsearchcore.dll`；
    - 支持挂载 `SW_PROGRAMDATA`；
 5. **许可服务智能判定与开关（私有环境专有配置）**：

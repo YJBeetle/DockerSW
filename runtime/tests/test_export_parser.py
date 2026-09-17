@@ -5,11 +5,11 @@ import sys
 import unittest
 from pathlib import Path
 
-# 将项目根目录加入 sys.path
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+# 将 runtime/scripts 脚本目录加入 sys.path
+RUNTIME_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(RUNTIME_ROOT / "scripts"))
 
-from scripts.export_sw import (
+from export_sw import (
     determine_export_targets,
     infer_doc_type,
     parse_list_line,

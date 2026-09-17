@@ -2,16 +2,15 @@
 .DS_Store
 Thumbs.db
 
-# Python 缓存
+# Python 缓存与虚拟环境
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.pytest_cache/
+.venv/
+venv/
 
 # 运行时日志与输出
 *.log
-scratch/
+.ci-logs/
 dist/
 dist_output/
 *.tmp
@@ -19,6 +18,7 @@ dist_output/
 
 # 严禁将任何 SolidWorks 专有商业二进制与授权文件提交至本公开仓库
 assets/
+media/
 SOLIDWORKS/
 SolidWorks_Flexnet_Server/
 *.lic
@@ -29,7 +29,3 @@ SolidWorks_Flexnet_Server/
 *.cab
 *.iso
 *.dmg
-
-# 允许 scripts 目录下的代码与 shell 脚本
-!scripts/*.py
-!scripts/sw-export

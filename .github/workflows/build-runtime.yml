@@ -1,16 +1,15 @@
-name: Build and Test DockerSW
+name: Build sw-runtime
 
 on:
   push:
     branches:
       - main
-      - master
-    tags:
-      - 'v*'
-  pull_request:
-    branches:
-      - main
-      - master
+      - '20[0-9][0-9]'
+    paths:
+      - '.github/workflows/**'
+      - 'runtime/**'
+      - 'preinstall/**'
+      - 'smoke-test/**'
   workflow_dispatch:
 
 permissions:
@@ -32,22 +31,21 @@ jobs:
 
       - name: Validate Shell Scripts
         run: |
-          bash -n docker/init_wineprefix.sh
-          bash -n docker/entrypoint.sh
-          bash -n docker/fetch_managed_com.sh
-          bash -n docker/prepare_managed_com.sh
-          bash -n scripts/sw-export
-          bash -n scripts/sw-install
-          perl -c docker/patch_win32u.pl
-          perl -c docker/patch_wine_mono.pl
-
+          bash -n runtime/init_wineprefix.sh
+          bash -n runtime/entrypoint.sh
+          bash -n runtime/fetch_managed_com.sh
+          bash -n runtime/prepare_managed_com.sh
+          bash -n runtime/scripts/sw-export
+          bash -n runtime/scripts/sw-install
+          perl -c runtime/patch_win32u.pl
+          perl -c runtime/patch_wine_mono.pl
 
       - name: Run Logic Tests
         run: |
-          python -m unittest discover -s tests -p "test_*.py" -v
+          python -m unittest discover -s runtime/tests -p "test_*.py" -v
 
   build-and-publish:
-    name: Build & Smoke Test Docker Image
+    name: Build & Smoke Test sw-runtime Image
     needs: unit-tests
     runs-on: ubuntu-latest
     steps:
@@ -71,15 +69,12 @@ jobs:
         with:
           images: ghcr.io/yjbeetle/sw-runtime
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=branch
-            type=semver,pattern={{version}}
             type=sha,format=short,prefix=sha-
 
       - name: Build Docker Image Locally for Self-Check
         run: |
-          echo "[CI] 正在构建 DockerSW 基础镜像..."
-          docker build --progress=plain -f docker/Dockerfile -t sw-runtime:local-test .
+          echo "[CI] 正在构建 sw-runtime 基础镜像..."
+          docker build --progress=plain -f runtime/Dockerfile -t sw-runtime:local-test .
 
       - name: Smoke Test (Wine, Mono COM, Python, pywin32 & CLI)
         run: |
@@ -102,13 +97,12 @@ jobs:
           echo "[CI] 验证 6: 检查 Wine OpenGL 24-bit DIB 补丁已应用..."
           docker run --rm sw-runtime:local-test perl /usr/local/lib/sw-runtime/patch_win32u.pl
 
-
       - name: Push Image to GHCR
         if: github.event_name != 'pull_request'
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: docker/Dockerfile
+          file: runtime/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

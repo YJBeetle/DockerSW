@@ -5,9 +5,10 @@ import unittest
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[1]
-INSTALLER = ROOT / "scripts" / "sw-install"
-VERSION_HELPER = ROOT / "scripts" / "lib" / "solidworks_version.sh"
+RUNTIME_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+INSTALLER = RUNTIME_ROOT / "scripts" / "sw-install"
+VERSION_HELPER = RUNTIME_ROOT / "scripts" / "lib" / "solidworks_version.sh"
 
 
 class InstallScriptValidationTests(unittest.TestCase):
@@ -21,7 +22,7 @@ class InstallScriptValidationTests(unittest.TestCase):
                 str(VERSION_HELPER),
                 product_version,
             ],
-            cwd=ROOT,
+            cwd=PROJECT_ROOT,
             text=True,
             capture_output=True,
             check=False,
@@ -50,7 +51,7 @@ class InstallScriptValidationTests(unittest.TestCase):
             environment.update(extra_env)
         return subprocess.run(
             ["bash", str(INSTALLER), "--media", str(media), "--validate-only"],
-            cwd=ROOT,
+            cwd=PROJECT_ROOT,
             env=environment,
             text=True,
             capture_output=True,
@@ -164,7 +165,7 @@ esac
 
     def test_eula_acceptance_is_explicit_and_not_preseeded(self) -> None:
         script = INSTALLER.read_text(encoding="utf-8")
-        tweaks = (ROOT / "docker" / "registry" / "headless_tweaks.reg").read_text(
+        tweaks = (RUNTIME_ROOT / "registry" / "headless_tweaks.reg").read_text(
             encoding="utf-8"
         )
         self.assertIn("--accept-eula", script)
@@ -198,14 +199,14 @@ esac
 
     def test_solidworks_com_registration_comes_from_the_official_msi(self) -> None:
         script = INSTALLER.read_text(encoding="utf-8")
-        dockerfile = (ROOT / "docker" / "Dockerfile").read_text(encoding="utf-8")
-        init_script = (ROOT / "docker" / "init_wineprefix.sh").read_text(
+        dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(encoding="utf-8")
+        init_script = (RUNTIME_ROOT / "init_wineprefix.sh").read_text(
             encoding="utf-8"
         )
-        entrypoint = (ROOT / "docker" / "entrypoint.sh").read_text(
+        entrypoint = (RUNTIME_ROOT / "entrypoint.sh").read_text(
             encoding="utf-8"
         )
-        self.assertFalse((ROOT / "docker" / "registry" / "sw_com_classes.reg").exists())
+        self.assertFalse((RUNTIME_ROOT / "registry" / "sw_com_classes.reg").exists())
         self.assertNotIn("sw_com_classes.reg", dockerfile)
         self.assertNotIn("sw_com_classes.reg", init_script)
         self.assertNotIn("sw_com_classes.reg", entrypoint)
@@ -215,9 +216,9 @@ esac
         self.assertIn("TypeLib", script)
 
     def test_runtime_versions_and_both_mono_patches_are_pinned(self) -> None:
-        config = (ROOT / "docker" / "managed_com.env").read_text(encoding="utf-8")
-        dockerfile = (ROOT / "docker" / "Dockerfile").read_text(encoding="utf-8")
-        prepare = (ROOT / "docker" / "prepare_managed_com.sh").read_text(
+        config = (RUNTIME_ROOT / "managed_com.env").read_text(encoding="utf-8")
+        dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(encoding="utf-8")
+        prepare = (RUNTIME_ROOT / "prepare_managed_com.sh").read_text(
             encoding="utf-8"
         )
         self.assertIn('WINE_VERSION="11.16"', config)

@@ -1,6 +1,6 @@
 # DockerSW：SOLIDWORKS Wine 运行时、静默安装与自动化导出
 
-[![Build and Test DockerSW](https://github.com/YJBeetle/DockerSW/actions/workflows/docker-build.yml/badge.svg)](https://github.com/YJBeetle/DockerSW/actions/workflows/docker-build.yml)
+[![Build sw-runtime](https://github.com/YJBeetle/DockerSW/actions/workflows/build-runtime.yml/badge.svg)](https://github.com/YJBeetle/DockerSW/actions/workflows/build-runtime.yml)
 [![Docker Image](https://img.shields.io/badge/ghcr.io-sw--runtime-blue?logo=docker)](https://github.com/YJBeetle/DockerSW/pkgs/container/sw-runtime)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -88,16 +88,14 @@ sw-install \
 
 ### 3. 构建私有预安装镜像
 
-[examples/private-image/Dockerfile](examples/private-image/Dockerfile) 使用 BuildKit 临时挂载安装介质，安装结束后介质不会被 `COPY` 到最终层：
+本项目提供了生产级预安装配置 [`preinstall/Dockerfile`](preinstall/Dockerfile)，利用 BuildKit 在构建期以只读 bind mount 挂载官方安装介质，安装结束后介质不会被 `COPY` 到最终层：
 
 ```bash
-docker build \
-  -f examples/private-image/Dockerfile \
-  -t registry.internal.mycompany.com/cad/sw-preinstalled:latest \
-  .
+# 将官方介质放置或挂载于 preinstall/media 后执行构建
+docker build -t sw-preinstalled preinstall
 ```
 
-示例预期介质位于构建上下文的 `private-media/SOLIDWORKS.iso`。不要把介质、序列号属性文件、许可文件或生成的安装日志提交到公开仓库。即使使用 BuildKit 临时挂载，也应只在可信私有 Builder 上构建，并按组织策略保护或清理构建缓存。
+构建上下文需将官方介质放置于 `preinstall/media`。不要把介质、序列号属性文件、许可文件或生成的安装日志提交到公开仓库。即使使用 BuildKit 临时挂载，也应只在可信私有 Builder 上构建，并按组织策略保护或清理构建缓存。
 
 如需传入序列号或站点专用 MSI 属性，优先使用 `SW_MSI_PROPERTIES_FILE` 指向私有 CI Secret 文件，不要通过 Dockerfile 的 `ARG`、`ENV` 或公开构建日志传递。
 
@@ -118,89 +116,14 @@ docker build \
 
 运行 `sw-install --help` 可查看当前命令行说明。
 
-## 运行私有预安装镜像
-
-### Docker Compose
-
-[examples/docker-compose.yml](examples/docker-compose.yml) 只接受已安装好 SOLIDWORKS 的私有镜像：
-
-```bash
-SW_IMAGE=registry.internal.mycompany.com/cad/sw-preinstalled:latest \
-SW_LICENSE_SERVER=25734@192.168.1.100 \
-CAD_WORKSPACE=/path/to/cad-project \
-EXPORT_OUTPUT=/path/to/dist \
-docker compose -f examples/docker-compose.yml up --abort-on-container-exit
-```
-
-远程许可服务器是推荐模式。若使用者确实需要在容器内启动自己的许可服务，可把包含 `lmgrd.exe` 和 `.lic` 的目录挂载至 `/opt/SolidWorks_Flexnet_Server`，并设置 `START_LOCAL_LICENSE=true`。公开镜像不提供这些文件。
-
-### GitLab CI
-
-在 GitLab 中使用私有 `sw-preinstalled` 镜像执行导出；完整示例见 [examples/gitlab-ci/.gitlab-ci.yml](examples/gitlab-ci/.gitlab-ci.yml)：
-
-```yaml
-export_cad_assets:
-  stage: export
-  image: registry.internal.mycompany.com/cad/sw-preinstalled:latest
-  script:
-    - mkdir -p ./dist
-    - >
-      sw-export
-      --list ./export_list.txt
-      --workspace "$CI_PROJECT_DIR"
-      --outdir ./dist
-  artifacts:
-    paths:
-      - ./dist/
-```
-
-将 `SW_LICENSE_SERVER` 配置为 GitLab 项目的 masked/protected CI/CD Variable，不要把实际内网地址、序列号或许可内容写入仓库。公开 `sw-runtime` 本身没有 SOLIDWORKS，不能直接执行真实 CAD 导出。
-
-## 运行时环境变量
-
-| 环境变量 | 默认值 | 说明 |
-|---|---|---|
-| `SW_INSTALL_DIR` | `/opt/solidworks` | 可选的外部 SOLIDWORKS 程序目录；完整 MSI 安装通常位于 `WINEPREFIX` 内 |
-| `SW_PROGRAMDATA` | `/opt/solidworks_programdata` | 可选的外部 ProgramData 映射目录 |
-| `SW_LICENSE_SERVER` | 空 | 远程 FlexNet 服务器，例如 `25734@192.168.1.100`；配置后优先使用 |
-| `START_LOCAL_LICENSE` | `false` | 设为 `true` 时启动已挂载的本地 `lmgrd.exe` |
-| `FLEXNET_DIR` | `/opt/SolidWorks_Flexnet_Server` | 本地 FlexNet 目录，需由使用者提供 `lmgrd.exe` 与 `.lic` |
-| `DISPLAY` | `:99` | 由容器内 Xvfb 托管的虚拟屏幕 |
-| `WINEPREFIX` | `/root/.wine` | Wine 前缀路径 |
-
-## 导出清单
-
-清单支持 UTF-8、相对或绝对路径、空行及以 `#` 开头的注释。示例见 [examples/export-list-demo.txt](examples/export-list-demo.txt)：
-
-```text
-# 装配体工程图：输出 PDF 与 DWG
-SampleProject/Drawings/MainAssembly.SLDDRW
-
-# 零件：输出 STEP
-SampleProject/Parts/MountingBracket.SLDPRT
-
-# 渲染装配体：输出 GLB
-SampleProject/Render/MainAssembly.REND.SLDASM
-```
-
-## 测试
-
-```bash
-python3 -m unittest discover -s tests -p "test_*.py" -v
-```
-
-GitHub Actions 会构建真实容器，并校验固定 Wine/Wine-Mono 版本、stdcall 与托管 COM 修复、Windows Python/pywin32、`sw-install` 和 `sw-export`。SOLIDWORKS 与 Login Manager 的实际安装测试需要商业介质，因此应由持有合法介质的私有下游 CI 完成。
-
-当前安装链主要按 SOLIDWORKS 2025 SP5.0 介质验证；其他版本的介质布局、安装属性或 Wine 行为可能不同，不能视为已经兼容。
-
 ## 自动化云端预装流水线 (Google Drive + rclone)
 
-本项目包含通过 GitHub Actions 自动挂载云端 ISO 并执行无人值守预安装与真实导出冒烟测试的流水线配置 [`.github/workflows/build-from-google-drive.yml`](.github/workflows/build-from-google-drive.yml)：
+本项目包含通过 GitHub Actions 自动挂载云端 ISO 并执行官方无人值守预安装的流水线配置 [`.github/workflows/build-preinstall.yml`](.github/workflows/build-preinstall.yml)，以及配套的真机 CAD 导出冒烟测试工作流 [`.github/workflows/smoke-test.yml`](.github/workflows/smoke-test.yml)：
 
 1. 根据当前代码自动拉取公开基础运行时 `ghcr.io/yjbeetle/sw-runtime`；
 2. 借助 `rclone` 开启 VFS 缓存（`--vfs-cache-mode full --vfs-read-ahead 256M`）以稀疏文件方式挂载 Google Drive 中的官方 ISO；
-3. 执行 `sw-install --accept-eula` 完成官方 MSI 无人值守安装并固化为预安装镜像；
-4. 使用安装后自带的官方样例执行真实无头 `sw-export` 冒烟测试（验证 PDF、DWG 与 STEP 共 6 个文件输出）。测试产物作为 Actions Artifact 保留供审查。
+3. 执行 `sw-install --accept-eula` 完成官方 MSI 无人值守安装并固化为官方原版预安装镜像；
+4. 随后在 `smoke-test.yml` 中自动拉取预装镜像，通过测试激活桩启动无头 Wine 环境并验证 6 个文件（PDF、DWG、STEP）的真实 CAD 导出。测试产物作为 Actions Artifact 保留供审查。
 
 ### Google Drive Secret 配置
 
@@ -227,10 +150,10 @@ rclone config show gdrive | base64 | tr -d '\n'
 
 ### 手动触发构建流水线
 
-可在 GitHub Actions 页面选择 `Build sw-preinstalled from Google Drive` 点击 `Run workflow`，或通过 GitHub CLI 触发：
+可在 GitHub Actions 页面选择 `Build sw-preinstalled from ISO` 点击 `Run workflow`，或通过 GitHub CLI 触发：
 
 ```bash
-gh workflow run build-from-google-drive.yml --ref main
+gh workflow run build-preinstall.yml --ref main
 ```
 
 ## 运行私有预安装镜像
@@ -252,21 +175,21 @@ echo "YOUR_GITHUB_PAT" | docker login ghcr.io -u YJBeetle --password-stdin
 
 ### 2. Docker Compose
 
-[examples/docker-compose.yml](examples/docker-compose.yml) 只接受已安装好 SOLIDWORKS 的私有镜像：
+使用 Docker Compose 运行已安装好 SOLIDWORKS 的私有镜像：
 
 ```bash
 SW_IMAGE=registry.internal.mycompany.com/cad/sw-preinstalled:latest \
 SW_LICENSE_SERVER=25734@192.168.1.100 \
 CAD_WORKSPACE=/path/to/cad-project \
 EXPORT_OUTPUT=/path/to/dist \
-docker compose -f examples/docker-compose.yml up --abort-on-container-exit
+docker compose up --abort-on-container-exit
 ```
 
 远程许可服务器是推荐模式。若使用者确实需要在容器内启动自己的许可服务，可把包含 `lmgrd.exe` 和 `.lic` 的目录挂载至 `/opt/SolidWorks_Flexnet_Server`，并设置 `START_LOCAL_LICENSE=true`。公开镜像不提供这些文件。
 
 ### 3. GitLab CI
 
-在 GitLab 中使用私有 `sw-preinstalled` 镜像执行导出；完整示例见 [examples/gitlab-ci/.gitlab-ci.yml](examples/gitlab-ci/.gitlab-ci.yml)：
+在 GitLab 中使用私有 `sw-preinstalled` 镜像执行导出：
 
 ```yaml
 export_cad_assets:
@@ -309,7 +232,7 @@ docker run --rm \
 
 ## 导出清单
 
-清单支持 UTF-8、相对或绝对路径、空行及以 `#` 开头的注释。示例见 [examples/export-list-demo.txt](examples/export-list-demo.txt)：
+清单支持 UTF-8、相对或绝对路径、空行及以 `#` 开头的注释。工程实测清单可参考 [`smoke-test/run.sh`](smoke-test/run.sh)：
 
 ```text
 # 装配体工程图：输出 PDF 与 DWG
@@ -325,7 +248,7 @@ SampleProject/Render/MainAssembly.REND.SLDASM
 ## 测试
 
 ```bash
-python3 -m unittest discover -s tests -p "test_*.py" -v
+python3 -m unittest discover -s runtime/tests -p "test_*.py" -v
 ```
 
 GitHub Actions 会构建真实容器，并校验固定 Wine/Wine-Mono 版本、stdcall 与托管 COM 修复、Windows Python/pywin32、`sw-install` 和 `sw-export`。SOLIDWORKS 与 Login Manager 的实际安装测试需要商业介质，因此应由持有合法介质的私有下游 CI 完成。

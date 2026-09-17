@@ -1,0 +1,166 @@
+name: Smoke Test Headless SolidWorks CAD Export
+
+on:
+  workflow_run:
+    workflows: ["Build sw-preinstalled from ISO"]
+    types:
+      - completed
+    branches:
+      - main
+      - '20[0-9][0-9]'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: sw-export-smoke-test
+  cancel-in-progress: false
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    env:
+      RCLONE_CONFIG_FILE: /tmp/rclone-${{ github.run_id }}-${{ github.run_attempt }}.conf
+      SW_ASSETS_PATH: Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/crack
+      SW_RUNTIME_BASE: ghcr.io/yjbeetle/sw-runtime
+      SW_PREINSTALLED_BASE: ghcr.io/yjbeetle/sw-preinstalled
+      SW_EXECUTABLE_BASE: ghcr.io/yjbeetle/sw-executable
+    steps:
+      - name: Free runner disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          swap-storage: true
+
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Resolve image names
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          commit_sha="$(git rev-parse --short=7 HEAD)"
+          echo "SW_IMAGE_SHA_TAG=sha-${commit_sha}" >> "${GITHUB_ENV}"
+          echo "SW_RUNTIME_IMAGE=${SW_RUNTIME_BASE}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+          echo "SW_PREINSTALLED_IMAGE=${SW_PREINSTALLED_BASE}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+          echo "SW_EXECUTABLE_IMAGE=${SW_EXECUTABLE_BASE}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install rclone
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ca-certificates curl unzip
+          curl -fsSL https://rclone.org/install.sh | sudo bash
+
+      - name: Prepare Google Drive configuration
+        shell: bash
+        env:
+          RCLONE_CONFIG_B64: ${{ secrets.RCLONE_CONFIG_B64 }}
+        run: |
+          set -Eeuo pipefail
+          test -n "${RCLONE_CONFIG_B64}" || {
+            echo "Missing secret: RCLONE_CONFIG_B64" >&2
+            exit 1
+          }
+          install -m 0600 /dev/null "${RCLONE_CONFIG_FILE}"
+          echo "${RCLONE_CONFIG_B64}" | base64 -d > "${RCLONE_CONFIG_FILE}"
+          rclone --config "${RCLONE_CONFIG_FILE}" listremotes | grep -qx 'gdrive:'
+
+      - name: Fetch test activation assets from Google Drive
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "[CI fetch] Syncing test activation directory from Google Drive (${SW_ASSETS_PATH})..."
+          rclone --config "${RCLONE_CONFIG_FILE}" copy "gdrive:${SW_ASSETS_PATH}" "smoke-test/assets" --progress
+          rm -f "${RCLONE_CONFIG_FILE}"
+
+          test -d "smoke-test/assets/SolidWorks_Flexnet_Server" || {
+            echo "Missing SolidWorks_Flexnet_Server in downloaded assets" >&2
+            exit 1
+          }
+
+      - name: Pull base preinstalled image
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "[CI pull] Pulling base preinstalled image: ${SW_PREINSTALLED_IMAGE}"
+          docker pull "${SW_PREINSTALLED_IMAGE}"
+
+      - name: Build sw-executable image
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "[CI build] Building sw-executable from ${SW_PREINSTALLED_IMAGE}..."
+          docker build \
+            --build-arg "BASE_IMAGE=${SW_PREINSTALLED_IMAGE}" \
+            -f smoke-test/Dockerfile \
+            -t "${SW_EXECUTABLE_IMAGE}" \
+            smoke-test
+
+      - name: Smoke test real SOLIDWORKS exports
+        shell: bash
+        run: |
+          export SW_IMAGE="${SW_EXECUTABLE_IMAGE}"
+          bash smoke-test/run.sh
+
+      - name: Publish verified sw-executable candidate
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "[CI push] Publishing verified sw-executable candidate: ${SW_EXECUTABLE_IMAGE}..."
+          docker push "${SW_EXECUTABLE_IMAGE}"
+
+      - name: Promote verified images to GHCR
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "[CI pull] Pulling base sw-runtime candidate for promotion: ${SW_RUNTIME_IMAGE}..."
+          docker pull "${SW_RUNTIME_IMAGE}"
+
+          target_tag="${{ github.event.workflow_run.head_branch || github.ref_name }}"
+          if [ -n "${target_tag}" ]; then
+            echo "[CI promote] Promoting verified tags for ${target_tag}..."
+            docker tag "${SW_RUNTIME_IMAGE}" "${SW_RUNTIME_BASE}:${target_tag}"
+            docker push "${SW_RUNTIME_BASE}:${target_tag}"
+
+            docker tag "${SW_PREINSTALLED_IMAGE}" "${SW_PREINSTALLED_BASE}:${target_tag}"
+            docker push "${SW_PREINSTALLED_BASE}:${target_tag}"
+
+            docker tag "${SW_EXECUTABLE_IMAGE}" "${SW_EXECUTABLE_BASE}:${target_tag}"
+            docker push "${SW_EXECUTABLE_BASE}:${target_tag}"
+          fi
+
+          if [ "${target_tag}" = "main" ]; then
+            echo "[CI promote] Promoting verified :latest tags..."
+            docker tag "${SW_RUNTIME_IMAGE}" "${SW_RUNTIME_BASE}:latest"
+            docker push "${SW_RUNTIME_BASE}:latest"
+
+            docker tag "${SW_PREINSTALLED_IMAGE}" "${SW_PREINSTALLED_BASE}:latest"
+            docker push "${SW_PREINSTALLED_BASE}:latest"
+
+            docker tag "${SW_EXECUTABLE_IMAGE}" "${SW_EXECUTABLE_BASE}:latest"
+            docker push "${SW_EXECUTABLE_BASE}:latest"
+          fi
+
+      - name: Upload export smoke-test artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sw-export-smoke-${{ github.run_id }}
+          path: ${{ runner.temp }}/sw-export-smoke
+          if-no-files-found: ignore
+          retention-days: 14

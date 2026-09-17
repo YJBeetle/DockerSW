@@ -39,14 +39,14 @@ RUN dpkg --add-architecture i386 && \
 # 2. 复制运行时需要的组件与配置
 # 与 WineSW 已验证环境保持 Wine 11.16 / Wine-Mono 11.3.0 一致，但不引入
 # 仅适用于 macOS 的 winemac/win32u 补丁。
-COPY docker/managed_com.env /opt/sw-runtime/managed_com.env
-COPY --chmod=755 docker/prepare_managed_com.sh /usr/local/lib/sw-runtime/prepare_managed_com.sh
-COPY --chmod=755 docker/patch_win32u.pl /usr/local/lib/sw-runtime/patch_win32u.pl
-COPY --chmod=755 docker/patch_wine_mono.pl /usr/local/lib/sw-runtime/patch_wine_mono.pl
+COPY runtime/managed_com.env /opt/sw-runtime/managed_com.env
+COPY --chmod=755 runtime/prepare_managed_com.sh /usr/local/lib/sw-runtime/prepare_managed_com.sh
+COPY --chmod=755 runtime/patch_win32u.pl /usr/local/lib/sw-runtime/patch_win32u.pl
+COPY --chmod=755 runtime/patch_wine_mono.pl /usr/local/lib/sw-runtime/patch_wine_mono.pl
 
 
 # 3. 安装 Wine、下载 Mono 资产并初始化无头运行环境（合并在单层内执行反向去重，消除 540MB 重复物理占用）
-RUN --mount=type=bind,source=docker,target=/mnt/docker \
+RUN --mount=type=bind,source=runtime,target=/mnt/runtime \
     . /opt/sw-runtime/managed_com.env && \
     apt-get update && \
     apt-get install -y --install-recommends \
@@ -57,17 +57,17 @@ RUN --mount=type=bind,source=docker,target=/mnt/docker \
     test "$(wine --version)" = "wine-${WINE_VERSION}" && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
-    bash /mnt/docker/fetch_managed_com.sh && \
+    bash /mnt/runtime/fetch_managed_com.sh && \
     wget -q "https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-amd64.exe" -O /tmp/python-installer.exe && \
-    bash /mnt/docker/init_wineprefix.sh && \
+    bash /mnt/runtime/init_wineprefix.sh && \
     rm -rf /tmp/* /root/.cache/*
 
 # 5. 安装核心导出脚本与全局 CLI 命令
-COPY scripts/export_sw.py scripts/lib/solidworks_version.sh /opt/sw-runtime/scripts/
-COPY --chmod=755 scripts/sw-export scripts/sw-install /usr/local/bin/
+COPY runtime/scripts/export_sw.py runtime/scripts/lib/solidworks_version.sh /opt/sw-runtime/scripts/
+COPY --chmod=755 runtime/scripts/sw-export runtime/scripts/sw-install /usr/local/bin/
 
 # 6. 配置容器 Entrypoint
-COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --chmod=755 runtime/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 WORKDIR /workspace
 

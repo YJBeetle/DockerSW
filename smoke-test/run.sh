@@ -2,7 +2,9 @@
 set -Eeuo pipefail
 
 : "${SW_IMAGE:?SW_IMAGE is required}"
-: "${SW_IMAGE_SHA_TAG:?SW_IMAGE_SHA_TAG is required}"
+
+SMOKE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ASSETS_DIR="${SMOKE_DIR}/assets"
 
 smoke_container="sw-export-smoke-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}"
 smoke_root="${RUNNER_TEMP:-${PWD}/.ci-logs}/sw-export-smoke"
@@ -14,10 +16,12 @@ export_timeout="${SW_EXPORT_TIMEOUT:-1800}"
 cleanup() {
     local status=$?
     docker rm -f "${smoke_container}" >/dev/null 2>&1 || true
+    rm -rf "${ASSETS_DIR}" 2>/dev/null || true
     return "${status}"
 }
 trap cleanup EXIT
 
+# 准备导出测试清单与目录
 umask 077
 rm -rf "${smoke_root}"
 mkdir -p "${output_dir}"
@@ -28,10 +32,11 @@ users/Public/Documents/SOLIDWORKS/SOLIDWORKS 2025/samples/introsw/cabinet_bath.s
 users/Public/Documents/SOLIDWORKS/SOLIDWORKS 2025/samples/learn/Paper Airplane.SLDPRT
 EOF
 
+echo "[Smoke Test] Creating test container from ${SW_IMAGE}..."
 docker create \
     --name "${smoke_container}" \
     --mount "type=bind,source=${smoke_root},target=/ci-smoke" \
-    "${SW_IMAGE}:${SW_IMAGE_SHA_TAG}" \
+    "${SW_IMAGE}" \
     sw-export \
         --list /ci-smoke/export-list.txt \
         --workspace /root/.wine/drive_c \

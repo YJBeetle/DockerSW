@@ -9,7 +9,7 @@ fi
     echo "[DockerSW Install][ERROR] SOLIDWORKS version helper is unavailable" >&2
     exit 1
 }
-# shellcheck source=scripts/lib/solidworks_version.sh
+# shellcheck source=runtime/scripts/lib/solidworks_version.sh
 . "${VERSION_HELPER}"
 
 PROGRAM_NAME="sw-install"
@@ -456,20 +456,13 @@ EOF
 
 install_wpf_themes
 
-CANONICAL_SW_DIR="${WINEPREFIX}/drive_c/Program Files/SOLIDWORKS Corp/SOLIDWORKS"
-ACTUAL_SW_DIR="$(dirname "${SW_EXE}")"
-if [ "${ACTUAL_SW_DIR}" != "${CANONICAL_SW_DIR}" ]; then
-    mkdir -p "$(dirname "${CANONICAL_SW_DIR}")"
-    rm -rf -- "${CANONICAL_SW_DIR}"
-    ln -s "${ACTUAL_SW_DIR}" "${CANONICAL_SW_DIR}"
-fi
-
 chmod -R go-rwx "${LOG_DIR}" 2>/dev/null || true
 
 # 校验并应用 Wine 11.x OpenGL 24-bit DIB 补丁，确保导出着色视图无瑕疵
 if [ -f "/usr/local/lib/sw-runtime/patch_win32u.pl" ]; then
     perl /usr/local/lib/sw-runtime/patch_win32u.pl >/dev/null 2>&1 || true
 fi
+# 校验并应用 Wine-Mono CCW 释放断言补丁，防止托管 COM 析构或二次释放触发 SIGABRT 崩溃
 if [ -f "/usr/local/lib/sw-runtime/patch_wine_mono.pl" ]; then
     perl /usr/local/lib/sw-runtime/patch_wine_mono.pl >/dev/null 2>&1 || true
 fi

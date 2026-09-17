@@ -7,7 +7,7 @@ from pathlib import Path
 
 class TestPatchWineMono(unittest.TestCase):
     def setUp(self):
-        self.script_path = Path(__file__).resolve().parent.parent / "docker" / "patch_wine_mono.pl"
+        self.script_path = Path(__file__).resolve().parent.parent / "patch_wine_mono.pl"
 
         # Pattern in libmono-2.0-x86_64.dll:
         # 4d8b6e084d85ed0f849f00000041837d0000 0f84ac000000 488b8048040000

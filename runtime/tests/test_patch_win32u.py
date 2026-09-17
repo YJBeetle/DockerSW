@@ -7,7 +7,7 @@ from pathlib import Path
 
 class TestPatchWin32u(unittest.TestCase):
     def setUp(self):
-        self.script_path = Path(__file__).resolve().parent.parent / "docker" / "patch_win32u.pl"
+        self.script_path = Path(__file__).resolve().parent.parent / "patch_win32u.pl"
         self.assertTrue(self.script_path.exists(), f"Script not found: {self.script_path}")
 
         # Construct synthetic binary payload matching Wine 11.16 win32u layout

@@ -68,23 +68,11 @@ fi
 echo "[DockerSW] 正在校验 Wine-Mono stdcall 与托管 COM 注册组件..."
 /usr/local/lib/sw-runtime/prepare_managed_com.sh
 
-# 4. 映射或验证 SolidWorks 程序目录
-C_SW_CORP="${WINEPREFIX}/drive_c/Program Files/SOLIDWORKS Corp"
-C_SW_TARGET="${C_SW_CORP}/SOLIDWORKS"
-mkdir -p "${C_SW_CORP}"
-
-if [ -d "${SW_INSTALL_DIR}" ] && [ "${SW_INSTALL_DIR}" != "${C_SW_TARGET}" ]; then
-    SW_SOURCE_REAL="$(readlink -f "${SW_INSTALL_DIR}")"
-    SW_TARGET_REAL="$(readlink -f "${C_SW_TARGET}" 2>/dev/null || true)"
-    if [ -n "${SW_TARGET_REAL}" ] && [ "${SW_SOURCE_REAL}" = "${SW_TARGET_REAL}" ]; then
-        echo "[DockerSW] 使用已映射的 SolidWorks 目录: ${C_SW_TARGET}"
-    else
-        echo "[DockerSW] 映射 SolidWorks 目录: ${SW_INSTALL_DIR} -> ${C_SW_TARGET}"
-        rm -rf "${C_SW_TARGET}"
-        ln -sfn "${SW_INSTALL_DIR}" "${C_SW_TARGET}"
-    fi
-elif [ -d "${C_SW_TARGET}" ]; then
-    echo "[DockerSW] 使用内置 SolidWorks 目录: ${C_SW_TARGET}"
+# 4. 验证 SolidWorks 程序目录
+C_SW_TARGET="${WINEPREFIX}/drive_c/Program Files/SOLIDWORKS"
+if [ -d "${SW_INSTALL_DIR}" ] && [ ! -f "${C_SW_TARGET}/SLDWORKS.exe" ]; then
+    echo "[DockerSW] 映射外部 SolidWorks 目录: ${SW_INSTALL_DIR} -> ${C_SW_TARGET}"
+    ln -sfn "${SW_INSTALL_DIR}" "${C_SW_TARGET}"
 fi
 
 if [ -f "${C_SW_TARGET}/SLDWORKS.exe" ]; then

@@ -52,7 +52,7 @@ fi
 # 4. 导入与商业软件无关的无头运行时配置。SOLIDWORKS 自身的 COM
 # 类定义由使用者提供的官方 MSI 注册，公共运行时不预造这些映射。
 echo "[INFO] 导入无头运行时注册表配置..."
-wine regedit /S /mnt/docker/registry/headless_tweaks.reg
+wine regedit /S /mnt/runtime/registry/headless_tweaks.reg
 wineserver -w
 
 # 5. 静默安装 64 位 Windows Python 3.11
