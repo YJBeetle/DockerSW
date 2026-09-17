@@ -87,10 +87,18 @@ jobs:
           tags: |
             type=sha,format=short,prefix=sha-
 
-      - name: Build Docker Image Locally for Self-Check
-        run: |
-          echo "[CI] 正在构建 sw-runtime 基础镜像..."
-          docker build --progress=plain -f runtime/Dockerfile -t sw-runtime:local-test .
+      - name: Build and Load sw-runtime Image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: runtime/Dockerfile
+          load: true
+          tags: |
+            sw-runtime:local-test
+            ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Smoke Test (Wine, Mono COM, Python, pywin32 & CLI)
         run: |
@@ -113,14 +121,15 @@ jobs:
           echo "[CI] 验证 6: 检查 Wine OpenGL 24-bit DIB 补丁已应用..."
           docker run --rm sw-runtime:local-test perl /usr/local/lib/sw-runtime/patch_win32u.pl
 
-      - name: Push Image to GHCR
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: runtime/Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+      - name: Push Verified Image to GHCR
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "[CI] 验证通过，推送已验证的 sw-runtime 镜像至 GHCR..."
+          for tag in ${{ steps.meta.outputs.tags }}; do
+            echo "[CI push] 推送 ${tag}..."
+            docker push "${tag}"
+          done
 
   build-and-smoke-test:
     name: Build & Smoke Test SolidWorks
