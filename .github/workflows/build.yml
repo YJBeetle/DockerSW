@@ -201,43 +201,30 @@ jobs:
 
           rclone mount gdrive: "${GDRIVE_MOUNT}" \
             --config "${RCLONE_CONFIG_FILE}" \
+            --daemon \
             --allow-other \
             --read-only \
             --vfs-cache-mode full \
-            --vfs-cache-max-age 24h \
+            --vfs-cache-max-size 20G \
             --vfs-read-ahead 256M \
-            --buffer-size 64M \
-            --dir-cache-time 72h \
+            --buffer-size 128M \
+            --dir-cache-time 5m \
             --log-file "${RUNNER_TEMP}/rclone-gdrive.log" \
-            --log-level INFO &
-
-          mounted=false
-          for _ in $(seq 1 60); do
-            if findmnt --target "${GDRIVE_MOUNT}" >/dev/null 2>&1; then
-              mounted=true
-              break
-            fi
-            sleep 1
-          done
-          "${mounted}"
+            --log-level INFO
 
           iso_path="${GDRIVE_MOUNT}/${SW_MEDIA_PATH}"
-          if [ ! -f "${iso_path}" ]; then
-            echo "[WARN] Exact ISO path not found: ${iso_path}"
-            echo "[INFO] Searching for ISO file in parent directory..."
-            parent_dir="$(dirname "${iso_path}")"
-            if [ -d "${parent_dir}" ]; then
-              ls -la "${parent_dir}" || true
-              found_iso="$(find "${parent_dir}" -maxdepth 2 -type f -iname '*.iso' -print -quit 2>/dev/null || true)"
-              if [ -n "${found_iso}" ] && [ -f "${found_iso}" ]; then
-                echo "[INFO] Automatically resolved ISO file: ${found_iso}"
-                iso_path="${found_iso}"
-              fi
+          echo "[CI] 等待 Google Drive 虚拟文件系统与 ISO 文件就绪..."
+          for attempt in $(seq 1 30); do
+            if test -f "${iso_path}"; then
+              echo "[CI] 成功检测到 ISO: ${iso_path} ($(stat -c %s "${iso_path}" 2>/dev/null || stat -f %z "${iso_path}" 2>/dev/null || echo 'OK') bytes)"
+              break
             fi
-          fi
+            sleep 2
+          done
 
           test -f "${iso_path}" || {
             echo "ISO not found: ${SW_MEDIA_PATH}" >&2
+            tail -n 50 "${RUNNER_TEMP}/rclone-gdrive.log" >&2 || true
             exit 1
           }
 
