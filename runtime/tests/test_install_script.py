@@ -234,6 +234,26 @@ esac
         self.assertIn("regasm-x86.exe", prepare)
         self.assertIn("regasm-x86_64.exe", prepare)
 
+    def test_serial_number_cli_and_msi_properties(self) -> None:
+        script = INSTALLER.read_text(encoding="utf-8")
+        self.assertIn("--serial-solidworks", script)
+        self.assertIn("--serial-simulation", script)
+        self.assertIn("--serial-motion", script)
+        self.assertIn("--serial-mbd", script)
+        self.assertIn("--license-server", script)
+        self.assertIn('SW_SERIAL_SOLIDWORKS', script)
+        self.assertIn('SW_SERIAL_SIMULATION', script)
+        self.assertIn('SW_SERIAL_MOTION', script)
+        self.assertIn('SW_SERIAL_MBD', script)
+        self.assertIn('SW_LICENSE_SERVER', script)
+        self.assertIn('append_default_msi_property "SOLIDWORKSSERIALNUMBER"', script)
+        self.assertIn('append_default_msi_property "SIMULATIONSERIALNUMBER"', script)
+        self.assertIn('append_default_msi_property "MOTIONSERIALNUMBER"', script)
+        self.assertIn('append_default_msi_property "MBDSERIALNUMBER"', script)
+        self.assertIn('append_default_msi_property "SERVERLIST"', script)
+        # Ensure we do NOT touch registry manually for serials (MSI writes them natively)
+        self.assertNotIn('wine reg add "HKLM\\SOFTWARE\\SolidWorks\\Licenses\\Serial Numbers"', script)
+
 
 if __name__ == "__main__":
     unittest.main()

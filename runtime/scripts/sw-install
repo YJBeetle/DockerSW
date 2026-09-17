@@ -14,6 +14,11 @@ fi
 
 PROGRAM_NAME="sw-install"
 MEDIA_PATH="${SW_MEDIA_PATH:-}"
+SERIAL_SOLIDWORKS="${SW_SERIAL_SOLIDWORKS:-}"
+SERIAL_SIMULATION="${SW_SERIAL_SIMULATION:-}"
+SERIAL_MOTION="${SW_SERIAL_MOTION:-}"
+SERIAL_MBD="${SW_SERIAL_MBD:-}"
+LICENSE_SERVER="${SW_LICENSE_SERVER:-}"
 REGISTRY_DIR="${SW_INSTALL_REGISTRY_DIR:-}"
 MSI_RELATIVE_PATH="${SW_MSI_RELATIVE_PATH:-swwi/data/solidworks.msi}"
 LOG_DIR="${SW_INSTALL_LOG_DIR:-/var/log/sw-install}"
@@ -34,6 +39,11 @@ Required:
   --media PATH             Complete official SOLIDWORKS media directory or archive.
 
 Options:
+  --serial-solidworks KEY  SOLIDWORKS core serial number.
+  --serial-simulation KEY  SOLIDWORKS Simulation serial number.
+  --serial-motion KEY      SOLIDWORKS Motion serial number.
+  --serial-mbd KEY         SOLIDWORKS MBD serial number.
+  --license-server SERVER  FLEXlm license server address (e.g. 25734@localhost).
   --registry-dir PATH      Import every .reg file in PATH before installation.
   --msi PATH               MSI path relative to the media root.
                            Default: swwi/data/solidworks.msi
@@ -46,7 +56,9 @@ Options:
   -h, --help               Show this help.
 
 Environment equivalents:
-  SW_MEDIA_PATH, SW_INSTALL_REGISTRY_DIR, SW_MSI_RELATIVE_PATH,
+  SW_MEDIA_PATH, SW_SERIAL_SOLIDWORKS, SW_SERIAL_SIMULATION,
+  SW_SERIAL_MOTION, SW_SERIAL_MBD, SW_LICENSE_SERVER,
+  SW_INSTALL_REGISTRY_DIR, SW_MSI_RELATIVE_PATH,
   SW_MSI_PROPERTIES_FILE, SW_INSTALL_LOG_DIR, SW_INSTALL_TIMEOUT,
   SW_INSTALL_WPF_THEMES, WINEPREFIX.
 
@@ -107,6 +119,31 @@ while [ "$#" -gt 0 ]; do
         --timeout)
             [ "$#" -ge 2 ] || die "--timeout requires seconds"
             INSTALL_TIMEOUT="$2"
+            shift 2
+            ;;
+        --serial-solidworks)
+            [ "$#" -ge 2 ] || die "--serial-solidworks requires a serial number"
+            SERIAL_SOLIDWORKS="$2"
+            shift 2
+            ;;
+        --serial-simulation)
+            [ "$#" -ge 2 ] || die "--serial-simulation requires a serial number"
+            SERIAL_SIMULATION="$2"
+            shift 2
+            ;;
+        --serial-motion)
+            [ "$#" -ge 2 ] || die "--serial-motion requires a serial number"
+            SERIAL_MOTION="$2"
+            shift 2
+            ;;
+        --serial-mbd)
+            [ "$#" -ge 2 ] || die "--serial-mbd requires a serial number"
+            SERIAL_MBD="$2"
+            shift 2
+            ;;
+        --license-server)
+            [ "$#" -ge 2 ] || die "--license-server requires a server address"
+            LICENSE_SERVER="$2"
             shift 2
             ;;
         --accept-eula)
@@ -238,6 +275,10 @@ run_installer() {
             die "${label} timed out after ${INSTALL_TIMEOUT} seconds"
             ;;
         *)
+            if [ -f "${LOG_DIR}/solidworks-msi.log" ]; then
+                echo "[DockerSW Install][DIAGNOSTIC] Tail of ${LOG_DIR}/solidworks-msi.log:" >&2
+                tail -n 60 "${LOG_DIR}/solidworks-msi.log" >&2 || true
+            fi
             die "${label} failed with exit status ${status}; inspect ${LOG_DIR}"
             ;;
     esac
@@ -372,6 +413,14 @@ append_default_msi_property "ADDLOCAL" "SolidWorks,ProgramFiles,i386_ProgramFile
 # WriteToolboxStandardsXML fail during InstallFinalize. Use an absolute,
 # space-free Windows path while preserving explicit caller overrides.
 append_default_msi_property "TOOLBOXFOLDER" "C:\\SWData"
+
+# Pass serial numbers directly to MSI public properties; official MSI actions
+# will validate features and write registry entries cleanly without pre-invasion.
+[ -n "${SERIAL_SOLIDWORKS}" ] && append_default_msi_property "SOLIDWORKSSERIALNUMBER" "${SERIAL_SOLIDWORKS}"
+[ -n "${SERIAL_SIMULATION}" ] && append_default_msi_property "SIMULATIONSERIALNUMBER" "${SERIAL_SIMULATION}"
+[ -n "${SERIAL_MOTION}" ] && append_default_msi_property "MOTIONSERIALNUMBER" "${SERIAL_MOTION}"
+[ -n "${SERIAL_MBD}" ] && append_default_msi_property "MBDSERIALNUMBER" "${SERIAL_MBD}"
+[ -n "${LICENSE_SERVER}" ] && append_default_msi_property "SERVERLIST" "${LICENSE_SERVER}"
 
 MSI_LOG_WINDOWS="$(winepath -w "${LOG_DIR}/solidworks-msi.log")"
 MSI_ARGUMENTS=(

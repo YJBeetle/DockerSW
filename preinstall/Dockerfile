@@ -6,8 +6,20 @@ FROM ${BASE_IMAGE}
 LABEL maintainer="YJBeetle"
 LABEL description="Private SolidWorks headless container with official installation"
 
-# 挂载官方安装介质并执行无人值守静默安装
+# 接收官方安装所需的序列号与许可配置（构建参数不持久化到最终镜像 ENV 中）
+ARG SW_SERIAL_SOLIDWORKS=""
+ARG SW_SERIAL_SIMULATION=""
+ARG SW_SERIAL_MOTION=""
+ARG SW_SERIAL_MBD=""
+ARG SW_LICENSE_SERVER=""
+
+# 挂载官方安装介质并执行无人值守静默安装（纯参数传递，零注册表侵入）
 RUN --mount=type=bind,source=media,target=/mnt/sw-media \
+    SW_SERIAL_SOLIDWORKS="${SW_SERIAL_SOLIDWORKS}" \
+    SW_SERIAL_SIMULATION="${SW_SERIAL_SIMULATION}" \
+    SW_SERIAL_MOTION="${SW_SERIAL_MOTION}" \
+    SW_SERIAL_MBD="${SW_SERIAL_MBD}" \
+    SW_LICENSE_SERVER="${SW_LICENSE_SERVER}" \
     sw-install \
         --media /mnt/sw-media \
         --accept-eula \
