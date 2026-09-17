@@ -1,0 +1,212 @@
+name: Build sw-preinstalled from Google Drive
+
+on:
+  push:
+    branches:
+      - main
+      - '20[0-9][0-9]'
+    paths:
+      - .github/workflows/build-from-google-drive.yml
+      - .gitattributes
+      - .gitmodules
+      - DockerSW
+      - assets/**
+      - scripts/github_build_from_mounted_media.sh
+      - scripts/github_smoke_test_export.sh
+  workflow_dispatch:
+    inputs:
+      media_path:
+        description: Path to the ISO inside the Google Drive remote
+        required: true
+        default: Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/SolidWorks.2025.SP5.0.Premium.DVD.iso
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: sw-preinstalled-google-drive
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      RCLONE_CONFIG_FILE: /tmp/rclone-${{ github.run_id }}-${{ github.run_attempt }}.conf
+      GDRIVE_MOUNT: /mnt/gdrive
+      SW_MEDIA_MOUNT: /mnt/sw-media
+      SW_MEDIA_PATH: ${{ inputs.media_path || 'Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/SolidWorks.2025.SP5.0.Premium.DVD.iso' }}
+      SW_IMAGE: ghcr.io/yjbeetle/sw-preinstalled
+
+    steps:
+      - name: Free runner disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
+        with:
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          tool-cache: false
+          swap-storage: true
+
+      - name: Check out private repository
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Resolve image names
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          runtime_sha="$(git -C DockerSW rev-parse --short=7 HEAD)"
+          commit_sha="$(git rev-parse --short=12 HEAD)"
+          echo "SW_RUNTIME_IMAGE=ghcr.io/yjbeetle/sw-runtime:sha-${runtime_sha}" >> "${GITHUB_ENV}"
+          echo "SW_IMAGE_SHA_TAG=sha-${commit_sha}" >> "${GITHUB_ENV}"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install rclone and FUSE
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes curl fuse3 unzip
+          rclone_version=1.75.1
+          rclone_archive="rclone-v${rclone_version}-linux-amd64.zip"
+          curl --fail --silent --show-error --location \
+            "https://downloads.rclone.org/v${rclone_version}/${rclone_archive}" \
+            --output "${RUNNER_TEMP}/${rclone_archive}"
+          echo "982b5aa772841168f8e380f139e9e787b2a105403e32b94da8676a0e1c0a13ab  ${RUNNER_TEMP}/${rclone_archive}" \
+            | sha256sum --check --strict
+          unzip -q "${RUNNER_TEMP}/${rclone_archive}" -d "${RUNNER_TEMP}/rclone"
+          sudo install -m 0755 "${RUNNER_TEMP}/rclone/rclone-v${rclone_version}-linux-amd64/rclone" /usr/local/bin/rclone
+          rclone help backends | grep -q '^  drive '
+          grep -qxF user_allow_other /etc/fuse.conf || \
+            echo user_allow_other | sudo tee -a /etc/fuse.conf >/dev/null
+
+      - name: Prepare Google Drive configuration
+        shell: bash
+        env:
+          RCLONE_CONFIG_B64: ${{ secrets.RCLONE_CONFIG_B64 }}
+        run: |
+          set -Eeuo pipefail
+          test -n "${RCLONE_CONFIG_B64}" || {
+            echo "RCLONE_CONFIG_B64 is not configured" >&2
+            exit 1
+          }
+          printf '%s' "${RCLONE_CONFIG_B64}" | base64 --decode > "${RCLONE_CONFIG_FILE}"
+          chmod 0600 "${RCLONE_CONFIG_FILE}"
+          rclone --config "${RCLONE_CONFIG_FILE}" listremotes | grep -qx 'gdrive:' || {
+            echo "The rclone configuration does not contain a gdrive remote" >&2
+            exit 1
+          }
+
+      - name: Mount Google Drive and the SOLIDWORKS ISO
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo mkdir -p "${GDRIVE_MOUNT}" "${SW_MEDIA_MOUNT}"
+          sudo chown "$(id -u):$(id -g)" "${GDRIVE_MOUNT}"
+
+          rclone --config "${RCLONE_CONFIG_FILE}" mount gdrive: "${GDRIVE_MOUNT}" \
+            --daemon \
+            --read-only \
+            --allow-other \
+            --vfs-cache-mode full \
+            --vfs-cache-max-size 20G \
+            --vfs-read-ahead 256M \
+            --buffer-size 128M \
+            --dir-cache-time 5m \
+            --log-file "${RUNNER_TEMP}/rclone-gdrive.log" \
+            --log-level INFO
+
+          for attempt in $(seq 1 30); do
+            mountpoint -q "${GDRIVE_MOUNT}" && break
+            sleep 2
+          done
+          mountpoint -q "${GDRIVE_MOUNT}" || {
+            tail -n 100 "${RUNNER_TEMP}/rclone-gdrive.log" >&2 || true
+            exit 1
+          }
+
+          iso_path="${GDRIVE_MOUNT}/${SW_MEDIA_PATH}"
+          test -f "${iso_path}" || {
+            echo "ISO not found: ${SW_MEDIA_PATH}" >&2
+            exit 1
+          }
+          sudo mount -o loop,ro "${iso_path}" "${SW_MEDIA_MOUNT}"
+          test -s "${SW_MEDIA_MOUNT}/swwi/data/solidworks.msi"
+
+          df -h /
+          findmnt --target "${GDRIVE_MOUNT}"
+          findmnt --target "${SW_MEDIA_MOUNT}"
+
+      - name: Install SOLIDWORKS and create image
+        shell: bash
+        run: bash scripts/github_build_from_mounted_media.sh
+
+      - name: Publish candidate image to GHCR
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker push "${SW_IMAGE}:${SW_IMAGE_SHA_TAG}"
+
+      - name: Smoke test real SOLIDWORKS exports
+        shell: bash
+        run: bash scripts/github_smoke_test_export.sh
+
+      - name: Promote verified image
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          target_tag="${{ github.ref_name }}"
+          docker tag "${SW_IMAGE}:${SW_IMAGE_SHA_TAG}" "${SW_IMAGE}:${target_tag}"
+          docker push "${SW_IMAGE}:${target_tag}"
+
+          if [ "${target_tag}" = "main" ]; then
+            docker tag "${SW_IMAGE}:${SW_IMAGE_SHA_TAG}" "${SW_IMAGE}:latest"
+            docker push "${SW_IMAGE}:latest"
+          fi
+
+      - name: Show storage usage
+        if: always()
+        shell: bash
+        run: |
+          df -h / || true
+          docker system df || true
+
+      - name: Unmount installation media
+        if: always()
+        shell: bash
+        run: |
+          sudo umount "${SW_MEDIA_MOUNT}" 2>/dev/null || true
+          fusermount3 -u "${GDRIVE_MOUNT}" 2>/dev/null || \
+            sudo umount "${GDRIVE_MOUNT}" 2>/dev/null || true
+          tail -n 100 "${RUNNER_TEMP}/rclone-gdrive.log" 2>/dev/null || true
+          rm -f "${RCLONE_CONFIG_FILE}"
+
+      - name: Upload private installer logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sw-install-logs-${{ github.run_id }}
+          path: ${{ runner.temp }}/sw-install-logs
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload private export smoke-test artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sw-export-smoke-${{ github.run_id }}
+          path: ${{ runner.temp }}/sw-export-smoke
+          if-no-files-found: ignore
+          retention-days: 14

@@ -193,6 +193,145 @@ GitHub Actions 会构建真实容器，并校验固定 Wine/Wine-Mono 版本、s
 
 当前安装链主要按 SOLIDWORKS 2025 SP5.0 介质验证；其他版本的介质布局、安装属性或 Wine 行为可能不同，不能视为已经兼容。
 
+## 自动化云端预装流水线 (Google Drive + rclone)
+
+本项目包含通过 GitHub Actions 自动挂载云端 ISO 并执行无人值守预安装与真实导出冒烟测试的流水线配置 [`.github/workflows/build-from-google-drive.yml`](.github/workflows/build-from-google-drive.yml)：
+
+1. 根据当前代码自动拉取公开基础运行时 `ghcr.io/yjbeetle/sw-runtime`；
+2. 借助 `rclone` 开启 VFS 缓存（`--vfs-cache-mode full --vfs-read-ahead 256M`）以稀疏文件方式挂载 Google Drive 中的官方 ISO；
+3. 执行 `sw-install --accept-eula` 完成官方 MSI 无人值守安装并固化为预安装镜像；
+4. 使用安装后自带的官方样例执行真实无头 `sw-export` 冒烟测试（验证 PDF、DWG 与 STEP 共 6 个文件输出）。测试产物作为 Actions Artifact 保留供审查。
+
+### Google Drive Secret 配置
+
+在 Google Cloud 中创建 OAuth Client ID、启用 Google Drive API，并在本地生成专供 CI 使用的 `gdrive` remote：
+
+```bash
+rclone config
+rclone lsf 'gdrive:ISO所在目录'
+```
+
+确认能够列出介质后，将配置编码为单行 Base64：
+
+```bash
+rclone config show gdrive | base64 | tr -d '\n'
+```
+
+保存为 GitHub 仓库的 Actions Secret：
+
+| Secret | 内容 |
+|---|---|
+| `RCLONE_CONFIG_B64` | `gdrive` remote 完整配置的单行 Base64 文本 |
+
+[`.github/workflows/check-google-drive.yml`](.github/workflows/check-google-drive.yml) 会定期执行轻量目录探活，验证 Secret、OAuth Refresh Token 与目标文件仍然可访问。
+
+### 手动触发构建流水线
+
+可在 GitHub Actions 页面选择 `Build sw-preinstalled from Google Drive` 点击 `Run workflow`，或通过 GitHub CLI 触发：
+
+```bash
+gh workflow run build-from-google-drive.yml --ref main
+```
+
+## 运行私有预安装镜像
+
+### 1. 登录 GHCR 私有仓库 (PAT)
+
+若将预安装镜像托管在 GHCR 私有镜像仓库，需使用具备 Package 权限的 **Personal Access Token (PAT)** 进行登录：
+
+1. 打开浏览器访问 [GitHub Personal Access Tokens (Classic)](https://github.com/settings/tokens)，点击 **Generate new token -> Generate new token (classic)**；
+2. 权限作用域（Scopes）至少勾选：
+   - **`read:packages`**（拉取私有镜像必需；若需推送请同时勾选 `write:packages`）；
+   - **`repo`**（若关联私有仓库资源推荐勾选）；
+   （*若使用 Fine-grained Token，请在目标仓库授予 `Packages: Read-only` 或 `Read and Write` 权限*）
+3. 在目标宿主机（如 NAS 或本地机器）执行登录：
+
+```bash
+echo "YOUR_GITHUB_PAT" | docker login ghcr.io -u YJBeetle --password-stdin
+```
+
+### 2. Docker Compose
+
+[examples/docker-compose.yml](examples/docker-compose.yml) 只接受已安装好 SOLIDWORKS 的私有镜像：
+
+```bash
+SW_IMAGE=registry.internal.mycompany.com/cad/sw-preinstalled:latest \
+SW_LICENSE_SERVER=25734@192.168.1.100 \
+CAD_WORKSPACE=/path/to/cad-project \
+EXPORT_OUTPUT=/path/to/dist \
+docker compose -f examples/docker-compose.yml up --abort-on-container-exit
+```
+
+远程许可服务器是推荐模式。若使用者确实需要在容器内启动自己的许可服务，可把包含 `lmgrd.exe` 和 `.lic` 的目录挂载至 `/opt/SolidWorks_Flexnet_Server`，并设置 `START_LOCAL_LICENSE=true`。公开镜像不提供这些文件。
+
+### 3. GitLab CI
+
+在 GitLab 中使用私有 `sw-preinstalled` 镜像执行导出；完整示例见 [examples/gitlab-ci/.gitlab-ci.yml](examples/gitlab-ci/.gitlab-ci.yml)：
+
+```yaml
+export_cad_assets:
+  stage: export
+  image: registry.internal.mycompany.com/cad/sw-preinstalled:latest
+  script:
+    - mkdir -p ./dist
+    - >
+      sw-export
+      --list ./export_list.txt
+      --workspace "$CI_PROJECT_DIR"
+      --outdir ./dist
+  artifacts:
+    paths:
+      - ./dist/
+```
+
+将 `SW_LICENSE_SERVER` 配置为 GitLab 项目的 masked/protected CI/CD Variable，不要把实际内网地址、序列号或许可内容写入仓库。公开 `sw-runtime` 本身没有 SOLIDWORKS，不能直接执行真实 CAD 导出。
+
+### 4. 命令行直接执行导出
+
+```bash
+docker run --rm \
+  -v "$(pwd):/workspace" \
+  ghcr.io/yjbeetle/sw-preinstalled:latest \
+  sw-export --list list.txt --workspace /workspace --outdir /workspace/dist
+```
+
+## 运行时环境变量
+
+| 环境变量 | 默认值 | 说明 |
+|---|---|---|
+| `SW_INSTALL_DIR` | `/opt/solidworks` | 可选的外部 SOLIDWORKS 程序目录；完整 MSI 安装通常位于 `WINEPREFIX` 内 |
+| `SW_PROGRAMDATA` | `/opt/solidworks_programdata` | 可选的外部 ProgramData 映射目录 |
+| `SW_LICENSE_SERVER` | 空 | 远程 FlexNet 服务器，例如 `25734@192.168.1.100`；配置后优先使用 |
+| `START_LOCAL_LICENSE` | `false` | 设为 `true` 时启动已挂载的本地 `lmgrd.exe` |
+| `FLEXNET_DIR` | `/opt/SolidWorks_Flexnet_Server` | 本地 FlexNet 目录，需由使用者提供 `lmgrd.exe` 与 `.lic` |
+| `DISPLAY` | `:99` | 由容器内 Xvfb 托管的虚拟屏幕 |
+| `WINEPREFIX` | `/root/.wine` | Wine 前缀路径 |
+
+## 导出清单
+
+清单支持 UTF-8、相对或绝对路径、空行及以 `#` 开头的注释。示例见 [examples/export-list-demo.txt](examples/export-list-demo.txt)：
+
+```text
+# 装配体工程图：输出 PDF 与 DWG
+SampleProject/Drawings/MainAssembly.SLDDRW
+
+# 零件：输出 STEP
+SampleProject/Parts/MountingBracket.SLDPRT
+
+# 渲染装配体：输出 GLB
+SampleProject/Render/MainAssembly.REND.SLDASM
+```
+
+## 测试
+
+```bash
+python3 -m unittest discover -s tests -p "test_*.py" -v
+```
+
+GitHub Actions 会构建真实容器，并校验固定 Wine/Wine-Mono 版本、stdcall 与托管 COM 修复、Windows Python/pywin32、`sw-install` 和 `sw-export`。SOLIDWORKS 与 Login Manager 的实际安装测试需要商业介质，因此应由持有合法介质的私有下游 CI 完成。
+
+当前安装链主要按 SOLIDWORKS 2025 SP5.0 介质验证；其他版本的介质布局、安装属性或 Wine 行为可能不同，不能视为已经兼容。
+
 ## 许可与免责声明
 
 1. 本项目是非官方兼容与自动化工具，与 Dassault Systèmes 或 SOLIDWORKS 无隶属、认可或支持关系；Wine 运行方式也不属于厂商官方支持的平台。

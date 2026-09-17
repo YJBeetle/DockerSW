@@ -15,8 +15,10 @@ scratch/
 dist/
 dist_output/
 *.tmp
+.wine/
 
 # 严禁将任何 SolidWorks 专有商业二进制与授权文件提交至本公开仓库
+assets/
 SOLIDWORKS/
 SolidWorks_Flexnet_Server/
 *.lic
