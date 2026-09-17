@@ -50,4 +50,4 @@ jobs:
 
           rclone --config "${config_file}" listremotes | grep -qx 'gdrive:'
           rclone --config "${config_file}" lsf \
-            "gdrive:Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/SolidWorks.2025.SP5.0.Premium.DVD.iso"
+            "gdrive:Share/Software/"
