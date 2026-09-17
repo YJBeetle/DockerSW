@@ -16,8 +16,10 @@ DockerSW 无头批量静默导出引擎
 from __future__ import annotations
 
 import argparse
+import gc
 import os
 import sys
+import time
 import traceback
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -197,21 +199,29 @@ def save_as_silent(model, output_path_win: str) -> None:
 
     errors = win32com.client.VARIANT(pythoncom.VT_BYREF | pythoncom.VT_I4, 0)
     warnings = win32com.client.VARIANT(pythoncom.VT_BYREF | pythoncom.VT_I4, 0)
+    dispatch_opts = win32com.client.VARIANT(pythoncom.VT_DISPATCH, None)
+    pdf_export_data = win32com.client.VARIANT(pythoncom.VT_DISPATCH, None)
 
-    ok = model.Extension.SaveAs3(
-        output_path_win,
-        swSaveAsCurrentVersion,
-        swSaveAsOptions_Silent,
-        win32com.client.VARIANT(pythoncom.VT_DISPATCH, None),
-        win32com.client.VARIANT(pythoncom.VT_DISPATCH, None),
-        errors,
-        warnings,
-    )
-
-    if not ok:
-        raise RuntimeError(
-            f"SaveAs3 失败: out={output_path_win}, errors={errors.value}, warnings={warnings.value}"
+    ext = None
+    try:
+        ext = model.Extension
+        ok = ext.SaveAs3(
+            output_path_win,
+            swSaveAsCurrentVersion,
+            swSaveAsOptions_Silent,
+            dispatch_opts,
+            pdf_export_data,
+            errors,
+            warnings,
         )
+        if not ok:
+            raise RuntimeError(
+                f"SaveAs3 失败: out={output_path_win}, errors={errors.value}, warnings={warnings.value}"
+            )
+    finally:
+        del dispatch_opts, pdf_export_data, errors, warnings
+        if ext is not None:
+            del ext
 
 
 def process_item(sw_app, workspace: Path, outdir: Path, raw_line: str) -> bool:
@@ -256,6 +266,10 @@ def process_item(sw_app, workspace: Path, outdir: Path, raw_line: str) -> bool:
             target_win_path = to_windows_path(str(target_path))
             save_as_silent(model, target_win_path)
             log(f"[OK] 导出 {fmt}: {target_path}")
+            # 同一文档连续导出多种格式（如 .SLDDRW 连续导出 PDF 和 DWG）时，
+            # 及时释放局部 COM 包装对象并触发垃圾回收，给底层工作线程短暂缓冲时间
+            gc.collect()
+            time.sleep(0.1)
 
         return True
 
@@ -279,6 +293,9 @@ def process_item(sw_app, workspace: Path, outdir: Path, raw_line: str) -> bool:
                     sw_app.CloseAllDocuments(True)
                 except Exception:
                     log_err(f"[WARN] 关闭文档失败: {src_path}")
+
+            del model
+            gc.collect()
 
 
 def main() -> int:
