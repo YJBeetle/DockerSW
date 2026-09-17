@@ -416,11 +416,12 @@ append_default_msi_property "TOOLBOXFOLDER" "C:\\SWData"
 
 # Pass serial numbers directly to MSI public properties; official MSI actions
 # will validate features and write registry entries cleanly without pre-invasion.
-[ -n "${SERIAL_SOLIDWORKS}" ] && append_default_msi_property "SOLIDWORKSSERIALNUMBER" "${SERIAL_SOLIDWORKS}"
-[ -n "${SERIAL_SIMULATION}" ] && append_default_msi_property "SIMULATIONSERIALNUMBER" "${SERIAL_SIMULATION}"
-[ -n "${SERIAL_MOTION}" ] && append_default_msi_property "MOTIONSERIALNUMBER" "${SERIAL_MOTION}"
-[ -n "${SERIAL_MBD}" ] && append_default_msi_property "MBDSERIALNUMBER" "${SERIAL_MBD}"
-[ -n "${LICENSE_SERVER}" ] && append_default_msi_property "SERVERLIST" "${LICENSE_SERVER}"
+# Strip spaces and hyphens so Wine's msiexec does not reject the command line with MSI 1639.
+[ -n "${SERIAL_SOLIDWORKS}" ] && append_default_msi_property "SOLIDWORKSSERIALNUMBER" "${SERIAL_SOLIDWORKS//[ -]/}"
+[ -n "${SERIAL_SIMULATION}" ] && append_default_msi_property "SIMULATIONSERIALNUMBER" "${SERIAL_SIMULATION//[ -]/}"
+[ -n "${SERIAL_MOTION}" ] && append_default_msi_property "MOTIONSERIALNUMBER" "${SERIAL_MOTION//[ -]/}"
+[ -n "${SERIAL_MBD}" ] && append_default_msi_property "MBDSERIALNUMBER" "${SERIAL_MBD//[ -]/}"
+[ -n "${LICENSE_SERVER}" ] && append_default_msi_property "SERVERLIST" "${LICENSE_SERVER// /}"
 
 MSI_LOG_WINDOWS="$(winepath -w "${LOG_DIR}/solidworks-msi.log")"
 MSI_ARGUMENTS=(
