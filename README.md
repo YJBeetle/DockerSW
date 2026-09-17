@@ -25,28 +25,31 @@ DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、�
   - 支持 Linux、Wine Windows、绝对及相对路径。
 - **两种许可接入方式**：优先使用局域网浮动许可服务器，也可按需挂载 `lmgrd.exe` 与许可文件并在容器内启动。
 
-## 推荐架构
+## 三阶段对称架构体系
 
 ```text
-合法取得的完整安装介质
+[Stage 1: runtime/] 基础运行环境
+ghcr.io/yjbeetle/sw-runtime:sha-xxxxxxx
+  Ubuntu 22.04 + Wine 11.16 + Wine-Mono 11.3.0 + Python 3.11 + sw-install / sw-export CLI
           │
-          │ sw-install --accept-eula
+          │ 挂载官方 ISO 介质并在 build-preinstall.yml 中无人值守安装
           ▼
-ghcr.io/yjbeetle/sw-runtime
-  Wine / Mono / COM / 安装与导出工具
+[Stage 2: preinstall/] 纯净原版预装
+ghcr.io/yjbeetle/sw-preinstalled:sha-xxxxxxx
+  100% 纯净官方 SOLIDWORKS 原版已安装镜像（无激活补丁、无许可文件）
           │
-          │ 在可信私有 CI 中构建
+          │ 注入离线激活与 FlexNet 并在 smoke-test.yml 中构建并验证
           ▼
-私有 sw-preinstalled 镜像
+[Stage 3: smoke-test/] 交叉验证与冒烟测试
+ghcr.io/yjbeetle/sw-executable:sha-xxxxxxx
+  可离线运行测试镜像 -> 执行真实 CAD 模型批量导出 (STEP / PDF / DWG)
           │
-          ├── SW_LICENSE_SERVER → 使用者局域网许可服务器（推荐）
-          └── 挂载 lmgrd + START_LOCAL_LICENSE=true（可选）
-          │
+          │ 真实 CAD 导出冒烟测试全通后，触发三镜像原子晋升
           ▼
-       sw-export
+   :latest & :${branch_or_tag} 三镜像同步推送到 GHCR
 ```
 
-公开 CI 只构建和测试通用 `sw-runtime`。SOLIDWORKS 的下载、安装、许可配置和最终 `sw-preinstalled` 镜像都应留在使用者自己的私有基础设施中。
+公开 CI 仅发布基础环境 `sw-runtime`；私有 CI 挂载官方介质完成 `sw-preinstalled` 安装，并通过 `smoke-test` 真实测试后完成镜像发布。
 
 ## 安装 SOLIDWORKS
 
@@ -173,28 +176,37 @@ gh workflow run build-preinstall.yml --ref main
 echo "YOUR_GITHUB_PAT" | docker login ghcr.io -u YJBeetle --password-stdin
 ```
 
-### 2. Docker Compose
+### 2. 命令行执行导出
 
-使用 Docker Compose 运行已安装好 SOLIDWORKS 的私有镜像：
+#### 模式 A：使用可执行镜像（内置测试许可，即开即用）
 
 ```bash
-SW_IMAGE=registry.internal.mycompany.com/cad/sw-preinstalled:latest \
-SW_LICENSE_SERVER=25734@192.168.1.100 \
-CAD_WORKSPACE=/path/to/cad-project \
-EXPORT_OUTPUT=/path/to/dist \
-docker compose up --abort-on-container-exit
+docker run --rm \
+  -v "$(pwd):/workspace" \
+  ghcr.io/yjbeetle/sw-executable:latest \
+  sw-export --list list.txt --workspace /workspace --outdir /workspace/dist
 ```
 
-远程许可服务器是推荐模式。若使用者确实需要在容器内启动自己的许可服务，可把包含 `lmgrd.exe` 和 `.lic` 的目录挂载至 `/opt/SolidWorks_Flexnet_Server`，并设置 `START_LOCAL_LICENSE=true`。公开镜像不提供这些文件。
+#### 模式 B：使用纯净预装镜像（连接局域网 FlexNet 许可服务器）
 
-### 3. GitLab CI
+```bash
+docker run --rm \
+  -e SW_LICENSE_SERVER=25734@192.168.1.100 \
+  -v "$(pwd):/workspace" \
+  ghcr.io/yjbeetle/sw-preinstalled:latest \
+  sw-export --list list.txt --workspace /workspace --outdir /workspace/dist
+```
 
-在 GitLab 中使用私有 `sw-preinstalled` 镜像执行导出：
+### 3. CI/CD 流水线集成示例 (GitLab CI)
+
+在私有 GitLab Runner 中使用 `sw-preinstalled` 镜像批量导出 CAD 产物：
 
 ```yaml
 export_cad_assets:
   stage: export
-  image: registry.internal.mycompany.com/cad/sw-preinstalled:latest
+  image: ghcr.io/yjbeetle/sw-preinstalled:latest
+  variables:
+    SW_LICENSE_SERVER: "25734@192.168.1.100"  # 建议配置为 masked/protected CI/CD Variable
   script:
     - mkdir -p ./dist
     - >
@@ -207,16 +219,8 @@ export_cad_assets:
       - ./dist/
 ```
 
-将 `SW_LICENSE_SERVER` 配置为 GitLab 项目的 masked/protected CI/CD Variable，不要把实际内网地址、序列号或许可内容写入仓库。公开 `sw-runtime` 本身没有 SOLIDWORKS，不能直接执行真实 CAD 导出。
-
-### 4. 命令行直接执行导出
-
-```bash
-docker run --rm \
-  -v "$(pwd):/workspace" \
-  ghcr.io/yjbeetle/sw-preinstalled:latest \
-  sw-export --list list.txt --workspace /workspace --outdir /workspace/dist
-```
+> [!NOTE]
+> 将 `SW_LICENSE_SERVER` 配置为 CI/CD 受保护变量，不要将内网地址或许可凭据直接硬编码提交到公开代码库。基础镜像 `sw-runtime` 本身不含 SOLIDWORKS 程序，仅供构建衍生镜像，不能直接用于真实 CAD 导出。
 
 ## 运行时环境变量
 
