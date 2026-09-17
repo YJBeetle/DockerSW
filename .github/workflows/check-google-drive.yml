@@ -48,4 +48,6 @@ jobs:
           printf '%s' "${RCLONE_CONFIG_B64}" | base64 --decode > "${config_file}"
           chmod 0600 "${config_file}"
 
-          rclone --config "${config_file}" \
+          rclone --config "${config_file}" listremotes | grep -qx 'gdrive:'
+          rclone --config "${config_file}" lsf \
+            "gdrive:Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/SolidWorks.2025.SP5.0.Premium.DVD.iso"
