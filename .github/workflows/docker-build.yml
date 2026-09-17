@@ -39,6 +39,7 @@ jobs:
           bash -n scripts/sw-export
           bash -n scripts/sw-install
           perl -c docker/patch_win32u.pl
+          perl -c docker/patch_wine_mono.pl
 
 
       - name: Run Logic Tests
