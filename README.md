@@ -76,11 +76,24 @@ gh workflow run build-from-google-drive.yml \
 
 ## 使用
 
-先让 GitHub PAT 具备读取私有 package 的权限，再登录 GHCR：
+### 1. 登录 GHCR 私有仓库
+
+GHCR 不支持使用 GitHub 网页账户密码，必须使用具备 Package 权限的 **Personal Access Token (PAT)**：
+
+1. 打开浏览器访问 [GitHub Personal Access Tokens (Classic)](https://github.com/settings/tokens)，点击 **Generate new token -> Generate new token (classic)**；
+2. 权限作用域（Scopes）至少勾选：
+   - **`read:packages`**（拉取私有镜像必需；若需推送请同时勾选 `write:packages`）；
+   - **`repo`**（若关联私有仓库资源推荐勾选）；
+   （*若使用 Fine-grained Token，请在目标仓库授予 `Packages: Read-only` 或 `Read and Write` 权限*）
+3. 在目标宿主机（如 NAS 或本地机器）执行登录：
 
 ```bash
-printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u YJBeetle --password-stdin
+echo "YOUR_GITHUB_PAT" | docker login ghcr.io -u YJBeetle --password-stdin
+```
 
+### 2. 运行无头导出
+
+```bash
 docker run --rm \
   -v "$(pwd):/workspace" \
   ghcr.io/yjbeetle/sw-preinstalled:latest \
