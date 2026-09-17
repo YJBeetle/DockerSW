@@ -166,10 +166,8 @@ gh workflow run build-preinstall.yml --ref main
 若将预安装镜像托管在 GHCR 私有镜像仓库，需使用具备 Package 权限的 **Personal Access Token (PAT)** 进行登录：
 
 1. 打开浏览器访问 [GitHub Personal Access Tokens (Classic)](https://github.com/settings/tokens)，点击 **Generate new token -> Generate new token (classic)**；
-2. 权限作用域（Scopes）至少勾选：
-   - **`read:packages`**（拉取私有镜像必需；若需推送请同时勾选 `write:packages`）；
-   - **`repo`**（若关联私有仓库资源推荐勾选）；
-   （*若使用 Fine-grained Token，请在目标仓库授予 `Packages: Read-only` 或 `Read and Write` 权限*）
+2. 权限作用域（Scopes）仅需勾选：
+   - **`read:packages`**；
 3. 在目标宿主机（如 NAS 或本地机器）执行登录：
 
 ```bash
