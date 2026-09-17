@@ -18,9 +18,12 @@ echo "========================================================="
 echo "  DockerSW Headless Container (Wine SolidWorks Runtime)  "
 echo "========================================================="
 
-# 0. 自动应用/校验 Wine 11.x OpenGL 24-bit DIB 离屏渲染补丁（修复 SolidWorks 3D 视图导出四重复制与斜纹网格）
+# 0. 自动应用/校验 Wine 11.x OpenGL 24-bit DIB 离屏渲染补丁与 Wine-Mono CCW release assertion 补丁
 if [ -f "/usr/local/lib/sw-runtime/patch_win32u.pl" ]; then
     perl /usr/local/lib/sw-runtime/patch_win32u.pl >/dev/null 2>&1 || true
+fi
+if [ -f "/usr/local/lib/sw-runtime/patch_wine_mono.pl" ]; then
+    perl /usr/local/lib/sw-runtime/patch_wine_mono.pl >/dev/null 2>&1 || true
 fi
 
 # 1. 守护启动 Xvfb 无头虚拟显示服务（COM 消息循环必需）

@@ -45,6 +45,9 @@ export WINEDLLOVERRIDES="mshtml="
 # 注册组件。这里只替换 Wine-Mono 组件，不引入任何 macOS Wine 补丁。
 echo "[INFO] 配置 Wine-Mono stdcall 与托管 COM 注册运行时..."
 /usr/local/lib/sw-runtime/prepare_managed_com.sh
+if [ -f "/usr/local/lib/sw-runtime/patch_wine_mono.pl" ]; then
+    perl /usr/local/lib/sw-runtime/patch_wine_mono.pl || true
+fi
 
 # 4. 导入与商业软件无关的无头运行时配置。SOLIDWORKS 自身的 COM
 # 类定义由使用者提供的官方 MSI 注册，公共运行时不预造这些映射。
