@@ -75,10 +75,9 @@
 3. **Wine-Mono 与托管 COM 运行时支持**：
    - 校验 Wine-Mono 并在全新前缀初始化时自动完成静默配置；
    - 执行 `prepare_managed_com.sh`，确保 x86/x64 托管 RegAsm、`RegistrationServices` 与 `stdole` 正确注册，消除 .NET 插件加载时的 COM 错误；
-4. **程序路径映射与 COM 自动补强**：
+4. **程序路径映射与 ProgramData 挂载**：
    - 支持挂载或内置的 `SW_INSTALL_DIR`（默认 `/opt/solidworks`），并在 Wine 虚拟 C 盘中建立标准链接：`drive_c/Program Files/SOLIDWORKS`；
-   - 自动注册关键辅助 COM 组件：`sldshellutils.dll`, `sldsearchcore.dll`；
-   - 支持挂载 `SW_PROGRAMDATA`；
+   - 支持挂载外部 `SW_PROGRAMDATA` 并映射至 `drive_c/ProgramData/SOLIDWORKS`；
 5. **许可服务智能判定与开关（私有环境专有配置）**：
    - **远程网络许可模式（推荐）**：在私有镜像构建期固化或私有 CI 运行时注入环境变量 `SW_LICENSE_SERVER`（如 `25734@10.0.0.1`），容器自动注入 `FLEXlm License Manager` 与系统环境变量，无需在容器内跑常驻许可进程；
    - **本地自启许可模式（按需）**：在私有构建期直接内置 `lmgrd.exe`+许可文件或在运行时挂载 `/opt/SolidWorks_Flexnet_Server`，并配置 `START_LOCAL_LICENSE=true`，后台拉起 `lmgrd.exe` 并等待端口就绪；

@@ -77,20 +77,12 @@ fi
 
 if [ -f "${C_SW_TARGET}/SLDWORKS.exe" ]; then
     echo "[DockerSW] 验证主程序: SLDWORKS.exe 存在"
-    (
-        cd "${C_SW_TARGET}"
-        for dll in sldshellutils.dll sldsearchcore.dll; do
-            if [ -f "${dll}" ]; then
-                wine regsvr32 /s "${dll}" >/dev/null 2>&1 || true
-            fi
-        done
-    )
 else
     echo "[DockerSW][WARN] 未检测到 SLDWORKS.exe"
 fi
 
 # 自动扫描并导入 SolidWorks 注册表文件
-SW_REG_SEARCH_DIRS=("/opt/solidworks_reg" "/opt/solidworks_c" "${SW_INSTALL_DIR}")
+SW_REG_SEARCH_DIRS=("/opt/solidworks_reg" "${SW_INSTALL_DIR}")
 for reg_dir in "${SW_REG_SEARCH_DIRS[@]}"; do
     if [ -d "${reg_dir}" ]; then
         for reg_file in "${reg_dir}"/*.reg; do
