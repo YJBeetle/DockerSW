@@ -1,0 +1,357 @@
+name: Build & Verify SolidWorks Images
+
+on:
+  push:
+    branches:
+      - main
+      - '20[0-9][0-9]'
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+  workflow_dispatch:
+    inputs:
+      skip_preinstall:
+        description: 'Only build and test sw-runtime (skip ISO preinstallation and CAD smoke test)'
+        type: boolean
+        default: false
+      media_path:
+        description: 'Path to the ISO inside the Google Drive remote'
+        type: string
+        default: 'Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/SolidWorks.2025.SP5.0.Premium.DVD.iso'
+      assets_path:
+        description: 'Path to activation crack assets inside the Google Drive remote'
+        type: string
+        default: 'Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/crack'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: sw-pipeline-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  unit-tests:
+    name: Run Python Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+
+      - name: Validate Shell Scripts
+        run: |
+          bash -n runtime/init_wineprefix.sh
+          bash -n runtime/entrypoint.sh
+          bash -n runtime/fetch_managed_com.sh
+          bash -n runtime/prepare_managed_com.sh
+          bash -n runtime/scripts/sw-export
+          bash -n runtime/scripts/sw-install
+          bash -n smoke-test/run.sh
+          perl -c runtime/patch_win32u.pl
+          perl -c runtime/patch_wine_mono.pl
+
+      - name: Run Logic Tests
+        run: |
+          python -m unittest discover -s runtime/tests -p "test_*.py" -v
+
+  build-runtime:
+    name: Build sw-runtime Image
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker Metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/yjbeetle/sw-runtime
+          tags: |
+            type=sha,format=short,prefix=sha-
+
+      - name: Build Docker Image Locally for Self-Check
+        run: |
+          echo "[CI] 正在构建 sw-runtime 基础镜像..."
+          docker build --progress=plain -f runtime/Dockerfile -t sw-runtime:local-test .
+
+      - name: Smoke Test (Wine, Mono COM, Python, pywin32 & CLI)
+        run: |
+          echo "[CI] 验证 1: 测试固定 Wine 版本与 Windows 虚拟版本..."
+          test "$(docker run --rm --entrypoint wine sw-runtime:local-test --version)" = "wine-11.16"
+          docker run --rm sw-runtime:local-test wine cmd /c ver
+
+          echo "[CI] 验证 2: 测试 Wine-Mono stdcall 与托管 COM 注册组件..."
+          docker run --rm sw-runtime:local-test /usr/local/lib/sw-runtime/prepare_managed_com.sh
+
+          echo "[CI] 验证 3: 测试 Windows Python 3.11 与 pywin32 COM 模块就绪..."
+          docker run --rm sw-runtime:local-test wine "C:\\Python311\\python.exe" -c "import win32com.client, pythoncom; print('[HEALTH CHECK OK] Windows Python & pywin32 ready')"
+
+          echo "[CI] 验证 4: 运行 sw-export 导出工具命令行..."
+          docker run --rm sw-runtime:local-test sw-export --help
+
+          echo "[CI] 验证 5: 安装器命令已内置..."
+          docker run --rm sw-runtime:local-test sw-install --help
+
+          echo "[CI] 验证 6: 检查 Wine OpenGL 24-bit DIB 补丁已应用..."
+          docker run --rm sw-runtime:local-test perl /usr/local/lib/sw-runtime/patch_win32u.pl
+
+      - name: Push Image to GHCR
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: runtime/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  build-and-smoke-test:
+    name: Build & Smoke Test SolidWorks
+    needs: build-runtime
+    if: ${{ !inputs.skip_preinstall }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      RCLONE_CONFIG_FILE: /tmp/rclone-${{ github.run_id }}-${{ github.run_attempt }}.conf
+      GDRIVE_MOUNT: /mnt/gdrive
+      SW_MEDIA_MOUNT: preinstall/media
+      SW_MEDIA_PATH: ${{ inputs.media_path || 'Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/SolidWorks.2025.SP5.0.Premium.DVD.iso' }}
+      SW_ASSETS_PATH: ${{ inputs.assets_path || 'Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/crack' }}
+      SW_RUNTIME_BASE: ghcr.io/yjbeetle/sw-runtime
+      SW_PREINSTALLED_BASE: ghcr.io/yjbeetle/sw-preinstalled
+      SW_EXECUTABLE_BASE: ghcr.io/yjbeetle/sw-executable
+    steps:
+      - name: Free runner disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          swap-storage: true
+
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Resolve image names
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          commit_sha="$(git rev-parse --short=7 HEAD)"
+          echo "SW_IMAGE_SHA_TAG=sha-${commit_sha}" >> "${GITHUB_ENV}"
+          echo "SW_RUNTIME_IMAGE=${SW_RUNTIME_BASE}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+          echo "SW_PREINSTALLED_IMAGE=${SW_PREINSTALLED_BASE}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+          echo "SW_EXECUTABLE_IMAGE=${SW_EXECUTABLE_BASE}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install rclone and FUSE
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            fuse3 \
+            ca-certificates \
+            curl \
+            unzip
+          curl -fsSL https://rclone.org/install.sh | sudo bash
+          echo "user_allow_other" | sudo tee -a /etc/fuse.conf >/dev/null
+
+      - name: Prepare Google Drive configuration
+        shell: bash
+        env:
+          RCLONE_CONFIG_B64: ${{ secrets.RCLONE_CONFIG_B64 }}
+        run: |
+          set -Eeuo pipefail
+          test -n "${RCLONE_CONFIG_B64}" || {
+            echo "Missing secret: RCLONE_CONFIG_B64" >&2
+            exit 1
+          }
+
+          install -m 0600 /dev/null "${RCLONE_CONFIG_FILE}"
+          echo "${RCLONE_CONFIG_B64}" | base64 -d > "${RCLONE_CONFIG_FILE}"
+          rclone --config "${RCLONE_CONFIG_FILE}" listremotes | grep -qx 'gdrive:'
+
+      - name: Mount Google Drive and the SOLIDWORKS ISO
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo mkdir -p "${GDRIVE_MOUNT}" "${SW_MEDIA_MOUNT}"
+          sudo chown "${USER}:${USER}" "${GDRIVE_MOUNT}" "${SW_MEDIA_MOUNT}"
+
+          rclone mount gdrive: "${GDRIVE_MOUNT}" \
+            --config "${RCLONE_CONFIG_FILE}" \
+            --allow-other \
+            --read-only \
+            --vfs-cache-mode full \
+            --vfs-cache-max-age 24h \
+            --vfs-read-ahead 256M \
+            --buffer-size 64M \
+            --dir-cache-time 72h \
+            --log-file "${RUNNER_TEMP}/rclone-gdrive.log" \
+            --log-level INFO &
+
+          mounted=false
+          for _ in $(seq 1 60); do
+            if findmnt --target "${GDRIVE_MOUNT}" >/dev/null 2>&1; then
+              mounted=true
+              break
+            fi
+            sleep 1
+          done
+          "${mounted}"
+
+          iso_path="${GDRIVE_MOUNT}/${SW_MEDIA_PATH}"
+          if [ ! -f "${iso_path}" ]; then
+            echo "[WARN] Exact ISO path not found: ${iso_path}"
+            echo "[INFO] Searching for ISO file in parent directory..."
+            parent_dir="$(dirname "${iso_path}")"
+            if [ -d "${parent_dir}" ]; then
+              ls -la "${parent_dir}" || true
+              found_iso="$(find "${parent_dir}" -maxdepth 2 -type f -iname '*.iso' -print -quit 2>/dev/null || true)"
+              if [ -n "${found_iso}" ] && [ -f "${found_iso}" ]; then
+                echo "[INFO] Automatically resolved ISO file: ${found_iso}"
+                iso_path="${found_iso}"
+              fi
+            fi
+          fi
+
+          test -f "${iso_path}" || {
+            echo "ISO not found: ${SW_MEDIA_PATH}" >&2
+            exit 1
+          }
+
+          sudo mount -o loop,ro "${iso_path}" "${SW_MEDIA_MOUNT}"
+          test -s "${SW_MEDIA_MOUNT}/swwi/data/solidworks.msi"
+
+          df -h /
+          findmnt --target "${GDRIVE_MOUNT}"
+          findmnt --target "${SW_MEDIA_MOUNT}"
+
+      - name: Fetch test activation assets from Google Drive
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "[CI fetch] Syncing test activation directory from Google Drive (${SW_ASSETS_PATH})..."
+          rclone --config "${RCLONE_CONFIG_FILE}" copy "gdrive:${SW_ASSETS_PATH}" "smoke-test/assets" --progress
+
+          test -d "smoke-test/assets/SolidWorks_Flexnet_Server" || {
+            echo "Missing SolidWorks_Flexnet_Server in downloaded assets" >&2
+            exit 1
+          }
+
+      - name: Build vanilla preinstalled image
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker pull "${SW_RUNTIME_IMAGE}"
+          docker build \
+            --build-arg "BASE_IMAGE=${SW_RUNTIME_IMAGE}" \
+            -f preinstall/Dockerfile \
+            -t "${SW_PREINSTALLED_IMAGE}" \
+            preinstall
+
+      - name: Build sw-executable image (from local sw-preinstalled, zero pull overhead)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "[CI build] Building sw-executable locally from ${SW_PREINSTALLED_IMAGE}..."
+          docker build \
+            --build-arg "BASE_IMAGE=${SW_PREINSTALLED_IMAGE}" \
+            -f smoke-test/Dockerfile \
+            -t "${SW_EXECUTABLE_IMAGE}" \
+            smoke-test
+
+      - name: Smoke test real SOLIDWORKS exports
+        shell: bash
+        run: |
+          export SW_IMAGE="${SW_EXECUTABLE_IMAGE}"
+          bash smoke-test/run.sh
+
+      - name: Publish verified images & promote atomically
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "[CI push] Smoke test PASSED! Publishing verified candidates to GHCR..."
+          docker push "${SW_PREINSTALLED_IMAGE}"
+          docker push "${SW_EXECUTABLE_IMAGE}"
+
+          target_tag="${{ github.ref_name }}"
+          if [ -n "${target_tag}" ]; then
+            echo "[CI promote] Promoting verified tags for ${target_tag}..."
+            docker tag "${SW_RUNTIME_IMAGE}" "${SW_RUNTIME_BASE}:${target_tag}"
+            docker push "${SW_RUNTIME_BASE}:${target_tag}"
+
+            docker tag "${SW_PREINSTALLED_IMAGE}" "${SW_PREINSTALLED_BASE}:${target_tag}"
+            docker push "${SW_PREINSTALLED_BASE}:${target_tag}"
+
+            docker tag "${SW_EXECUTABLE_IMAGE}" "${SW_EXECUTABLE_BASE}:${target_tag}"
+            docker push "${SW_EXECUTABLE_BASE}:${target_tag}"
+          fi
+
+          if [ "${target_tag}" = "main" ]; then
+            echo "[CI promote] Promoting verified :latest tags..."
+            docker tag "${SW_RUNTIME_IMAGE}" "${SW_RUNTIME_BASE}:latest"
+            docker push "${SW_RUNTIME_BASE}:latest"
+
+            docker tag "${SW_PREINSTALLED_IMAGE}" "${SW_PREINSTALLED_BASE}:latest"
+            docker push "${SW_PREINSTALLED_BASE}:latest"
+
+            docker tag "${SW_EXECUTABLE_IMAGE}" "${SW_EXECUTABLE_BASE}:latest"
+            docker push "${SW_EXECUTABLE_BASE}:latest"
+          fi
+
+      - name: Show storage usage
+        if: always()
+        shell: bash
+        run: |
+          df -h / || true
+          docker system df || true
+
+      - name: Unmount installation media
+        if: always()
+        shell: bash
+        run: |
+          sudo umount "${SW_MEDIA_MOUNT}" 2>/dev/null || true
+          fusermount3 -u "${GDRIVE_MOUNT}" 2>/dev/null || \
+            sudo umount "${GDRIVE_MOUNT}" 2>/dev/null || true
+          tail -n 100 "${RUNNER_TEMP}/rclone-gdrive.log" 2>/dev/null || true
+          rm -f "${RCLONE_CONFIG_FILE}"
+
+      - name: Upload private installer logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sw-install-logs-${{ github.run_id }}
+          path: ${{ runner.temp }}/sw-install-logs
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload export smoke-test artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sw-export-smoke-${{ github.run_id }}
+          path: ${{ runner.temp }}/sw-export-smoke
+          if-no-files-found: ignore
+          retention-days: 14

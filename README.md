@@ -1,6 +1,6 @@
 # DockerSW：SOLIDWORKS Wine 运行时、静默安装与自动化导出
 
-[![Build sw-runtime](https://github.com/YJBeetle/DockerSW/actions/workflows/build-runtime.yml/badge.svg)](https://github.com/YJBeetle/DockerSW/actions/workflows/build-runtime.yml)
+[![Build & Verify](https://github.com/YJBeetle/DockerSW/actions/workflows/build.yml/badge.svg)](https://github.com/YJBeetle/DockerSW/actions/workflows/build.yml)
 [![Docker Image](https://img.shields.io/badge/ghcr.io-sw--runtime-blue?logo=docker)](https://github.com/YJBeetle/DockerSW/pkgs/container/sw-runtime)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -25,20 +25,20 @@ DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、�
   - 支持 Linux、Wine Windows、绝对及相对路径。
 - **两种许可接入方式**：优先使用局域网浮动许可服务器，也可按需挂载 `lmgrd.exe` 与许可文件并在容器内启动。
 
-## 三阶段对称架构体系
+## 三阶段对称架构流水线
 
 ```text
 [Stage 1: runtime/] 基础运行环境
 ghcr.io/yjbeetle/sw-runtime:sha-xxxxxxx
   Ubuntu 22.04 + Wine 11.16 + Wine-Mono 11.3.0 + Python 3.11 + sw-install / sw-export CLI
           │
-          │ 挂载官方 ISO 介质并在 build-preinstall.yml 中无人值守安装
+          │ 挂载官方 ISO 介质执行无人值守安装 (build.yml 连续流水线)
           ▼
 [Stage 2: preinstall/] 纯净原版预装
 ghcr.io/yjbeetle/sw-preinstalled:sha-xxxxxxx
   100% 纯净官方 SOLIDWORKS 原版已安装镜像（无激活补丁、无许可文件）
           │
-          │ 注入离线激活与 FlexNet 并在 smoke-test.yml 中构建并验证
+          │ 本地零网络耗时构建测试镜像并注入 FlexNet 服务
           ▼
 [Stage 3: smoke-test/] 交叉验证与冒烟测试
 ghcr.io/yjbeetle/sw-executable:sha-xxxxxxx
@@ -119,14 +119,17 @@ docker build -t sw-preinstalled preinstall
 
 运行 `sw-install --help` 可查看当前命令行说明。
 
-## 自动化云端预装流水线 (Google Drive + rclone)
+## 自动化构建与验证流水线 (`build.yml`)
 
-本项目包含通过 GitHub Actions 自动挂载云端 ISO 并执行官方无人值守预安装的流水线配置 [`.github/workflows/build-preinstall.yml`](.github/workflows/build-preinstall.yml)，以及配套的真机 CAD 导出冒烟测试工作流 [`.github/workflows/smoke-test.yml`](.github/workflows/smoke-test.yml)：
+本项目提供完整的 GitHub Actions 单一持续集成流水线配置 [`.github/workflows/build.yml`](.github/workflows/build.yml)，实现原生 DAG 依赖与零多余网络开销的自动化交付：
 
-1. 根据当前代码自动拉取公开基础运行时 `ghcr.io/yjbeetle/sw-runtime`；
-2. 借助 `rclone` 开启 VFS 缓存（`--vfs-cache-mode full --vfs-read-ahead 256M`）以稀疏文件方式挂载 Google Drive 中的官方 ISO；
-3. 执行 `sw-install --accept-eula` 完成官方 MSI 无人值守安装并固化为官方原版预安装镜像；
-4. 随后在 `smoke-test.yml` 中自动拉取预装镜像，通过测试激活桩启动无头 Wine 环境并验证 6 个文件（PDF、DWG、STEP）的真实 CAD 导出。测试产物作为 Actions Artifact 保留供审查。
+1. **`unit-tests`**：自动校验所有 Shell 脚本语法与 Python COM 导出解析器单测；
+2. **`build-runtime`**：构建公开通用基础运行时 `ghcr.io/yjbeetle/sw-runtime`，验证 Wine、Wine-Mono、托管 COM 及 Windows Python 环境；
+3. **`build-and-smoke-test`**：
+   - 挂载 Google Drive，通过 `rclone` 开启 VFS 缓存稀疏读取官方 ISO；
+   - 执行无人值守安装生成 `sw-preinstalled`；
+   - **零网络拉取**：直接就地构建 `sw-executable`，启动无头环境并执行真实 CAD 导出冒烟测试（验证 STEP、PDF、DWG 输出）；
+   - **原子晋升发布**：所有 CAD 导出验证 100% 通过后，原子并发推送到 GHCR 并打上 `:latest` 与分支标签。
 
 ### Google Drive Secret 配置
 
@@ -153,10 +156,10 @@ rclone config show gdrive | base64 | tr -d '\n'
 
 ### 手动触发构建流水线
 
-可在 GitHub Actions 页面选择 `Build sw-preinstalled from ISO` 点击 `Run workflow`，或通过 GitHub CLI 触发：
+可在 GitHub Actions 页面选择 `Build & Verify SolidWorks Images` 点击 `Run workflow`，或通过 GitHub CLI 触发：
 
 ```bash
-gh workflow run build-preinstall.yml --ref main
+gh workflow run build.yml --ref main
 ```
 
 ## 运行私有预安装镜像
