@@ -132,7 +132,7 @@
    - *方案*：通过 `patch_win32u.pl` 补丁在内存/二进制层将 24-bit DIB 请求透明提升为支持硬件加速与双缓冲的 32-bit DIB 上下文，彻底恢复 OpenGL 离屏绘图能力。
 2. **Wine-Mono 托管 COM 注册与 CCW 补丁**：
    - *问题*：SOLIDWORKS 大量依赖 .NET 互操作及官方 Login Manager，Wine-Mono 原生环境在注册 CCW 接口或释放接口引用计数时可能触发断言中断。
-   - *方案*：集成 WineSW 验证补丁体系，并结合 `patch_wine_mono.pl` 修正 CCW release 断言，使托管 COM 在无头容器中稳定运转。
+   - *方案*：集成 MacSW 验证补丁体系，并结合 `patch_wine_mono.pl` 修正 CCW release 断言，使托管 COM 在无头容器中稳定运转。
 
 ---
 

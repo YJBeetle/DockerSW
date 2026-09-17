@@ -37,7 +37,7 @@ RUN dpkg --add-architecture i386 && \
     rm -rf /var/lib/apt/lists/*
 
 # 2. 复制运行时需要的组件与配置
-# 与 WineSW 已验证环境保持 Wine 11.16 / Wine-Mono 11.3.0 一致，但不引入
+# 与 MacSW 已验证环境保持 Wine 11.16 / Wine-Mono 11.3.0 一致，但不引入
 # 仅适用于 macOS 的 winemac/win32u 补丁。
 COPY runtime/managed_com.env /opt/sw-runtime/managed_com.env
 COPY --chmod=755 runtime/prepare_managed_com.sh /usr/local/lib/sw-runtime/prepare_managed_com.sh
