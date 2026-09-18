@@ -191,7 +191,7 @@ class TestCliScript(unittest.TestCase):
             )
             self.assertEqual(res.returncode, 0, res.stderr)
             self.assertIn("executed from file", res.stdout)
-            self.assertIn("running script file", MockDaemonHandler.last_request_body.get("code", ""))
+            self.assertEqual(MockDaemonHandler.last_request_body.get("path"), temp_py)
             self.assertEqual(MockDaemonHandler.last_request_body.get("args"), ["arg1"])
         finally:
             if os.path.exists(temp_py):
@@ -228,6 +228,37 @@ class TestCliScript(unittest.TestCase):
         )
         self.assertEqual(res.returncode, 42)
         self.assertIn("Custom failure occurred", res.stderr)
+
+    def test_auto_start_invokes_daemon_start_if_unhealthy(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fake_bin = Path(tmpdir)
+            daemon_log = fake_bin / "daemon.log"
+            mock_daemon = fake_bin / "sw-daemon"
+            mock_daemon.write_text(f"""#!/usr/bin/env bash
+echo "$@" >> "{daemon_log}"
+if [[ "$*" == *"status"* ]]; then
+    exit 1
+fi
+exit 0
+""")
+            mock_daemon.chmod(0o755)
+
+            env = dict(
+                os.environ,
+                SW_DAEMON_BIN=str(mock_daemon),
+            )
+            res = subprocess.run(
+                [SCRIPT_PATH, "--auto-start", "eval", "1+1", "--port", str(self.port)],
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            self.assertEqual(res.returncode, 0, res.stderr)
+            daemon_calls = daemon_log.read_text()
+            self.assertIn("status", daemon_calls)
+            self.assertIn("start", daemon_calls)
 
 
 if __name__ == "__main__":

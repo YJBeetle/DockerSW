@@ -28,13 +28,12 @@ except ImportError:
     win32com = None
     HAS_WIN32COM = False
 
-# Ensure lib directory is in path for imports
-_SCRIPTS_DIR = Path(__file__).resolve().parent.parent
-_LIB_DIR = _SCRIPTS_DIR / "lib"
-if str(_LIB_DIR) not in sys.path:
-    sys.path.insert(0, str(_LIB_DIR))
-
-from sw_paths import to_win_path, to_linux_path
+# Import DockerSW core path utilities (pre-injected in daemon sys.path, or fallback to relative lib)
+try:
+    from sw_paths import to_win_path, to_linux_path
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
+    from sw_paths import to_win_path, to_linux_path
 
 # SOLIDWORKS Core Enums & Flags
 swDocPART = 1

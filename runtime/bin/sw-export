@@ -3,11 +3,8 @@ set -euo pipefail
 
 # DockerSW Headless Batch Export CLI (sw-export)
 # 专用于无头批量静默导出 STEP/PDF/DWG/GLB。
-# 统一接入 resident sw-daemon：
-# 1. 检查 daemon 状态；若未运行，自动拉起后台常驻守护并等待就绪；
-# 2. 委托 sw-cli run 执行 utils/sw_exporter.py 导出任务。
+# 统一委托 sw-cli run --auto-start 执行 utils/sw_exporter.py 导出任务。
 
-SW_DAEMON_BIN="${SW_DAEMON_BIN:-sw-daemon}"
 SW_CLI_BIN="${SW_CLI_BIN:-sw-cli}"
 EXPORTER_SCRIPT="${SW_EXPORTER_SCRIPT:-/opt/sw-runtime/scripts/utils/sw_exporter.py}"
 HOST="${SW_DAEMON_HOST:-127.0.0.1}"
@@ -46,11 +43,5 @@ if [ ${#PASSTHROUGH_ARGS[@]} -eq 0 ]; then
     exit 1
 fi
 
-# 检查 daemon 状态；若未运行，自动拉起后台常驻守护并等待其就绪
-if ! "${SW_DAEMON_BIN}" --host "${HOST}" --port "${PORT}" status >/dev/null 2>&1; then
-    echo "[sw-export] DockerSW daemon 未运行，正在自动拉起后台守护..."
-    "${SW_DAEMON_BIN}" --host "${HOST}" --port "${PORT}" start
-fi
-
-# 委托 sw-cli run 执行导出脚本
-exec "${SW_CLI_BIN}" --host "${HOST}" --port "${PORT}" --timeout "${TIMEOUT_SEC}" run "${EXPORTER_SCRIPT}" "${PASSTHROUGH_ARGS[@]}"
+# 委托 sw-cli run 执行导出脚本（利用 --auto-start 统一自愈策略）
+exec "${SW_CLI_BIN}" --auto-start --host "${HOST}" --port "${PORT}" --timeout "${TIMEOUT_SEC}" run "${EXPORTER_SCRIPT}" "${PASSTHROUGH_ARGS[@]}"

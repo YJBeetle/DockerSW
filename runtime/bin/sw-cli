@@ -9,6 +9,8 @@ HOST="${SW_DAEMON_HOST:-${DEFAULT_HOST}}"
 PORT="${SW_DAEMON_PORT:-${DEFAULT_PORT}}"
 TIMEOUT_SEC="${SW_CLI_TIMEOUT:-${DEFAULT_TIMEOUT}}"
 JSON_OUTPUT=false
+AUTO_START="${SW_CLI_AUTO_START:-false}"
+SW_DAEMON_BIN="${SW_DAEMON_BIN:-sw-daemon}"
 
 COMMAND=""
 ARG_LIST=()
@@ -28,6 +30,7 @@ Commands:
   status                       Query daemon status and SolidWorks COM health
 
 Global Options:
+  --auto-start                 Automatically start resident daemon if not running
   --json                       Output raw JSON response (ideal for AI agents / automation)
   --timeout SEC                Execution timeout in seconds (default: 60)
   --host HOST                  Daemon host (default: 127.0.0.1)
@@ -42,6 +45,10 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             show_help
             exit 0
+            ;;
+        --auto-start)
+            AUTO_START=true
+            shift
             ;;
         --json)
             JSON_OUTPUT=true
@@ -58,6 +65,11 @@ while [[ $# -gt 0 ]]; do
         --port)
             PORT="$2"
             shift 2
+            ;;
+        --)
+            shift
+            ARG_LIST+=("$@")
+            break
             ;;
         run|eval|canvas|screenshot|status)
             if [ -z "${COMMAND}" ]; then
@@ -84,6 +96,15 @@ send_http_request() {
     local endpoint="$2"
     local payload_json="$3"
 
+    if [ "${AUTO_START}" = "true" ] && [[ "${HOST}" == "127.0.0.1" || "${HOST}" == "localhost" ]]; then
+        if ! "${SW_DAEMON_BIN}" --host "${HOST}" --port "${PORT}" status >/dev/null 2>&1; then
+            if [ "${JSON_OUTPUT}" != "true" ]; then
+                echo "[sw-cli] DockerSW daemon is not running, auto-starting resident daemon..." >&2
+            fi
+            "${SW_DAEMON_BIN}" --host "${HOST}" --port "${PORT}" start
+        fi
+    fi
+
     python3 -c "
 import json, sys, urllib.request, urllib.error
 
@@ -108,7 +129,7 @@ try:
 
         if is_json:
             print(json.dumps(parsed, ensure_ascii=False))
-            sys.exit(0)
+            sys.exit(parsed.get('exit_code', 0))
         else:
             # Human readable formatting
             stdout_str = parsed.get('stdout', '')
@@ -169,18 +190,14 @@ case "${COMMAND}" in
             echo "Error: Script file not found: ${SCRIPT_FILE}" >&2
             exit 1
         fi
-        SCRIPT_CONTENT="$(cat "${SCRIPT_FILE}")"
-        SCRIPT_ARGS=()
-        if [ ${#ARG_LIST[@]} -gt 1 ]; then
-            SCRIPT_ARGS=("${ARG_LIST[@]:1}")
-        fi
         PAYLOAD="$(python3 -c "
-import json, sys
-content = sys.argv[1]
-timeout_val = float(sys.argv[2])
-args_list = sys.argv[3:]
-print(json.dumps({'code': content, 'args': args_list, 'timeout': timeout_val}))
-" "${SCRIPT_CONTENT}" "${TIMEOUT_SEC}" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}")"
+import json, os, sys
+print(json.dumps({
+    'path': os.path.abspath(sys.argv[1]),
+    'timeout': float(sys.argv[2]),
+    'args': sys.argv[3:]
+}))
+" "${SCRIPT_FILE}" "${TIMEOUT_SEC}" "${ARG_LIST[@]:1}")"
         send_http_request "POST" "/v1/execute" "${PAYLOAD}"
         ;;
     canvas)

@@ -48,20 +48,6 @@ class TestExportScript(unittest.TestCase):
             fake_bin = tmp_path / "bin"
             fake_bin.mkdir()
 
-            # Create a mock sw-daemon that records invocations
-            daemon_log = tmp_path / "daemon_calls.log"
-            mock_daemon = fake_bin / "sw-daemon"
-            mock_daemon.write_text(f"""#!/usr/bin/env bash
-echo "$@" >> "{daemon_log}"
-if [[ "$*" == *"status"* ]]; then
-    exit 1
-elif [[ "$*" == *"start"* ]]; then
-    exit 0
-fi
-exit 0
-""")
-            mock_daemon.chmod(0o755)
-
             # Create a mock sw-cli that records invocations
             cli_log = tmp_path / "cli_calls.log"
             mock_cli = fake_bin / "sw-cli"
@@ -84,15 +70,10 @@ exit 0
             )
 
             self.assertEqual(res.returncode, 0, res.stderr)
-            self.assertIn("自动拉起后台守护", res.stdout)
 
-            # Check that sw-daemon status was checked and then start was called
-            daemon_calls = daemon_log.read_text()
-            self.assertIn("status", daemon_calls)
-            self.assertIn("start", daemon_calls)
-
-            # Check that sw-cli run was called with arguments
+            # Check that sw-cli run was called with --auto-start and arguments
             cli_calls = cli_log.read_text()
+            self.assertIn("--auto-start", cli_calls)
             self.assertIn("run", cli_calls)
             self.assertIn(EXPORTER_SCRIPT, cli_calls)
             self.assertIn("test.list", cli_calls)
@@ -104,14 +85,6 @@ exit 0
             tmp_path = Path(tmpdir)
             fake_bin = tmp_path / "bin"
             fake_bin.mkdir()
-
-            daemon_log = tmp_path / "daemon_calls.log"
-            mock_daemon = fake_bin / "sw-daemon"
-            mock_daemon.write_text(f"""#!/usr/bin/env bash
-echo "$@" >> "{daemon_log}"
-exit 0
-""")
-            mock_daemon.chmod(0o755)
 
             cli_log = tmp_path / "cli_calls.log"
             mock_cli = fake_bin / "sw-cli"
@@ -140,13 +113,9 @@ exit 0
             )
             self.assertEqual(res.returncode, 0, res.stderr)
 
-            # Verify sw-daemon was checked with host and port
-            daemon_calls = daemon_log.read_text()
-            self.assertIn("--host 10.0.0.1", daemon_calls)
-            self.assertIn("--port 19000", daemon_calls)
-
             # Verify sw-cli was invoked with host, port, timeout and run
             cli_calls = cli_log.read_text()
+            self.assertIn("--auto-start", cli_calls)
             self.assertIn("--host 10.0.0.1", cli_calls)
             self.assertIn("--port 19000", cli_calls)
             self.assertIn("--timeout 120", cli_calls)

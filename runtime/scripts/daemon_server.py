@@ -22,7 +22,8 @@ import time
 import traceback
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+import runpy
+from typing import Any, Callable, Dict, List, Optional, Union
 
 # Optional / lazy imports for Windows COM (allows offline mock unit testing on Linux/Mac)
 try:
@@ -110,17 +111,41 @@ class ServerState:
 GLOBAL_SERVER_STATE = ServerState()
 
 
-def execute_code_snippet(
-    code: str,
-    args: Optional[List[str]] = None,
-    timeout_s: float = 60.0,
-    sw_app: Any = None,
+def resolve_fs_path(path_str: Union[str, Path]) -> str:
+    """
+    Resolve a container Linux or Windows path into the platform's native filesystem path.
+    - Under Wine (os.name == 'nt'): maps Linux paths to Wine drive paths (e.g. Z:\\...).
+    - Under Linux/macOS (os.name != 'nt'): maps Wine drive paths to container/host paths.
+    """
+    s = str(path_str).strip()
+    if not s:
+        return ""
+    if os.name == "nt":
+        win_p = to_win_path(s)
+        return os.path.abspath(win_p)
+    else:
+        linux_p = to_linux_path(s)
+        return os.path.abspath(linux_p)
+
+
+def _run_in_sandbox(
+    target_fn: Callable[[Dict[str, Any]], None],
+    argv: List[str],
+    script_dir: Optional[str],
+    timeout_s: float,
+    sw_app: Any,
+    args: List[str],
 ) -> Dict[str, Any]:
     """
-    Executes Python code snippet inside an isolated sandbox with injected SolidWorks context.
-    Captures stdout, stderr, execution duration, and structured output.
+    Internal helper executing a callable inside an isolated sandbox thread.
+    Manages sys.stdout, sys.stderr, sys.argv, and sys.path, enforcing timeout_s.
+
+    Watchdog Semantics:
+    Enforces request timeout via thread.join(timeout_s). If exceeded, returns exit_code 124 in the response body.
+    Note: In-process Python/Wine worker threads cannot be forcibly killed asynchronously; if a script deadlocks
+    on an unhandled modal COM dialog or I/O, the thread may remain blocked in the background and a
+    service restart via `sw-daemon restart` is recommended.
     """
-    args = list(args) if args is not None else []
     output_data: Dict[str, Any] = {}
 
     def set_output(data: Dict[str, Any]) -> None:
@@ -143,9 +168,8 @@ def execute_code_snippet(
     sandbox_stderr = io.StringIO()
 
     sandbox_globals: Dict[str, Any] = {
-        "__name__": "__main__",
         "swApp": sw_app,
-        "args": args,
+        "args": list(args),
         "set_output": set_output,
         "save_canvas": save_canvas,
         "to_win_path": to_win_path,
@@ -172,12 +196,22 @@ def execute_code_snippet(
         old_stdout = sys.stdout
         old_stderr = sys.stderr
         old_argv = sys.argv
+        old_path = list(sys.path)
+
         sys.stdout = sandbox_stdout
         sys.stderr = sandbox_stderr
-        sys.argv = ["<sw-cli>"] + list(args)
+        sys.argv = list(argv)
+        if script_dir:
+            sys.path.insert(0, script_dir)
+
+        if HAS_WIN32COM and pythoncom is not None:
+            try:
+                pythoncom.CoInitialize()
+            except Exception:
+                pass
+
         try:
-            compiled = compile(code, "<sw-cli>", "exec")
-            exec(compiled, sandbox_globals)
+            target_fn(sandbox_globals)
         except SystemExit as se:
             code_val = se.code
             if code_val is None:
@@ -192,9 +226,15 @@ def execute_code_snippet(
             thread_exception.append(ex)
             traceback.print_exc(file=sandbox_stderr)
         finally:
+            if HAS_WIN32COM and pythoncom is not None:
+                try:
+                    pythoncom.CoUninitialize()
+                except Exception:
+                    pass
             sys.argv = old_argv
             sys.stdout = old_stdout
             sys.stderr = old_stderr
+            sys.path = old_path
 
     worker = threading.Thread(target=runner, daemon=True)
     worker.start()
@@ -205,7 +245,12 @@ def execute_code_snippet(
 
     if worker.is_alive():
         timed_out[0] = True
-        sandbox_stderr.write(f"\n[ERROR] Execution timed out after {timeout_s} seconds\n")
+        sandbox_stderr.write(
+            f"\n[ERROR] Execution timed out after {timeout_s} seconds\n"
+            "[WARN] Note: In-process worker thread cannot be forcibly killed in Python/Wine runtime.\n"
+            "If the script is blocked on an unhandled modal COM dialog or deadlock, the resident daemon\n"
+            "may be unresponsive to further COM operations and should be restarted (sw-daemon restart).\n"
+        )
         execution_result["success"] = False
         execution_result["exit_code"] = 124  # Standard timeout exit code
     elif thread_exception:
@@ -225,6 +270,78 @@ def execute_code_snippet(
     execution_result["data"] = output_data
 
     return execution_result
+
+
+def execute_code_snippet(
+    code: str,
+    args: Optional[List[str]] = None,
+    timeout_s: float = 60.0,
+    sw_app: Any = None,
+    filename: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Executes Python code snippet inside an isolated sandbox with injected SolidWorks context.
+    Captures stdout, stderr, execution duration, and structured output.
+    """
+    args = list(args) if args is not None else []
+    actual_filename = filename or "<sw-cli>"
+
+    def target_fn(globals_dict: Dict[str, Any]) -> None:
+        globals_dict["__name__"] = "__main__"
+        globals_dict["__file__"] = actual_filename
+        globals_dict["__doc__"] = None
+        compiled = compile(code, actual_filename, "exec")
+        exec(compiled, globals_dict)
+
+    script_dir = None
+    if filename and os.path.exists(filename):
+        script_dir = os.path.dirname(os.path.abspath(filename))
+
+    return _run_in_sandbox(
+        target_fn=target_fn,
+        argv=[actual_filename] + args,
+        script_dir=script_dir,
+        timeout_s=timeout_s,
+        sw_app=sw_app,
+        args=args,
+    )
+
+
+def execute_script_file(
+    script_path: str,
+    args: Optional[List[str]] = None,
+    timeout_s: float = 60.0,
+    sw_app: Any = None,
+) -> Dict[str, Any]:
+    """
+    Executes a standalone Python script file via runpy with injected SolidWorks context.
+    Sets __file__, adds script directory to sys.path, sets sys.argv, and captures stdout/stderr.
+    """
+    fs_path = resolve_fs_path(script_path)
+    if not os.path.isfile(fs_path):
+        return {
+            "success": False,
+            "exit_code": 1,
+            "stdout": "",
+            "stderr": f"Error: Script file not found: {script_path} (resolved: {fs_path})\n",
+            "data": {},
+            "duration_ms": 0,
+        }
+
+    args = list(args) if args is not None else []
+    script_dir = os.path.dirname(os.path.abspath(fs_path))
+
+    def target_fn(globals_dict: Dict[str, Any]) -> None:
+        runpy.run_path(fs_path, init_globals=globals_dict, run_name="__main__")
+
+    return _run_in_sandbox(
+        target_fn=target_fn,
+        argv=[fs_path] + args,
+        script_dir=script_dir,
+        timeout_s=timeout_s,
+        sw_app=sw_app,
+        args=args,
+    )
 
 
 class DaemonRequestHandler(BaseHTTPRequestHandler):
@@ -258,16 +375,31 @@ class DaemonRequestHandler(BaseHTTPRequestHandler):
             return
 
         if self.path in ("/v1/execute", "/execute"):
-            code = req_data.get("code", "")
+            script_path = req_data.get("path") or req_data.get("script_path")
+            code = req_data.get("code")
             args = req_data.get("args", [])
             timeout_s = float(req_data.get("timeout", 60.0))
 
-            res = execute_code_snippet(
-                code=code,
-                args=args,
-                timeout_s=timeout_s,
-                sw_app=GLOBAL_SERVER_STATE.sw_app,
-            )
+            if script_path:
+                res = execute_script_file(
+                    script_path=script_path,
+                    args=args,
+                    timeout_s=timeout_s,
+                    sw_app=GLOBAL_SERVER_STATE.sw_app,
+                )
+            elif code is not None:
+                filename = req_data.get("filename") or req_data.get("file_name") or "<sw-cli>"
+                res = execute_code_snippet(
+                    code=code,
+                    args=args,
+                    timeout_s=timeout_s,
+                    sw_app=GLOBAL_SERVER_STATE.sw_app,
+                    filename=filename,
+                )
+            else:
+                self._send_json(400, {"error": "Missing 'path' or 'code' in execute request payload"})
+                return
+
             self._send_json(200, res)
 
         elif self.path in ("/v1/canvas", "/canvas"):

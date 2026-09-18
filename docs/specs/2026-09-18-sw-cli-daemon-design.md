@@ -1,8 +1,8 @@
 # DockerSW CLI 与常驻 Daemon 交互子系统设计规范
 
-**文档版本：** 1.0.0  
-**设计日期：** 2026-09-18  
-**状态：** 待审查 (Pending Review)
+**文档版本：** 1.1.0  
+**设计日期：** 2026-09-19  
+**状态：** 已修订 (Revised)
 
 ---
 
@@ -140,16 +140,18 @@ SolidWorks 自身作为原生 Windows 桌面 CAD 软件，其所有官方操作�
 
 作为开发者、自动化工作流及 AI Agent 的核心调用入口：
 * **脚本执行**：
-  * `sw-cli run <script_path.py> [script_args...] [--timeout 60] [--json]`
-  * 读取本地 Python 文件内容，将请求发送至 `127.0.0.1:18282/v1/execute`。
+  * `sw-cli run <script_path.py> [script_args...] [--auto-start] [--timeout 60] [--json]`
+  * 仅传输 Linux 本地文件绝对路径 `{"path": "/workspace/script.py", "args": [...]}`，由服务端基于标准库 `runpy.run_path` 原生执行，自动获得真实 `__file__` 与 `sys.path[0]` 目录上下文。
 * **内联代码执行**：
-  * `sw-cli eval "print(swApp.RevisionNumber())" [--json]`
+  * `sw-cli eval "print(swApp.RevisionNumber())" [--auto-start] [--json]`
 * **3D 画布视图导出（AI 多模态首选）**：
   * `sw-cli canvas [output.png] [--json]`：调用 SolidWorks 原生光栅化渲染，导出当前活动 3D 模型的干净画布图像（无窗口边框、无菜单栏，纯几何）。
 * **整机屏幕抓取（调试/冒烟测试）**：
   * `sw-cli screenshot [output.png]`：直接抓取 Display `:99` 的当前画面（含特征树与弹窗），保存为指定路径的 PNG 图像。
 * **自愈与自动拉起**：
-  * 若执行命令时检测到守护进程未运行，可提示或通过 `--auto-start` 选项在后台自动拉起 `sw-daemon` 后再行执行。
+  * 提供 `--auto-start` 选项（或环境变量 `SW_CLI_AUTO_START=true`）。检测到本地守护进程未运行时自动执行 `sw-daemon start`，`sw-export` 批量导出工具亦基于此实现无感知自愈拉起。
+* **结构化数据回传**：
+  * 脚本内统一调用注入的 `set_output(dict)` 函数，将自定义业务结果回传并在客户端通过 `--json` 解析。
 
 ---
 
@@ -158,12 +160,16 @@ SolidWorks 自身作为原生 Windows 桌面 CAD 软件，其所有官方操作�
 1. **用户脚本异常隔离**：
    - 脚本中的语法错误、运行期异常或 `sys.exit()` 调用均被捕获在沙盒内。
    - 发生错误时完整提取异常回溯（Traceback）填入 `stderr`，标记 `success: false`，服务端进程绝不退出。
-2. **执行看门狗超时中断**：
-   - 服务端启动后台守护定时器。若脚本执行时间超过请求指定的 `timeout`（默认 60s），立即触发中断并返回超时错误响应。
-3. **COM 异常检测与自愈**：
-   - 若检测到 `0x800706BA`（RPC 服务器不可用）或 `SLDWORKS.exe` 进程终止，守护进程标记 `sw_connected: false` 并尝试自动重建 COM 实例，避免服务陷入永久不可用。
-4. **无头弹窗压制**：
+2. **执行看门狗语义与限制**：
+   - 服务端以工作线程形式隔离执行，并通过 `thread.join(timeout)` 限制单次请求最长等待时长。超时后服务端立即返回响应（HTTP 200，响应体 `success: false`、`exit_code: 124`）并释放客户端。
+   - **注意（线程模型局限）**：Wine Windows Python 运行期无法异步强杀正处于执行栈深处的线程。若用户脚本陷入底层 C/COM 阻塞或挂起模态弹窗，后台工作线程可能处于永久挂起状态，此时应触发 `sw-daemon restart` 予以复位重启。
+3. **COM STA 跨线程保障**：
+   - 服务端执行沙盒的工作线程在调度前强制执行 `pythoncom.CoInitialize()`，执行结束后在 `finally` 中严格执行 `pythoncom.CoUninitialize()`，确保在 Windows STA 单线程套间下安全调用全局持有之 `swApp` COM 实例。
+4. **统一路径协议单点化**：
+   - 客户端与服务端通信协议纯粹使用 Linux 绝对路径，全量 Windows/Wine 盘符转换（`Z:\...` / `C:\...`）收敛在 `daemon_server.py` 服务端单点处理，杜绝路径多处转换导致的漂移。
+5. **无头弹窗压制**：
    - 守护服务端强制保持 `UserControl = False`，并在启动时写入静默首选项，规避任何可能造成无头环境挂起的模态对话框。
+   - 若以 `sw-vnc` 交互式诊断模式启动，则显式开启 `UserControl = True` 允许人工排障。
 
 ---
 

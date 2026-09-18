@@ -70,6 +70,8 @@ RUN --mount=type=bind,source=runtime,target=/mnt/runtime \
 COPY runtime/scripts/ /opt/sw-runtime/scripts/
 COPY --chmod=755 runtime/bin/ /usr/local/bin/
 
+ENV PYTHONPATH=/opt/sw-runtime/scripts/lib
+
 # 6. 配置容器 Entrypoint
 COPY --chmod=755 runtime/entrypoint.sh /usr/local/bin/entrypoint.sh
 
