@@ -27,7 +27,7 @@
 - 创建：`runtime/tests/test_daemon_server.py`
 - 创建：`runtime/scripts/daemon_server.py`
 
-- [ ] **步骤 1：编写失败的单元测试**
+- [x] **步骤 1：编写失败的单元测试**
 
 编写测试用例覆盖：
 1. 请求处理类 `DaemonRequestHandler` 的路由分发与上下文构建。
@@ -39,12 +39,12 @@
 3. `GET /v1/health` 路由响应结构。
 4. `POST /v1/canvas` 路由响应结构（调用 `SaveAs3` 导出 3D 纯净模型视图 PNG）。
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`python3 -m unittest runtime/tests/test_daemon_server.py -v`  
 预期：FAIL，报错 `ModuleNotFoundError` 或文件不存在。
 
-- [ ] **步骤 3：实现 `runtime/scripts/daemon_server.py` 服务端**
+- [x] **步骤 3：实现 `runtime/scripts/daemon_server.py` 服务端**
 
 实现包含：
 1. 模块导入兼容：在 Linux 离线单测与 Wine Windows 环境下优雅适配（延迟或可选导入 `pythoncom` / `win32com`，提供 Mock 注入支持）。
@@ -52,12 +52,12 @@
 3. `DaemonServer` 与 `DaemonRequestHandler`（处理 `/v1/health`、`/v1/execute`、`/v1/canvas` 与 `/v1/screenshot`）。
 4. 路径映射工具 `to_win_path` 与 `to_linux_path`。
 
-- [ ] **步骤 4：运行测试验证通过**
+- [x] **步骤 4：运行测试验证通过**
 
 运行：`python3 -m unittest runtime/tests/test_daemon_server.py -v`  
 预期：PASS（所有测试通过）。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```bash
 git add runtime/tests/test_daemon_server.py runtime/scripts/daemon_server.py
@@ -72,7 +72,7 @@ git commit -m "feat(daemon): implement Wine daemon server with sandbox and canva
 - 创建：`runtime/tests/test_daemon_script.py`
 - 创建：`runtime/scripts/sw-daemon`
 
-- [ ] **步骤 1：编写失败的单元测试**
+- [x] **步骤 1：编写失败的单元测试**
 
 编写测试用例覆盖：
 1. 语法检查：`bash -n runtime/scripts/sw-daemon`。
@@ -82,12 +82,12 @@ git commit -m "feat(daemon): implement Wine daemon server with sandbox and canva
    - `--vnc-interactive` 启动时不包含 `-viewonly` 参数。
 4. 状态检查与 PID 探测：无 PID 文件或进程未存活时的退出状态。
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`python3 -m unittest runtime/tests/test_daemon_script.py -v`  
 预期：FAIL，报错脚本不存在。
 
-- [ ] **步骤 3：实现 `runtime/scripts/sw-daemon` 脚本**
+- [x] **步骤 3：实现 `runtime/scripts/sw-daemon` 脚本**
 
 实现包含：
 1. 环境变量与命令解析（`start`, `stop`, `restart`, `status`）。
@@ -98,12 +98,12 @@ git commit -m "feat(daemon): implement Wine daemon server with sandbox and canva
 6. `stop` 指令优雅终止服务与 Wine/VNC 相关进程。
 7. 设置文件可执行权限：`chmod +x runtime/scripts/sw-daemon`。
 
-- [ ] **步骤 4：运行测试验证通过**
+- [x] **步骤 4：运行测试验证通过**
 
 运行：`python3 -m unittest runtime/tests/test_daemon_script.py -v`  
 预期：PASS。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```bash
 git add runtime/tests/test_daemon_script.py runtime/scripts/sw-daemon
@@ -118,7 +118,7 @@ git commit -m "feat(daemon): add sw-daemon process manager with view-only VNC su
 - 创建：`runtime/tests/test_cli_script.py`
 - 创建：`runtime/scripts/sw-cli`
 
-- [ ] **步骤 1：编写失败的单元测试**
+- [x] **步骤 1：编写失败的单元测试**
 
 编写测试用例覆盖：
 1. 语法检查：`bash -n runtime/scripts/sw-cli`。
@@ -130,12 +130,12 @@ git commit -m "feat(daemon): add sw-daemon process manager with view-only VNC su
    - `screenshot` 模式触发 X11 整机桌面屏幕抓取。
 4. `--json` 格式化：验证 AI 模式下输出纯 JSON，人类模式下输出纯 stdout/stderr 并保留退出码。
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`python3 -m unittest runtime/tests/test_cli_script.py -v`  
 预期：FAIL，报错脚本不存在。
 
-- [ ] **步骤 3：实现 `runtime/scripts/sw-cli` 脚本**
+- [x] **步骤 3：实现 `runtime/scripts/sw-cli` 脚本**
 
 实现包含：
 1. 参数解析系统（支持 `run`, `eval`, `status`, `canvas`, `screenshot` 及全局选项 `--json`, `--timeout`, `--host`, `--port`）。
@@ -145,12 +145,12 @@ git commit -m "feat(daemon): add sw-daemon process manager with view-only VNC su
 5. 屏幕截取逻辑（`screenshot`）：直接通过 X11 工具（如 `import`、`xwd` 或 Wine 屏幕服务）抓取 `:99` 显示器保存为 PNG。
 6. 设置文件可执行权限：`chmod +x runtime/scripts/sw-cli`。
 
-- [ ] **步骤 4：运行测试验证通过**
+- [x] **步骤 4：运行测试验证通过**
 
 运行：`python3 -m unittest runtime/tests/test_cli_script.py -v`  
 预期：PASS。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```bash
 git add runtime/tests/test_cli_script.py runtime/scripts/sw-cli
@@ -166,11 +166,11 @@ git commit -m "feat(cli): add sw-cli client with run, eval, canvas, and screensh
 - 修改：`README.md`
 - 修改：`docs/dockersw-headless-design.md`
 
-- [ ] **步骤 1：在 `runtime/Dockerfile` 中安装与链接新命令**
+- [x] **步骤 1：在 `runtime/Dockerfile` 中安装与链接新命令**
 
 在 `Dockerfile` 中将 `sw-daemon` 与 `sw-cli` 复制/链接到 `/usr/local/bin/`，确保容器内任意终端可直接执行。
 
-- [ ] **步骤 2：更新 `README.md` 与设计文档**
+- [x] **步骤 2：更新 `README.md` 与设计文档**
 
 1. 在 `README.md` 中新增「常驻 Daemon 与 CLI 交互」章节，展示：
    - `sw-daemon start --vnc` 启动方式（强调默认 view-only 监看）。
@@ -178,12 +178,12 @@ git commit -m "feat(cli): add sw-cli client with run, eval, canvas, and screensh
    - `--json` 针对 AI Agent 的接入指引。
 2. 在 `docs/dockersw-headless-design.md` 中更新系统架构拓扑。
 
-- [ ] **步骤 3：运行全量单元测试套件**
+- [x] **步骤 3：运行全量单元测试套件**
 
 运行：`python3 -m unittest discover -s runtime/tests -v`  
 预期：所有测试（历史 22 个 + 新增测试）全部 PASS。
 
-- [ ] **步骤 4：Commit**
+- [x] **步骤 4：Commit**
 
 ```bash
 git add runtime/Dockerfile README.md docs/dockersw-headless-design.md

@@ -230,7 +230,57 @@ sw-vnc --bash
 sw-vnc --desktop
 ```
 
-### 4. CI/CD 流水线集成示例 (GitLab CI)
+### 4. 常驻守护进程与 CLI 交互 (`sw-daemon` & `sw-cli`)
+
+为消除 SolidWorks 每次启动 15~30 秒的冷启动耗时，并为自动化脚本与 **AI 编码智能体（Claude / Cursor / Antigravity）** 提供低延迟、结构化感知的交互接口，DockerSW 内置了统一的守护与命令行子系统：
+
+#### 4.1 启动常驻守护服务 (`sw-daemon`)
+
+```bash
+# 1. 启动常驻服务（后台持有 SldWorks.Application 单例，监听 127.0.0.1:18282）
+sw-daemon start
+
+# 2. 启动服务并开启 VNC 监看模式（默认 view-only 只看模式，防止鼠标键盘误触干扰自动化）
+sw-daemon start --vnc
+
+# 3. 启动服务并开启交互式 VNC（允许远程键鼠接管调试）
+sw-daemon start --vnc-interactive
+
+# 4. 检查服务状态与健康指标
+sw-daemon status
+
+# 5. 安全停止守护进程
+sw-daemon stop
+```
+
+#### 4.2 客户端命令与 AI 动态交互 (`sw-cli`)
+
+通过 `sw-cli`，开发者或 AI Agent 可以秒级执行脚本、修改模型、导出纯净视口或抓取屏幕：
+
+```bash
+# 1. 内联执行 Python 表达式（自动注入 swApp）
+sw-cli eval "print('SW Version:', swApp.RevisionNumber())"
+
+# 2. 动态执行本地 Python 脚本（毫秒级响应，无需重启 SW）
+sw-cli run /workspace/my_script.py arg1 arg2 --timeout 60
+
+# 3. 导出当前 3D 模型的纯净画布渲染图（AI 多模态视觉校验首选，无 UI 边框）
+sw-cli canvas /workspace/dist/model_view.png
+
+# 4. 截取当前 X11 整体桌面/窗口（用于特征树报错诊断或 CI 冒烟测试产物归档）
+sw-cli screenshot /workspace/dist/desktop_smoke.png
+
+# 5. 结构化 JSON 模式（供 AI / 上游程序做无损解析）
+sw-cli eval "set_output({'volume': 120.5})" --json
+```
+
+在执行的脚本中，已预注入以下上下文：
+- `swApp`：实时处于就绪状态的 `SldWorks.Application` COM 实例；
+- `args`：CLI 传递的参数列表；
+- `set_output(dict)`：将自定义键值对返回给 CLI / AI（在 `--json` 模式下直接进入 `data` 字段）；
+- `save_canvas(path)`：一键将当前 3D 视口光栅化保存为高质量 PNG。
+
+### 5. CI/CD 流水线集成示例 (GitLab CI)
 
 在私有 GitLab Runner 中使用 `sw-preinstalled` 镜像批量导出 CAD 产物：
 

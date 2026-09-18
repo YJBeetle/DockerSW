@@ -66,9 +66,9 @@ RUN --mount=type=bind,source=runtime,target=/mnt/runtime \
     bash /mnt/runtime/init_wineprefix.sh && \
     rm -rf /tmp/* /root/.cache/*
 
-# 5. 安装核心导出脚本与全局 CLI 命令
-COPY runtime/scripts/export_sw.py runtime/scripts/lib/solidworks_version.sh /opt/sw-runtime/scripts/
-COPY --chmod=755 runtime/scripts/sw-export runtime/scripts/sw-install runtime/scripts/sw-vnc /usr/local/bin/
+# 5. 安装核心脚本与全局 CLI 命令
+COPY runtime/scripts/export_sw.py runtime/scripts/daemon_server.py runtime/scripts/lib/solidworks_version.sh /opt/sw-runtime/scripts/
+COPY --chmod=755 runtime/scripts/sw-export runtime/scripts/sw-install runtime/scripts/sw-vnc runtime/scripts/sw-daemon runtime/scripts/sw-cli /usr/local/bin/
 
 # 6. 配置容器 Entrypoint
 COPY --chmod=755 runtime/entrypoint.sh /usr/local/bin/entrypoint.sh
