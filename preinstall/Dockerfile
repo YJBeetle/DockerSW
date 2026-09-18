@@ -31,7 +31,3 @@ RUN --mount=type=bind,source=media,target=/mnt/sw-media \
 
 ENV START_LOCAL_LICENSE=false
 ENV SW_LICENSE_SERVER=
-
-WORKDIR /workspace
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["sw-export", "--help"]

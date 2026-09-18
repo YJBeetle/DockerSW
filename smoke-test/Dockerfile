@@ -20,8 +20,3 @@ RUN --mount=type=bind,source=assets,target=/mnt/assets \
 ENV START_LOCAL_LICENSE=true
 ENV FLEXNET_DIR=/opt/sw-preinstalled/flexnet
 ENV SW_LICENSE_SERVER=
-
-WORKDIR /workspace
-
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["sw-export", "--help"]
