@@ -96,8 +96,10 @@ jobs:
             sw-runtime:local-test
             ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # 用 GHCR 上的专用 buildcache 标签替代 GHA 缓存：镜像本就推送到同一仓库，
+          # registry 缓存可与已存在的 blob 去重，避免 GHA 缓存每次上传数 GB（约 195s）。
+          cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache
+          cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache,mode=max,ignore-error=true
 
       - name: Smoke Test (Wine, Mono COM, Python, pywin32 & CLI)
         run: |
