@@ -14,10 +14,12 @@ LOG_FILE="${SW_DAEMON_LOG_FILE:-/tmp/sw-daemon.log}"
 DEFAULT_HOST="127.0.0.1"
 DEFAULT_PORT="18282"
 DEFAULT_TIMEOUT="45"
+DEFAULT_VNC_PORT="5900"
 
 HOST="${SW_DAEMON_HOST:-${DEFAULT_HOST}}"
 PORT="${SW_DAEMON_PORT:-${DEFAULT_PORT}}"
 TIMEOUT_SEC="${SW_DAEMON_TIMEOUT:-${DEFAULT_TIMEOUT}}"
+VNC_PORT="${SW_VNC_PORT:-${VNC_PORT:-${DEFAULT_VNC_PORT}}}"
 
 ENABLE_VNC=false
 if [ "${SW_VNC:-false}" = "true" ]; then
@@ -50,6 +52,7 @@ Commands:
 Options:
   --vnc               Start VNC in view-only mode (-viewonly, default observation mode)
   --vnc-interactive   Start VNC in full interactive mode (allowing mouse/keyboard input)
+  --vnc-port PORT     VNC port to bind (default: 5900)
   --port PORT         Port to bind (default: 18282)
   --host HOST         Host address to bind (default: 127.0.0.1)
   --timeout SEC       Timeout in seconds waiting for daemon readiness (default: 45)
@@ -59,6 +62,7 @@ Options:
 Environment Variables:
   SW_VNC                  Set to 'true' to automatically enable VNC with daemon
   SW_VNC_INTERACTIVE      Set to 'true' to allow mouse/keyboard input via VNC
+  SW_VNC_PORT             VNC port to bind (default: 5900, falls back to VNC_PORT)
   SW_DAEMON_HOST          Daemon host (default: 127.0.0.1)
   SW_DAEMON_PORT          Daemon port (default: 18282)
   SW_DAEMON_PID_FILE      Path to PID file (default: /tmp/sw-daemon.pid)
@@ -85,6 +89,10 @@ while [[ $# -gt 0 ]]; do
             ENABLE_VNC=true
             VNC_INTERACTIVE=true
             shift
+            ;;
+        --vnc-port)
+            VNC_PORT="$2"
+            shift 2
             ;;
         --port)
             PORT="$2"
@@ -204,7 +212,7 @@ prepare_runtime() {
     local mode_desc="$1"
     VNC_ARGS=()
     if [ "${ENABLE_VNC}" = true ]; then
-        VNC_ARGS+=("-display" ":99" "-rfbport" "5900" "-forever" "-shared")
+        VNC_ARGS+=("-display" ":99" "-rfbport" "${VNC_PORT}" "-forever" "-shared")
         if [ "${VNC_INTERACTIVE}" = false ]; then
             VNC_ARGS+=("-viewonly")
         fi
@@ -239,7 +247,7 @@ prepare_runtime() {
         if command -v x11vnc >/dev/null 2>&1; then
             x11vnc "${VNC_ARGS[@]}" -bg -nopw >/tmp/sw-vnc-daemon.log 2>&1 &
             echo "$!" > "${VNC_PID_FILE}"
-            echo "[INFO] VNC server started on :5900 (interactive: ${VNC_INTERACTIVE})"
+            echo "[INFO] VNC server started on :${VNC_PORT} (interactive: ${VNC_INTERACTIVE})"
         else
             echo "[WARN] x11vnc not installed; continuing without VNC." >&2
         fi

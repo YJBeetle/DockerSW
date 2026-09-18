@@ -97,6 +97,36 @@ class TestDaemonScript(unittest.TestCase):
         self.assertIn("x11vnc", res_inter.stdout)
         self.assertNotIn("-viewonly", res_inter.stdout)
 
+    def test_vnc_port_option(self):
+        res = subprocess.run(
+            [SCRIPT_PATH, "--dry-run", "--vnc", "--vnc-port", "5905", "start"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertIn("-rfbport 5905", res.stdout)
+
+    def test_env_vnc_port(self):
+        env_sw = dict(os.environ, SW_VNC="true", SW_VNC_PORT="5908")
+        res_sw = subprocess.run(
+            [SCRIPT_PATH, "--dry-run", "run"],
+            capture_output=True,
+            text=True,
+            env=env_sw,
+        )
+        self.assertEqual(res_sw.returncode, 0, res_sw.stderr)
+        self.assertIn("-rfbport 5908", res_sw.stdout)
+
+        env_compat = dict(os.environ, SW_VNC="true", VNC_PORT="5909")
+        res_compat = subprocess.run(
+            [SCRIPT_PATH, "--dry-run", "run"],
+            capture_output=True,
+            text=True,
+            env=env_compat,
+        )
+        self.assertEqual(res_compat.returncode, 0, res_compat.stderr)
+        self.assertIn("-rfbport 5909", res_compat.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
