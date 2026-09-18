@@ -11,6 +11,10 @@ on:
       - '.gitignore'
   workflow_dispatch:
     inputs:
+      force_rebuild:
+        description: 'Force full rebuild even if image for this commit SHA exists on GHCR'
+        type: boolean
+        default: false
       skip_preinstall:
         description: 'Only build and test sw-runtime (skip ISO preinstallation and CAD smoke test)'
         type: boolean
@@ -29,7 +33,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: sw-pipeline-${{ github.ref }}
+  group: sw-pipeline-${{ github.workflow }}-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:
@@ -78,7 +82,34 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check if sw-runtime already exists on GHCR
+        id: check-runtime
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          force="${{ inputs.force_rebuild || 'false' }}"
+          commit_sha="$(git rev-parse --short=7 HEAD)"
+          runtime_image="ghcr.io/yjbeetle/sw-runtime:sha-${commit_sha}"
+          target_tag="${{ github.ref_name }}"
+
+          if [ "${force}" != "true" ] && docker manifest inspect "${runtime_image}" >/dev/null 2>&1; then
+            echo "[CI fast-path] 镜像 ${runtime_image} 已存在于 GHCR，跳过重复构建，直接晋升标签..."
+            if [ -n "${target_tag}" ]; then
+              echo "[CI fast-path] 晋升分支标签: ${target_tag}..."
+              docker buildx imagetools create --tag "ghcr.io/yjbeetle/sw-runtime:${target_tag}" "${runtime_image}"
+            fi
+            if [ "${target_tag}" = "main" ]; then
+              echo "[CI fast-path] 晋升 :latest 标签..."
+              docker buildx imagetools create --tag "ghcr.io/yjbeetle/sw-runtime:latest" "${runtime_image}"
+            fi
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "[CI] 镜像不存在或要求强制重构，继续执行构建流程..."
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Extract Docker Metadata
+        if: steps.check-runtime.outputs.exists != 'true'
         id: meta
         uses: docker/metadata-action@v6
         with:
@@ -87,6 +118,7 @@ jobs:
             type=sha,format=short,prefix=sha-
 
       - name: Build and Load sw-runtime Image
+        if: steps.check-runtime.outputs.exists != 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -102,6 +134,7 @@ jobs:
           cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache,mode=max,ignore-error=true
 
       - name: Smoke Test (Wine, Mono COM, Python, pywin32 & CLI)
+        if: steps.check-runtime.outputs.exists != 'true'
         run: |
           echo "[CI] 验证 1: 测试固定 Wine 版本与 Windows 虚拟版本..."
           test "$(docker run --rm --entrypoint wine sw-runtime:local-test --version)" = "wine-11.16"
@@ -123,6 +156,7 @@ jobs:
           docker run --rm sw-runtime:local-test perl /usr/local/lib/sw-runtime/patch_win32u.pl
 
       - name: Push Verified Image to GHCR
+        if: steps.check-runtime.outputs.exists != 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -148,12 +182,6 @@ jobs:
       SW_PREINSTALLED_BASE: ghcr.io/yjbeetle/sw-preinstalled
       SW_EXECUTABLE_BASE: ghcr.io/yjbeetle/sw-executable
     steps:
-      - name: Free runner disk space
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: false
-          swap-storage: true
-
       - name: Check out repository
         uses: actions/checkout@v7
 
@@ -167,6 +195,9 @@ jobs:
           echo "SW_PREINSTALLED_IMAGE=${SW_PREINSTALLED_BASE}:sha-${commit_sha}" >> "${GITHUB_ENV}"
           echo "SW_EXECUTABLE_IMAGE=${SW_EXECUTABLE_BASE}:sha-${commit_sha}" >> "${GITHUB_ENV}"
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
       - name: Log in to GHCR
         uses: docker/login-action@v4
         with:
@@ -174,7 +205,47 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check if images are already verified and built for this commit
+        id: check-images
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          force="${{ inputs.force_rebuild || 'false' }}"
+          target_tag="${{ github.ref_name }}"
+
+          if [ "${force}" != "true" ] && docker manifest inspect "${SW_EXECUTABLE_IMAGE}" >/dev/null 2>&1; then
+            echo "[CI fast-path] 检测到当前提交 (${SW_IMAGE_SHA_TAG}) 的镜像已在 GHCR 完成构建并通过冒烟测试！"
+            echo "[CI fast-path] 跳过 30+ 分钟的 ISO 挂载、预安装与冒烟测试，秒级晋升标签..."
+
+            if [ -n "${target_tag}" ]; then
+              echo "[CI fast-path] 晋升分支标签: ${target_tag}..."
+              docker buildx imagetools create --tag "${SW_RUNTIME_BASE}:${target_tag}" "${SW_RUNTIME_IMAGE}" || true
+              docker buildx imagetools create --tag "${SW_PREINSTALLED_BASE}:${target_tag}" "${SW_PREINSTALLED_IMAGE}"
+              docker buildx imagetools create --tag "${SW_EXECUTABLE_BASE}:${target_tag}" "${SW_EXECUTABLE_IMAGE}"
+            fi
+
+            if [ "${target_tag}" = "main" ]; then
+              echo "[CI fast-path] 晋升 :latest 标签..."
+              docker buildx imagetools create --tag "${SW_RUNTIME_BASE}:latest" "${SW_RUNTIME_IMAGE}" || true
+              docker buildx imagetools create --tag "${SW_PREINSTALLED_BASE}:latest" "${SW_PREINSTALLED_IMAGE}"
+              docker buildx imagetools create --tag "${SW_EXECUTABLE_BASE}:latest" "${SW_EXECUTABLE_IMAGE}"
+            fi
+
+            echo "already_verified=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "[CI] 镜像未验证或需要全量重构，继续执行预装与冒烟测试..."
+            echo "already_verified=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Free runner disk space
+        if: steps.check-images.outputs.already_verified != 'true'
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          swap-storage: true
+
       - name: Install rclone and FUSE
+        if: steps.check-images.outputs.already_verified != 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -188,6 +259,7 @@ jobs:
           echo "user_allow_other" | sudo tee -a /etc/fuse.conf >/dev/null
 
       - name: Prepare Google Drive configuration
+        if: steps.check-images.outputs.already_verified != 'true'
         shell: bash
         env:
           RCLONE_CONFIG_B64: ${{ secrets.RCLONE_CONFIG_B64 }}
@@ -203,6 +275,7 @@ jobs:
           rclone --config "${RCLONE_CONFIG_FILE}" listremotes | grep -qx 'gdrive:'
 
       - name: Mount Google Drive and the SOLIDWORKS ISO
+        if: steps.check-images.outputs.already_verified != 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -253,6 +326,7 @@ jobs:
           findmnt --target "${SW_MEDIA_MOUNT}"
 
       - name: Fetch test activation assets from Google Drive
+        if: steps.check-images.outputs.already_verified != 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -265,6 +339,7 @@ jobs:
           }
 
       - name: Build vanilla preinstalled image
+        if: steps.check-images.outputs.already_verified != 'true'
         shell: bash
         env:
           SW_SERIAL_SOLIDWORKS: ${{ secrets.SW_SERIAL_SOLIDWORKS }}
@@ -285,6 +360,7 @@ jobs:
             preinstall
 
       - name: Build sw-executable image (from local sw-preinstalled, zero pull overhead)
+        if: steps.check-images.outputs.already_verified != 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -296,12 +372,14 @@ jobs:
             smoke-test
 
       - name: Smoke test real SOLIDWORKS exports
+        if: steps.check-images.outputs.already_verified != 'true'
         shell: bash
         run: |
           export SW_IMAGE="${SW_EXECUTABLE_IMAGE}"
           bash smoke-test/run.sh
 
       - name: Publish verified images & promote atomically
+        if: steps.check-images.outputs.already_verified != 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -335,14 +413,14 @@ jobs:
           fi
 
       - name: Show storage usage
-        if: always()
+        if: always() && steps.check-images.outputs.already_verified != 'true'
         shell: bash
         run: |
           df -h / || true
           docker system df || true
 
       - name: Unmount installation media
-        if: always()
+        if: always() && steps.check-images.outputs.already_verified != 'true'
         shell: bash
         run: |
           sudo umount "${SW_MEDIA_MOUNT}" 2>/dev/null || true
@@ -352,7 +430,7 @@ jobs:
           rm -f "${RCLONE_CONFIG_FILE}"
 
       - name: Upload private installer logs
-        if: failure()
+        if: failure() && steps.check-images.outputs.already_verified != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: sw-install-logs-${{ github.run_id }}
@@ -361,7 +439,7 @@ jobs:
           retention-days: 14
 
       - name: Upload export smoke-test artifacts
-        if: always()
+        if: always() && steps.check-images.outputs.already_verified != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: sw-export-smoke-${{ github.run_id }}
