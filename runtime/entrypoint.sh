@@ -6,8 +6,6 @@ export WINEPREFIX="${WINEPREFIX:-/root/.wine}"
 export WINEDEBUG="${WINEDEBUG:--all}"
 export DISPLAY="${DISPLAY:-:99}"
 
-export SW_INSTALL_DIR="${SW_INSTALL_DIR:-/opt/solidworks}"
-export SW_PROGRAMDATA="${SW_PROGRAMDATA:-/opt/solidworks_programdata}"
 export FLEXNET_DIR="${FLEXNET_DIR:-/opt/SolidWorks_Flexnet_Server}"
 export START_LOCAL_LICENSE="${START_LOCAL_LICENSE:-false}"
 export SW_LICENSE_SERVER="${SW_LICENSE_SERVER:-}"
@@ -68,38 +66,12 @@ fi
 echo "[DockerSW] 正在校验 Wine-Mono stdcall 与托管 COM 注册组件..."
 /usr/local/lib/sw-runtime/prepare_managed_com.sh
 
-# 4. 验证 SolidWorks 程序目录
+# 4. 验证 SolidWorks 主程序目录
 C_SW_TARGET="${WINEPREFIX}/drive_c/Program Files/SOLIDWORKS"
-if [ -d "${SW_INSTALL_DIR}" ] && [ ! -f "${C_SW_TARGET}/SLDWORKS.exe" ]; then
-    echo "[DockerSW] 映射外部 SolidWorks 目录: ${SW_INSTALL_DIR} -> ${C_SW_TARGET}"
-    ln -sfn "${SW_INSTALL_DIR}" "${C_SW_TARGET}"
-fi
-
 if [ -f "${C_SW_TARGET}/SLDWORKS.exe" ]; then
     echo "[DockerSW] 验证主程序: SLDWORKS.exe 存在"
 else
     echo "[DockerSW][WARN] 未检测到 SLDWORKS.exe"
-fi
-
-# 自动扫描并导入 SolidWorks 注册表文件
-SW_REG_SEARCH_DIRS=("/opt/solidworks_reg" "${SW_INSTALL_DIR}")
-for reg_dir in "${SW_REG_SEARCH_DIRS[@]}"; do
-    if [ -d "${reg_dir}" ]; then
-        for reg_file in "${reg_dir}"/*.reg; do
-            if [ -f "${reg_file}" ]; then
-                echo "[DockerSW] 正在导入 SolidWorks 注册表: ${reg_file}..."
-                wine reg import "${reg_file}" >/dev/null 2>&1 || true
-            fi
-        done
-    fi
-done
-
-# 映射 ProgramData（如果提供）
-if [ -d "${SW_PROGRAMDATA}" ]; then
-    C_PD_TARGET="${WINEPREFIX}/drive_c/ProgramData/SOLIDWORKS"
-    mkdir -p "${WINEPREFIX}/drive_c/ProgramData"
-    rm -rf "${C_PD_TARGET}"
-    ln -sfn "${SW_PROGRAMDATA}" "${C_PD_TARGET}"
 fi
 
 # 5. 如果是构建期 --init-only，刷新注册表并安全退出

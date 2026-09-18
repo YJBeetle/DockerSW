@@ -228,8 +228,6 @@ export_cad_assets:
 
 | 环境变量 | 默认值 | 说明 |
 |---|---|---|
-| `SW_INSTALL_DIR` | `/opt/solidworks` | 可选的外部卷挂载程序目录（映射到虚拟 C 盘 Program Files/SOLIDWORKS）；镜像预装时主程序直接位于 WINEPREFIX 内 |
-| `SW_PROGRAMDATA` | `/opt/solidworks_programdata` | 可选的外部 ProgramData 映射目录 |
 | `SW_LICENSE_SERVER` | 空 | 远程 FlexNet 服务器，例如 `25734@192.168.1.100`；配置后优先使用 |
 | `START_LOCAL_LICENSE` | `false` | 设为 `true` 时启动已挂载的本地 `lmgrd.exe` |
 | `FLEXNET_DIR` | `/opt/SolidWorks_Flexnet_Server` | 本地 FlexNet 目录，需由使用者提供 `lmgrd.exe` 与 `.lic` |
