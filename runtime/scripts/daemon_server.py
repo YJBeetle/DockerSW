@@ -75,7 +75,8 @@ class ServerState:
                 if not active_doc:
                     return {"success": False, "error": "No active document currently open in SolidWorks"}
 
-                title = active_doc.GetTitle() if hasattr(active_doc, "GetTitle") else "Unknown"
+                title_attr = getattr(active_doc, "GetTitle", "Unknown")
+                title = title_attr() if callable(title_attr) else str(title_attr)
 
                 if not target_path:
                     out_path = Path("/tmp") / f"sw_canvas_{int(time.time()*1000)}.png"
@@ -476,7 +477,8 @@ def init_solidworks_com(visible: bool = False, user_control: bool = False) -> No
 
         ver = "Unknown"
         try:
-            ver = sw_app.RevisionNumber()
+            ver_attr = getattr(sw_app, "RevisionNumber", "Unknown")
+            ver = ver_attr() if callable(ver_attr) else str(ver_attr)
         except Exception:
             pass
 
