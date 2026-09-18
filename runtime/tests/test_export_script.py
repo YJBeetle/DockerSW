@@ -27,7 +27,7 @@ class TestExportScript(unittest.TestCase):
         self.assertEqual(res.returncode, 0, f"Bash syntax check failed: {res.stderr}")
 
     def test_help_output(self):
-        env = dict(os.environ, SW_EXPORTER_SCRIPT=EXPORTER_SCRIPT)
+        env = dict(os.environ, EXPORTER_SCRIPT=EXPORTER_SCRIPT)
         res = subprocess.run([SCRIPT_PATH, "--help"], capture_output=True, text=True, env=env)
         self.assertEqual(res.returncode, 0, res.stderr)
         out = res.stdout.lower()
@@ -37,7 +37,7 @@ class TestExportScript(unittest.TestCase):
         self.assertIn("--outdir", out)
 
     def test_missing_args_fails(self):
-        env = dict(os.environ, SW_EXPORTER_SCRIPT=EXPORTER_SCRIPT)
+        env = dict(os.environ, EXPORTER_SCRIPT=EXPORTER_SCRIPT)
         res = subprocess.run([SCRIPT_PATH], capture_output=True, text=True, env=env)
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("缺少必须参数", res.stderr + res.stdout)
@@ -60,7 +60,7 @@ exit 0
             env = dict(
                 os.environ,
                 PATH=f"{fake_bin}:{os.environ['PATH']}",
-                SW_EXPORTER_SCRIPT=EXPORTER_SCRIPT,
+                EXPORTER_SCRIPT=EXPORTER_SCRIPT,
             )
             res = subprocess.run(
                 [SCRIPT_PATH, "--list", "test.list", "--workspace", "/ws", "--outdir", "/out"],
@@ -97,7 +97,7 @@ exit 0
             env = dict(
                 os.environ,
                 PATH=f"{fake_bin}:{os.environ['PATH']}",
-                SW_EXPORTER_SCRIPT=EXPORTER_SCRIPT,
+                EXPORTER_SCRIPT=EXPORTER_SCRIPT,
             )
             res = subprocess.run(
                 [

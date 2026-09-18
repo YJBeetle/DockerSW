@@ -313,17 +313,31 @@ export_cad_assets:
 
 ## 运行时环境变量
 
+### 图形与远程桌面 (Display & VNC)
+
 | 环境变量 | 默认值 | 说明 |
 |---|---|---|
-| `SW_LICENSE_SERVER` | 空 | 远程 FlexNet 服务器，例如 `25734@192.168.1.100`；配置后优先使用 |
-| `START_LOCAL_LICENSE` | `false` | 设为 `true` 时启动已挂载的本地 `lmgrd.exe` |
-| `FLEXNET_DIR` | `/opt/SolidWorks_Flexnet_Server` | 本地 FlexNet 目录，需由使用者提供 `lmgrd.exe` 与 `.lic` |
-| `DISPLAY` | `:99` | 由容器内 Xvfb 托管的虚拟屏幕 |
-| `DISPLAY_RESOLUTION` | `1920x1080` | Xvfb 虚拟屏幕默认分辨率 |
-| `VNC_PORT` | `5900` | `sw-vnc` 监听的 RFB 端口 |
-| `VNC_PASSWORD` | 空 | `sw-vnc` 访问密码（默认无密码直连；若设置建议 6~8 位） |
-| `VNC_RESOLUTION` | `1920x1080` | `sw-vnc` 虚拟屏幕分辨率 (形如 1920x1080、2560x1440) |
-| `WINEPREFIX` | `/root/.wine` | Wine 前缀路径 |
+| `DISPLAY_RESOLUTION` | `1920x1080` | Xvfb 虚拟屏幕与 VNC 桌面分辨率（形如 `1920x1080`、`2560x1440`） |
+| `VNC_ENABLE` | `false` | 容器/Daemon 启动时是否自动拉起 VNC 监听服务（`sw-vnc` 默认开启） |
+| `VNC_INTERACTIVE` | `false` | 是否允许鼠标键盘交互控制（默认 `false` 为 view-only 监看模式） |
+| `VNC_PORT` | `5900` | x11vnc 监听的 RFB 端口 |
+| `VNC_PASSWORD` | 空 | VNC 访问密码（默认无密码直连；若设置建议 6~8 位） |
+| `DISPLAY` | `:99` | 容器内 Xvfb 托管的虚拟屏幕编号 |
+
+### 许可服务配置 (License)
+
+| 环境变量 | 默认值 | 说明 |
+|---|---|---|
+| `SW_LICENSE_SERVER` | 空 | 远程 FlexNet 许可服务器（例如 `25734@192.168.1.100`）；配置后优先使用 |
+| `SW_FLEXNET_DIR` | `/opt/SolidWorks_Flexnet_Server` | 本地 FlexNet 服务目录；未配置远程许可且目录下存在 `lmgrd.exe` 时自动拉起本地守护 |
+
+### 后台守护配置 (Daemon)
+
+| 环境变量 | 默认值 | 说明 |
+|---|---|---|
+| `SW_DAEMON_HOST` | `127.0.0.1` | 守护进程 HTTP 监听地址（若作为微服务对外暴露可设为 `0.0.0.0`） |
+| `SW_DAEMON_PORT` | `18282` | 守护进程 HTTP 监听端口 |
+| `SW_DAEMON_TIMEOUT` | `45` | 等待守护进程与 SOLIDWORKS COM 实例就绪的超时时间（秒） |
 
 ## 导出清单
 

@@ -5,7 +5,7 @@ set -euo pipefail
 # sw-daemon 交互式图形桌面便捷别名。
 # 默认以前台运行 (run) 方式拉起，并开启交互式 VNC 与 SOLIDWORKS 完整控制权。
 
-SW_DAEMON_BIN="${SW_DAEMON_BIN:-sw-daemon}"
+DAEMON_BIN="${DAEMON_BIN:-sw-daemon}"
 
 show_help() {
     cat << 'EOF'
@@ -22,14 +22,14 @@ DockerSW VNC 图形工作站便捷启动器 (sw-vnc)
 选项:
   -p, --port <port>          指定 VNC 监听端口 (默认: 5900，环境变量: VNC_PORT)
   -P, --password <pass>      设置 VNC 访问密码 (环境变量: VNC_PASSWORD)
-  -r, --resolution <WxH>     设置虚拟屏幕分辨率 (默认: 1920x1080，环境变量: VNC_RESOLUTION)
+  -r, --resolution <WxH>     设置虚拟屏幕分辨率 (默认: 1920x1080，环境变量: DISPLAY_RESOLUTION)
       --dry-run              打印执行计划并安全退出
   -h, --help                 显示此帮助信息
 
 环境变量:
   VNC_PORT                   VNC 服务端口 (默认: 5900)
   VNC_PASSWORD               VNC 访问密码
-  VNC_RESOLUTION             虚拟屏幕分辨率 (默认: 1920x1080)
+  DISPLAY_RESOLUTION         虚拟屏幕分辨率 (默认: 1920x1080)
 
 示例:
   sw-vnc                     # 默认拉起交互式 VNC 桌面并启动 SOLIDWORKS
@@ -100,4 +100,4 @@ if [ "${HAS_COMMAND}" = false ]; then
     DAEMON_ARGS+=("run")
 fi
 
-exec "${SW_DAEMON_BIN}" "${DAEMON_ARGS[@]}" ${PASSTHROUGH_ARGS[@]+"${PASSTHROUGH_ARGS[@]}"}
+exec "${DAEMON_BIN}" "${DAEMON_ARGS[@]}" ${PASSTHROUGH_ARGS[@]+"${PASSTHROUGH_ARGS[@]}"}

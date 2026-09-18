@@ -7,8 +7,7 @@ export WINEDEBUG="${WINEDEBUG:--all}"
 export DISPLAY="${DISPLAY:-:99}"
 export DISPLAY_RESOLUTION="${DISPLAY_RESOLUTION:-1920x1080}"
 
-export FLEXNET_DIR="${FLEXNET_DIR:-/opt/SolidWorks_Flexnet_Server}"
-export START_LOCAL_LICENSE="${START_LOCAL_LICENSE:-false}"
+export SW_FLEXNET_DIR="${SW_FLEXNET_DIR:-/opt/SolidWorks_Flexnet_Server}"
 export SW_LICENSE_SERVER="${SW_LICENSE_SERVER:-}"
 
 export WINEDLLOVERRIDES="concrt140=n,b;msvcp140=n,b;msvcp140_1=n,b;msvcp140_2=n,b;msvcp140_atomic_wait=n,b;msvcp140_codecvt_ids=n,b;vcruntime140=n,b;vcruntime140_1=n,b;vcomp140=n,b;mfc140u=n,b;d3dcompiler_47=n,b;d3d11=n,b;dxgi=n,b"
@@ -101,33 +100,29 @@ configure_license_server() {
 if [ -n "${SW_LICENSE_SERVER}" ]; then
     echo "[DockerSW] 配置远程许可服务器: ${SW_LICENSE_SERVER}"
     configure_license_server "${SW_LICENSE_SERVER}"
-elif [ "${START_LOCAL_LICENSE}" = "true" ]; then
-    [ -f "${FLEXNET_DIR}/lmgrd.exe" ] || {
-        echo "[DockerSW][ERROR] 已启用本地许可服务，但缺少 ${FLEXNET_DIR}/lmgrd.exe" >&2
-        exit 1
-    }
-    echo "[DockerSW] 正在启动容器内本地 FlexNet 许可服务守护 (lmgrd.exe)..."
-    LIC_FILE="${FLEXNET_DIR}/sw_d_SSQ.lic"
+elif [ -f "${SW_FLEXNET_DIR}/lmgrd.exe" ]; then
+    echo "[DockerSW] 检测到本地许可服务，正在自动启动 FlexNet 守护 (lmgrd.exe)..."
+    LIC_FILE="${SW_FLEXNET_DIR}/sw_d_SSQ.lic"
     if [ ! -f "${LIC_FILE}" ]; then
-        LIC_FILE=$(find "${FLEXNET_DIR}" -maxdepth 1 -type f -name '*.lic' -print -quit)
+        LIC_FILE=$(find "${SW_FLEXNET_DIR}" -maxdepth 1 -type f -name '*.lic' -print -quit)
     fi
     [ -n "${LIC_FILE}" ] && [ -f "${LIC_FILE}" ] || {
-        echo "[DockerSW][ERROR] 已启用本地许可服务，但未找到 .lic 文件" >&2
+        echo "[DockerSW][ERROR] 已检测到本地许可服务，但未找到 .lic 文件" >&2
         exit 1
     }
 
     (
-        cd "${FLEXNET_DIR}"
-        nohup wine "${FLEXNET_DIR}/lmgrd.exe" -c "${LIC_FILE}" -l /tmp/flexnet.log >/dev/null 2>&1 &
+        cd "${SW_FLEXNET_DIR}"
+        nohup wine "${SW_FLEXNET_DIR}/lmgrd.exe" -c "${LIC_FILE}" -l /tmp/flexnet.log >/dev/null 2>&1 &
     )
 
     LOCAL_LICENSE_ADDRESS="25734@127.0.0.1"
     configure_license_server "${LOCAL_LICENSE_ADDRESS}"
 
-    if [ -f "${FLEXNET_DIR}/lmutil.exe" ]; then
+    if [ -f "${SW_FLEXNET_DIR}/lmutil.exe" ]; then
         LICENSE_READY=false
         for _ in $(seq 1 30); do
-            if timeout --foreground 5 wine "${FLEXNET_DIR}/lmutil.exe" lmstat -a -c "${LOCAL_LICENSE_ADDRESS}" >/dev/null 2>&1; then
+            if timeout --foreground 5 wine "${SW_FLEXNET_DIR}/lmutil.exe" lmstat -a -c "${LOCAL_LICENSE_ADDRESS}" >/dev/null 2>&1; then
                 LICENSE_READY=true
                 break
             fi
@@ -140,7 +135,7 @@ elif [ "${START_LOCAL_LICENSE}" = "true" ]; then
     fi
     echo "[DockerSW] 本地 FlexNet 服务已就绪: ${LOCAL_LICENSE_ADDRESS}"
 else
-    echo "[DockerSW][WARN] 未配置 SW_LICENSE_SERVER，且本地许可服务未启用"
+    echo "[DockerSW][WARN] 未配置 SW_LICENSE_SERVER，且未检测到本地许可服务"
 fi
 
 # 7. 执行传入命令或进入交互终端

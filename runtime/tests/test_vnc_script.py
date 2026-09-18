@@ -34,13 +34,12 @@ class TestVncScript(unittest.TestCase):
             self.assertIn("--resolution", res.stdout)
             self.assertIn("VNC_PASSWORD", res.stdout)
             self.assertIn("VNC_PORT", res.stdout)
-            self.assertIn("VNC_RESOLUTION", res.stdout)
+            self.assertIn("DISPLAY_RESOLUTION", res.stdout)
 
     def _run_vnc(self, args, env=None):
         test_env = dict(os.environ)
         bin_dir = str(REPO_ROOT / "runtime" / "bin")
         test_env["PATH"] = f"{bin_dir}:{test_env.get('PATH', '')}"
-        test_env["SW_DAEMON_BIN"] = str(REPO_ROOT / "runtime" / "bin" / "sw-daemon")
         if env:
             test_env.update(env)
         return subprocess.run(
@@ -79,7 +78,7 @@ class TestVncScript(unittest.TestCase):
     def test_dry_run_env_overrides(self):
         res = self._run_vnc(["--dry-run"], env={
             "VNC_PORT": "5905",
-            "VNC_RESOLUTION": "1280x720",
+            "DISPLAY_RESOLUTION": "1280x720",
             "VNC_PASSWORD": "envpass",
         })
         self.assertEqual(res.returncode, 0, res.stderr)

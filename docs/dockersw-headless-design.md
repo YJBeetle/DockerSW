@@ -47,7 +47,7 @@
 │                                                                        │
 │  ※ 许可配置全部可在构建期就绪（生成开箱即用的自包含镜像）：            │
 │     ├─ 方案 1（网络许可）：Dockerfile 指定 ENV SW_LICENSE_SERVER=...   │
-│     └─ 方案 2（本地许可）：COPY lmgrd+lic 并 ENV START_LOCAL_LICENSE=true│
+│     └─ 方案 2（本地许可）：COPY lmgrd+lic 到 SW_FLEXNET_DIR 自动就绪     │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │ 运行 (docker run / CI Runner)
                                     ▼
@@ -82,7 +82,7 @@
    - 彻底摒弃容易缺失注册表与 COM 组件的免安装目录挂载机制；所有环境均基于 `sw-install` 进行 100% 完整原版无人值守安装，主程序严格位于虚拟 C 盘（`drive_c/Program Files/SOLIDWORKS`），保证 COM 类映射与注册表完整可用；
 5. **许可服务智能判定与开关（私有环境专有配置）**：
    - **远程网络许可模式（推荐）**：在私有镜像构建期固化或私有 CI 运行时注入环境变量 `SW_LICENSE_SERVER`（如 `25734@10.0.0.1`），容器自动注入 `FLEXlm License Manager` 与系统环境变量，无需在容器内跑常驻许可进程；
-   - **本地自启许可模式（按需）**：在私有构建期直接内置 `lmgrd.exe`+许可文件或在运行时挂载 `/opt/SolidWorks_Flexnet_Server`，并配置 `START_LOCAL_LICENSE=true`，后台拉起 `lmgrd.exe` 并等待端口就绪；
+   - **本地自启许可模式（按需）**：在私有构建期内置或运行时挂载到 `SW_FLEXNET_DIR`（默认 `/opt/SolidWorks_Flexnet_Server`），只要目录下存在 `lmgrd.exe` 与许可文件即自动在后台拉起守护并等待端口就绪；
 6. **命令生命周期与构建支持**：
    - 支持 `--init-only` 参数，在 Docker 构建期刷新并持久化 Wine 注册表后干净退出；
    - 支持透明传递任意执行命令（如 `sw-export`、`sw-install` 或 `bash`）。
@@ -158,5 +158,5 @@
 
 - [x] **架构一致性**：公开基础镜像 `sw-runtime` 与私有安装镜像 `sw-preinstalled` 职责彻底分离；
 - [x] **版权合规性**：公开仓库无任何商业软件实体与许可凭据，EULA 坚持调用方显式确认原则；
-- [x] **命名规范性**：全局统一使用标准命令名 `sw-install` 与 `sw-export`，环境变量全项目对齐（`SW_INSTALL_DIR`, `SW_LICENSE_SERVER`, `START_LOCAL_LICENSE`）；
+- [x] **命名规范性**：全局统一使用标准命令名 `sw-install` 与 `sw-export`，环境变量全项目对齐（`SW_INSTALL_DIR`, `SW_LICENSE_SERVER`, `SW_FLEXNET_DIR`）；
 - [x] **运行健壮性**：无头环境具备 Xvfb、OpenGL 24-bit 离屏渲染与 Wine-Mono 托管 COM 的三重稳定性保障。

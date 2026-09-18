@@ -29,5 +29,4 @@ RUN --mount=type=bind,source=media,target=/mnt/sw-media \
     test -f "${sw_program_dir}/SLDWORKS.exe" && \
     rm -rf /var/log/sw-install
 
-ENV START_LOCAL_LICENSE=false
 ENV SW_LICENSE_SERVER=

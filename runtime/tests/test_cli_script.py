@@ -247,7 +247,7 @@ exit 0
 
             env = dict(
                 os.environ,
-                SW_DAEMON_BIN=str(mock_daemon),
+                PATH=f"{fake_bin}:{os.environ.get('PATH', '')}",
             )
             res = subprocess.run(
                 [SCRIPT_PATH, "--auto-start", "eval", "1+1", "--port", str(self.port)],

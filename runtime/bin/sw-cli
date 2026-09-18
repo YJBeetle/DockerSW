@@ -10,7 +10,7 @@ PORT="${SW_DAEMON_PORT:-${DEFAULT_PORT}}"
 TIMEOUT_SEC="${SW_CLI_TIMEOUT:-${DEFAULT_TIMEOUT}}"
 JSON_OUTPUT=false
 AUTO_START="${SW_CLI_AUTO_START:-false}"
-SW_DAEMON_BIN="${SW_DAEMON_BIN:-sw-daemon}"
+DAEMON_BIN="${DAEMON_BIN:-sw-daemon}"
 
 COMMAND=""
 ARG_LIST=()
@@ -97,11 +97,11 @@ send_http_request() {
     local payload_json="$3"
 
     if [ "${AUTO_START}" = "true" ] && [[ "${HOST}" == "127.0.0.1" || "${HOST}" == "localhost" ]]; then
-        if ! "${SW_DAEMON_BIN}" --host "${HOST}" --port "${PORT}" status >/dev/null 2>&1; then
+        if ! "${DAEMON_BIN}" --host "${HOST}" --port "${PORT}" status >/dev/null 2>&1; then
             if [ "${JSON_OUTPUT}" != "true" ]; then
                 echo "[sw-cli] DockerSW daemon is not running, auto-starting resident daemon..." >&2
             fi
-            "${SW_DAEMON_BIN}" --host "${HOST}" --port "${PORT}" start
+            "${DAEMON_BIN}" --host "${HOST}" --port "${PORT}" start
         fi
     fi
 

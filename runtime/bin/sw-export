@@ -5,8 +5,8 @@ set -euo pipefail
 # 专用于无头批量静默导出 STEP/PDF/DWG/GLB。
 # 统一委托 sw-cli run --auto-start 执行 utils/sw_exporter.py 导出任务。
 
-SW_CLI_BIN="${SW_CLI_BIN:-sw-cli}"
-EXPORTER_SCRIPT="${SW_EXPORTER_SCRIPT:-/opt/sw-runtime/scripts/utils/sw_exporter.py}"
+CLI_BIN="${CLI_BIN:-sw-cli}"
+EXPORTER_SCRIPT="${EXPORTER_SCRIPT:-/opt/sw-runtime/scripts/utils/sw_exporter.py}"
 HOST="${SW_DAEMON_HOST:-127.0.0.1}"
 PORT="${SW_DAEMON_PORT:-18282}"
 TIMEOUT_SEC="${SW_EXPORT_TIMEOUT:-3600}"
@@ -44,4 +44,4 @@ if [ ${#PASSTHROUGH_ARGS[@]} -eq 0 ]; then
 fi
 
 # 委托 sw-cli run 执行导出脚本（利用 --auto-start 统一自愈策略）
-exec "${SW_CLI_BIN}" --auto-start --host "${HOST}" --port "${PORT}" --timeout "${TIMEOUT_SEC}" run "${EXPORTER_SCRIPT}" "${PASSTHROUGH_ARGS[@]}"
+exec "${CLI_BIN}" --auto-start --host "${HOST}" --port "${PORT}" --timeout "${TIMEOUT_SEC}" run "${EXPORTER_SCRIPT}" "${PASSTHROUGH_ARGS[@]}"
