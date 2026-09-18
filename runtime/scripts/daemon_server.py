@@ -171,8 +171,10 @@ def execute_code_snippet(
     def runner():
         old_stdout = sys.stdout
         old_stderr = sys.stderr
+        old_argv = sys.argv
         sys.stdout = sandbox_stdout
         sys.stderr = sandbox_stderr
+        sys.argv = ["<sw-cli>"] + list(args)
         try:
             compiled = compile(code, "<sw-cli>", "exec")
             exec(compiled, sandbox_globals)
@@ -190,6 +192,7 @@ def execute_code_snippet(
             thread_exception.append(ex)
             traceback.print_exc(file=sandbox_stderr)
         finally:
+            sys.argv = old_argv
             sys.stdout = old_stdout
             sys.stderr = old_stderr
 

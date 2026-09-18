@@ -1,27 +1,56 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_PATH="/opt/sw-runtime/scripts/export_sw.py"
-PYTHON_WIN="C:\\Python311\\python.exe"
+# DockerSW Headless Batch Export CLI (sw-export)
+# 专用于无头批量静默导出 STEP/PDF/DWG/GLB。
+# 统一接入 resident sw-daemon：
+# 1. 检查 daemon 状态；若未运行，自动拉起后台常驻守护并等待就绪；
+# 2. 委托 sw-cli run 执行 utils/sw_exporter.py 导出任务。
 
-# 若无头显示守护未就绪（如在 CI Docker Executor 下 entrypoint 被平台重写），自动拉起守护环境
-if [ ! -S "/tmp/.X11-unix/X99" ]; then
-    if [ -x "/usr/local/bin/entrypoint.sh" ]; then
-        /usr/local/bin/entrypoint.sh --init-only >/dev/null 2>&1 || true
-    fi
+SW_DAEMON_BIN="${SW_DAEMON_BIN:-sw-daemon}"
+SW_CLI_BIN="${SW_CLI_BIN:-sw-cli}"
+EXPORTER_SCRIPT="${SW_EXPORTER_SCRIPT:-/opt/sw-runtime/scripts/utils/sw_exporter.py}"
+HOST="${SW_DAEMON_HOST:-127.0.0.1}"
+PORT="${SW_DAEMON_PORT:-18282}"
+TIMEOUT_SEC="${SW_EXPORT_TIMEOUT:-3600}"
+PASSTHROUGH_ARGS=()
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            exec python3 "${EXPORTER_SCRIPT}" --help
+            ;;
+        --host)
+            HOST="$2"
+            shift 2
+            ;;
+        --port)
+            PORT="$2"
+            shift 2
+            ;;
+        --timeout)
+            TIMEOUT_SEC="$2"
+            shift 2
+            ;;
+        *)
+            PASSTHROUGH_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# 缺少任何参数时快速失败
+if [ ${#PASSTHROUGH_ARGS[@]} -eq 0 ]; then
+    echo "[sw-export] 错误: 缺少必须参数。" >&2
+    python3 "${EXPORTER_SCRIPT}" --help >&2 || true
+    exit 1
 fi
 
-# 若在非标准容器路径执行，回退到脚本所在相对目录
-if [ ! -f "${SCRIPT_PATH}" ]; then
-    LOCAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    if [ -f "${LOCAL_DIR}/export_sw.py" ]; then
-        SCRIPT_PATH="${LOCAL_DIR}/export_sw.py"
-    fi
+# 检查 daemon 状态；若未运行，自动拉起后台常驻守护并等待其就绪
+if ! "${SW_DAEMON_BIN}" --host "${HOST}" --port "${PORT}" status >/dev/null 2>&1; then
+    echo "[sw-export] DockerSW daemon 未运行，正在自动拉起后台守护..."
+    "${SW_DAEMON_BIN}" --host "${HOST}" --port "${PORT}" start
 fi
 
-# 转换为 Wine 识别的 Z:\... 路径
-WIN_SCRIPT_PATH="Z:${SCRIPT_PATH}"
-WIN_SCRIPT_PATH=$(echo "${WIN_SCRIPT_PATH}" | tr '/' '\\')
-
-# 执行 Wine Windows Python 批处理
-exec wine "${PYTHON_WIN}" "${WIN_SCRIPT_PATH}" "$@"
+# 委托 sw-cli run 执行导出脚本
+exec "${SW_CLI_BIN}" --host "${HOST}" --port "${PORT}" --timeout "${TIMEOUT_SEC}" run "${EXPORTER_SCRIPT}" "${PASSTHROUGH_ARGS[@]}"

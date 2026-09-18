@@ -1,68 +1,37 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+Unit tests for batch exporter module (runtime/scripts/utils/sw_exporter.py).
+"""
+
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock
 
-# 将 runtime/scripts 脚本目录加入 sys.path
-RUNTIME_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(RUNTIME_ROOT / "scripts"))
+# Ensure runtime/scripts/utils and runtime/scripts/lib are in path
+SCRIPTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
+UTILS_DIR = os.path.join(SCRIPTS_DIR, "utils")
+LIB_DIR = os.path.join(SCRIPTS_DIR, "lib")
+for d in (UTILS_DIR, LIB_DIR):
+    if d not in sys.path:
+        sys.path.insert(0, d)
 
-from export_sw import (
+from sw_exporter import (
     determine_export_targets,
     infer_doc_type,
     parse_list_line,
+    run_batch_export,
     swDocASSEMBLY,
     swDocDRAWING,
     swDocPART,
-    to_windows_path,
 )
 
 
-class TestExportParser(unittest.TestCase):
-    def test_to_windows_path(self):
-        # Linux 绝对路径转换为 Wine Z: 驱动器
-        self.assertEqual(
-            to_windows_path("/workspace/project/part.SLDPRT"),
-            "Z:\\workspace\\project\\part.SLDPRT",
-        )
-        self.assertEqual(
-            to_windows_path("/tmp/out"),
-            "Z:\\tmp\\out",
-        )
-        # Wine prefix 内部文件必须使用 C:，不能绕到 Z:\\root\\...\\drive_c。
-        self.assertEqual(
-            to_windows_path(
-                "/root/.wine/drive_c/users/Public/sample.SLDPRT",
-                wineprefix="/root/.wine",
-            ),
-            "C:\\users\\Public\\sample.SLDPRT",
-        )
-        self.assertEqual(
-            to_windows_path(
-                r"Z:\root\.wine\drive_c\Program Files\SOLIDWORKS\part.SLDPRT",
-                wineprefix="/root/.wine",
-            ),
-            "C:\\Program Files\\SOLIDWORKS\\part.SLDPRT",
-        )
-        # Windows 路径保持盘符并转反斜杠
-        self.assertEqual(
-            to_windows_path("C:/Program Files/SW/SLDWORKS.exe"),
-            "C:\\Program Files\\SW\\SLDWORKS.exe",
-        )
-        self.assertEqual(
-            to_windows_path("D:\\CAD\\part.SLDPRT"),
-            "D:\\CAD\\part.SLDPRT",
-        )
-        # 相对路径转反斜杠
-        self.assertEqual(
-            to_windows_path("sub/folder/file.ext"),
-            "sub\\folder\\file.ext",
-        )
-        # 空字符串
-        self.assertEqual(to_windows_path(""), "")
-
+class TestSwExporter(unittest.TestCase):
     def test_infer_doc_type(self):
         self.assertEqual(infer_doc_type(Path("box.SLDPRT")), swDocPART)
         self.assertEqual(infer_doc_type(Path("box.sldprt")), swDocPART)
@@ -74,56 +43,122 @@ class TestExportParser(unittest.TestCase):
         self.assertIsNone(infer_doc_type(Path("model.step")))
 
     def test_determine_export_targets(self):
-        outdir = Path("/workspace/dist")
+        outdir = Path("/out")
+        targets_part = determine_export_targets(Path("/ws/p.SLDPRT"), outdir)
+        self.assertEqual(targets_part, [("STEP", Path("/out/p.STEP"))])
 
-        # 零件导出 STEP
-        targets = determine_export_targets(Path("motor.SLDPRT"), outdir)
-        self.assertEqual(len(targets), 1)
-        self.assertEqual(targets[0][0], "STEP")
-        self.assertEqual(targets[0][1], outdir / "motor.STEP")
+        targets_drw = determine_export_targets(Path("/ws/d.SLDDRW"), outdir)
+        self.assertEqual(
+            targets_drw,
+            [("PDF", Path("/out/d.PDF")), ("DWG", Path("/out/d.DWG"))],
+        )
 
-        # 装配体导出 STEP
-        targets = determine_export_targets(Path("robot.SLDASM"), outdir)
-        self.assertEqual(len(targets), 1)
-        self.assertEqual(targets[0][0], "STEP")
-        self.assertEqual(targets[0][1], outdir / "robot.STEP")
-
-        # 特殊渲染装配体导出 GLB
-        targets = determine_export_targets(Path("display.REND.SLDASM"), outdir)
-        self.assertEqual(len(targets), 1)
-        self.assertEqual(targets[0][0], "GLB")
-        self.assertEqual(targets[0][1], outdir / "display.REND.GLB")
-
-        # 工程图同时导出 PDF 和 DWG
-        targets = determine_export_targets(Path("layout.SLDDRW"), outdir)
-        self.assertEqual(len(targets), 2)
-        formats = [t[0] for t in targets]
-        self.assertIn("PDF", formats)
-        self.assertIn("DWG", formats)
-        self.assertEqual(targets[0][1], outdir / "layout.PDF")
-        self.assertEqual(targets[1][1], outdir / "layout.DWG")
+        targets_rend = determine_export_targets(Path("/ws/model.REND.SLDASM"), outdir)
+        self.assertEqual(targets_rend, [("GLB", Path("/out/model.REND.GLB"))])
 
     def test_parse_list_line(self):
-        # 常规有效行
-        self.assertEqual(
-            parse_list_line("SampleProject/Drawings/MainAssembly.SLDDRW"),
-            "SampleProject/Drawings/MainAssembly.SLDDRW",
-        )
-        # 带前后空白
-        self.assertEqual(
-            parse_list_line("   SampleProject/Parts/Housing.SLDPRT   "),
-            "SampleProject/Parts/Housing.SLDPRT",
-        )
-        # 全行注释
-        self.assertIsNone(parse_list_line("# 这是一个注释行"))
-        # 空行
-        self.assertIsNone(parse_list_line(""))
-        self.assertIsNone(parse_list_line("   "))
-        # 行尾注释
-        self.assertEqual(
-            parse_list_line("SampleProject/Parts/MountingBracket.SLDPRT # 通用零件"),
-            "SampleProject/Parts/MountingBracket.SLDPRT",
-        )
+        self.assertEqual(parse_list_line("  file.SLDPRT  "), "file.SLDPRT")
+        self.assertEqual(parse_list_line("file.SLDPRT # comment"), "file.SLDPRT")
+        self.assertIsNone(parse_list_line("# only comment"))
+        self.assertIsNone(parse_list_line("   \n"))
+
+    def test_run_batch_export_mocked(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ws = Path(tmpdir) / "workspace"
+            ws.mkdir()
+            out = Path(tmpdir) / "out"
+
+            # Create sample files
+            f1 = ws / "part1.SLDPRT"
+            f1.touch()
+            f2 = ws / "nonexistent.SLDPRT"
+
+            mock_app = MagicMock()
+            mock_model = MagicMock()
+            mock_model.GetTitle.return_value = "part1"
+            mock_ext = MagicMock()
+            mock_ext.SaveAs3.return_value = True
+            mock_model.Extension = mock_ext
+
+            # Mock OpenDoc6
+            mock_app.OpenDoc6.return_value = mock_model
+
+            lines = ["part1.SLDPRT", "nonexistent.SLDPRT", "# comment line"]
+            from unittest.mock import patch
+            with patch("sw_exporter.open_doc_silent", return_value=mock_model) as mock_open, \
+                 patch("sw_exporter.save_as_silent") as mock_save:
+                res = run_batch_export(
+                    sw_app=mock_app,
+                    lines=lines,
+                    workspace=ws,
+                    outdir=out,
+                )
+
+                self.assertFalse(res["success"])  # nonexistent failed
+                self.assertEqual(res["ok_count"], 1)
+                self.assertEqual(res["fail_count"], 1)
+                self.assertEqual(res["total"], 2)
+                mock_open.assert_called_once()
+                mock_save.assert_called_once()
+
+    def test_main_cli_entrypoint(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ws = Path(tmpdir) / "workspace"
+            ws.mkdir()
+            out = Path(tmpdir) / "out"
+            f1 = ws / "part1.SLDPRT"
+            f1.touch()
+            list_file = Path(tmpdir) / "items.list"
+            list_file.write_text("part1.SLDPRT\n")
+
+            mock_app = MagicMock()
+            from unittest.mock import patch
+            import sw_exporter
+
+            with patch("sw_exporter.run_batch_export") as mock_run:
+                mock_run.return_value = {
+                    "success": True,
+                    "ok_count": 1,
+                    "fail_count": 0,
+                    "total": 1,
+                    "results": [],
+                }
+                # When swApp is injected into globals (by daemon)
+                with patch.dict(sw_exporter.__dict__, {"swApp": mock_app}):
+                    exit_code = sw_exporter.main([
+                        "--list", str(list_file),
+                        "--workspace", str(ws),
+                        "--outdir", str(out),
+                    ])
+                    self.assertEqual(exit_code, 0)
+                    mock_run.assert_called_once()
+
+    def test_process_export_item_windows_paths(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ws = Path(tmpdir) / "workspace"
+            sub = ws / "sub" / "folder"
+            sub.mkdir(parents=True)
+            f1 = sub / "test.SLDPRT"
+            f1.touch()
+            out = Path(tmpdir) / "out"
+
+            mock_app = MagicMock()
+            mock_model = MagicMock()
+            mock_model.GetTitle.return_value = "test"
+            from unittest.mock import patch
+            from sw_exporter import process_export_item
+            with patch("sw_exporter.open_doc_silent", return_value=mock_model), \
+                 patch("sw_exporter.save_as_silent"):
+                # Test Windows backslash relative path
+                ok, msg, targets = process_export_item(
+                    sw_app=mock_app,
+                    workspace=ws,
+                    outdir=out,
+                    raw_line="sub\\folder\\test.SLDPRT",
+                )
+                self.assertTrue(ok, msg)
+                self.assertEqual(len(targets), 1)
+                self.assertTrue(targets[0].endswith(".STEP"))
 
 
 if __name__ == "__main__":
