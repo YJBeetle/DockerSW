@@ -230,9 +230,7 @@ prepare_runtime() {
 
     # Ensure X11 display exists
     if [ ! -S "/tmp/.X11-unix/X99" ]; then
-        if [ -x "/usr/local/bin/entrypoint.sh" ]; then
-            /usr/local/bin/entrypoint.sh --init-only >/dev/null 2>&1 || true
-        elif command -v Xvfb >/dev/null 2>&1; then
+        if command -v Xvfb >/dev/null 2>&1; then
             Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
             sleep 0.5
         fi
@@ -249,13 +247,8 @@ prepare_runtime() {
         fi
     fi
 
-    PYTHON_BIN="python3"
-    WIN_SERVER_PATH="${SERVER_PY}"
-    if command -v wine >/dev/null 2>&1; then
-        PYTHON_BIN="wine"
-        WIN_SERVER_PATH="Z:${SERVER_PY}"
-        WIN_SERVER_PATH="${WIN_SERVER_PATH//\//\\}"
-    fi
+    WIN_SERVER_PATH="Z:${SERVER_PY}"
+    WIN_SERVER_PATH="${WIN_SERVER_PATH//\//\\}"
 }
 
 do_start() {
@@ -274,11 +267,7 @@ do_start() {
     fi
 
     echo "[INFO] Launching DockerSW daemon on http://${HOST}:${PORT}..."
-    if [ "${PYTHON_BIN}" = "wine" ]; then
-        wine "C:\\Python311\\python.exe" "${WIN_SERVER_PATH}" --host "${HOST}" --port "${PORT}" ${VISIBLE_FLAG} >"${LOG_FILE}" 2>&1 &
-    else
-        python3 "${SERVER_PY}" --host "${HOST}" --port "${PORT}" ${VISIBLE_FLAG} >"${LOG_FILE}" 2>&1 &
-    fi
+    wine "C:\\Python311\\python.exe" "${WIN_SERVER_PATH}" --host "${HOST}" --port "${PORT}" ${VISIBLE_FLAG} >"${LOG_FILE}" 2>&1 &
 
     local daemon_pid="$!"
     echo "${daemon_pid}" > "${PID_FILE}"
@@ -318,11 +307,7 @@ do_run() {
     trap cleanup SIGTERM SIGINT SIGHUP
 
     echo "[INFO] Running DockerSW daemon in foreground on http://${HOST}:${PORT}..."
-    if [ "${PYTHON_BIN}" = "wine" ]; then
-        wine "C:\\Python311\\python.exe" "${WIN_SERVER_PATH}" --host "${HOST}" --port "${PORT}" ${VISIBLE_FLAG} &
-    else
-        python3 "${SERVER_PY}" --host "${HOST}" --port "${PORT}" ${VISIBLE_FLAG} &
-    fi
+    wine "C:\\Python311\\python.exe" "${WIN_SERVER_PATH}" --host "${HOST}" --port "${PORT}" ${VISIBLE_FLAG} &
 
     local server_pid="$!"
     echo "${server_pid}" > "${PID_FILE}"
