@@ -173,10 +173,10 @@ gh workflow run build.yml --ref main
 1. 打开浏览器访问 [GitHub Personal Access Tokens (Classic)](https://github.com/settings/tokens)，点击 **Generate new token -> Generate new token (classic)**；
 2. 权限作用域（Scopes）仅需勾选：
    - **`read:packages`**；
-3. 在目标宿主机（如 NAS 或本地机器）执行登录：
+3. 在目标宿主机（如 NAS 或本地机器）执行登录（将 `<YOUR_GITHUB_USERNAME>` 与 `<YOUR_GITHUB_PAT>` 替换为您自己的 GitHub 用户名和令牌）：
 
 ```bash
-echo "YOUR_GITHUB_PAT" | docker login ghcr.io -u YJBeetle --password-stdin
+echo "<YOUR_GITHUB_PAT>" | docker login ghcr.io -u <YOUR_GITHUB_USERNAME> --password-stdin
 ```
 
 ### 2. 命令行执行导出
@@ -205,8 +205,14 @@ docker run --rm \
 镜像内置了完整的 Xvfb (OpenGL 4.5)、`openbox` 窗口管理器与 `x11vnc` 服务。不仅支持纯无头导出，还可以一键启动远程桌面，在 macOS 或 Windows 上直连进行可视化建模与调试：
 
 ```bash
-# 启动可执行镜像进入 VNC 模式（默认密码 123456，端口 5900）
-podman run --rm -it   --net=host   --ipc=host   --security-opt label=disable   -v "$(pwd):/workspace"   ghcr.io/yjbeetle/sw-executable:latest   sw-vnc
+# 启动可执行镜像进入 VNC 模式（默认端口 5900，支持 -P 或 VNC_PASSWORD 设置密码）
+podman run --rm -it \
+  --net=host \
+  --ipc=host \
+  --security-opt label=disable \
+  -v "$(pwd):/workspace" \
+  ghcr.io/yjbeetle/sw-executable:latest \
+  sw-vnc
 ```
 
 在 **macOS 本机** 上无需安装任何第三方客户端，直接在终端执行或 Finder (Cmd+K) 连接：
@@ -215,7 +221,7 @@ podman run --rm -it   --net=host   --ipc=host   --security-opt label=disable   -
 open vnc://<宿主机IP>:5900
 ```
 
-输入密码（默认 `123456`）即可在 Mac 原生“屏幕共享”中秒开 SOLIDWORKS 3D 界面！
+即可在 Mac 原生“屏幕共享”中秒开 SOLIDWORKS 3D 界面！若设置了密码输入密码即可连接。
 
 **常用参数与环境变量**：
 
