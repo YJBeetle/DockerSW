@@ -56,6 +56,8 @@ class TestDaemonScript(unittest.TestCase):
         )
         self.assertEqual(res_vnc.returncode, 0, res_vnc.stderr)
         self.assertIn("-viewonly", res_vnc.stdout)
+        self.assertIn("--visible", res_vnc.stdout)
+        self.assertNotIn("--user-control", res_vnc.stdout)
 
         res_interactive = subprocess.run(
             [SCRIPT_PATH, "--dry-run", "start", "--vnc-interactive"],
@@ -64,6 +66,8 @@ class TestDaemonScript(unittest.TestCase):
         )
         self.assertEqual(res_interactive.returncode, 0, res_interactive.stderr)
         self.assertNotIn("-viewonly", res_interactive.stdout)
+        self.assertIn("--visible", res_interactive.stdout)
+        self.assertIn("--user-control", res_interactive.stdout)
 
     def test_run_foreground_dry_run(self):
         res = subprocess.run(
@@ -126,6 +130,25 @@ class TestDaemonScript(unittest.TestCase):
         )
         self.assertEqual(res_compat.returncode, 0, res_compat.stderr)
         self.assertIn("-rfbport 5909", res_compat.stdout)
+
+    def test_vnc_resolution_and_password_options(self):
+        res = subprocess.run(
+            [
+                SCRIPT_PATH,
+                "--dry-run",
+                "--vnc-interactive",
+                "-r", "2560x1440",
+                "-P", "secret123",
+                "run",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertIn("2560x1440", res.stdout)
+        self.assertIn("openbox", res.stdout)
+        self.assertIn("passwd", res.stdout)
+        self.assertIn("--visible --user-control", res.stdout)
 
 
 if __name__ == "__main__":

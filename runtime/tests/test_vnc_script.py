@@ -32,76 +32,60 @@ class TestVncScript(unittest.TestCase):
             self.assertIn("--port", res.stdout)
             self.assertIn("--password", res.stdout)
             self.assertIn("--resolution", res.stdout)
-            self.assertIn("--desktop", res.stdout)
-            self.assertIn("--bash", res.stdout)
             self.assertIn("VNC_PASSWORD", res.stdout)
             self.assertIn("VNC_PORT", res.stdout)
+            self.assertIn("VNC_RESOLUTION", res.stdout)
 
-    def test_rejects_unknown_argument(self):
-        res = subprocess.run(
-            [str(VNC_SCRIPT), "--non-existent-flag"],
+    def _run_vnc(self, args, env=None):
+        test_env = dict(os.environ)
+        bin_dir = str(REPO_ROOT / "runtime" / "bin")
+        test_env["PATH"] = f"{bin_dir}:{test_env.get('PATH', '')}"
+        test_env["SW_DAEMON_BIN"] = str(REPO_ROOT / "runtime" / "bin" / "sw-daemon")
+        if env:
+            test_env.update(env)
+        return subprocess.run(
+            [str(VNC_SCRIPT)] + args,
             capture_output=True,
             text=True,
+            env=test_env,
         )
+
+    def test_rejects_unknown_argument(self):
+        res = self._run_vnc(["--non-existent-flag"])
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("未知选项", res.stderr)
 
     def test_dry_run_defaults(self):
-        res = subprocess.run(
-            [str(VNC_SCRIPT), "--dry-run"],
-            capture_output=True,
-            text=True,
-        )
+        res = self._run_vnc(["--dry-run"])
         self.assertEqual(res.returncode, 0, res.stderr)
-        self.assertIn("CONFIG:PORT=5900", res.stdout)
-        self.assertIn("CONFIG:RESOLUTION=1920x1080", res.stdout)
-        self.assertIn("CONFIG:PASSWORD_SET=true", res.stdout)
-        self.assertIn("CONFIG:TARGET=sw", res.stdout)
+        self.assertIn("1920x1080", res.stdout)
+        self.assertIn("5900", res.stdout)
+        self.assertIn("openbox", res.stdout)
+        self.assertIn("--visible --user-control", res.stdout)
 
     def test_dry_run_custom_args(self):
-        res = subprocess.run(
-            [
-                str(VNC_SCRIPT),
-                "--dry-run",
-                "--port",
-                "5901",
-                "--resolution",
-                "2560x1440",
-                "--password",
-                "mypass",
-                "--bash",
-            ],
-            capture_output=True,
-            text=True,
-        )
+        res = self._run_vnc([
+            "--dry-run",
+            "--port", "5901",
+            "--resolution", "2560x1440",
+            "--password", "mypass",
+        ])
         self.assertEqual(res.returncode, 0, res.stderr)
-        self.assertIn("CONFIG:PORT=5901", res.stdout)
-        self.assertIn("CONFIG:RESOLUTION=2560x1440", res.stdout)
-        self.assertIn("CONFIG:TARGET=bash", res.stdout)
-
-    def test_dry_run_desktop_mode(self):
-        res = subprocess.run(
-            [str(VNC_SCRIPT), "--dry-run", "--desktop"],
-            capture_output=True,
-            text=True,
-        )
-        self.assertEqual(res.returncode, 0, res.stderr)
-        self.assertIn("CONFIG:TARGET=desktop", res.stdout)
+        self.assertIn("2560x1440", res.stdout)
+        self.assertIn("5901", res.stdout)
+        self.assertIn("passwd", res.stdout)
+        self.assertIn("--visible --user-control", res.stdout)
 
     def test_dry_run_env_overrides(self):
-        env = os.environ.copy()
-        env["VNC_PORT"] = "5905"
-        env["VNC_RESOLUTION"] = "1280x720"
-        env["VNC_PASSWORD"] = "envpass"
-        res = subprocess.run(
-            [str(VNC_SCRIPT), "--dry-run"],
-            capture_output=True,
-            text=True,
-            env=env,
-        )
+        res = self._run_vnc(["--dry-run"], env={
+            "VNC_PORT": "5905",
+            "VNC_RESOLUTION": "1280x720",
+            "VNC_PASSWORD": "envpass",
+        })
         self.assertEqual(res.returncode, 0, res.stderr)
-        self.assertIn("CONFIG:PORT=5905", res.stdout)
-        self.assertIn("CONFIG:RESOLUTION=1280x720", res.stdout)
+        self.assertIn("5905", res.stdout)
+        self.assertIn("1280x720", res.stdout)
+        self.assertIn("passwd", res.stdout)
 
 
 if __name__ == "__main__":

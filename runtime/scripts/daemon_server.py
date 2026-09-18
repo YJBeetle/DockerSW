@@ -304,7 +304,7 @@ class DaemonRequestHandler(BaseHTTPRequestHandler):
         pass
 
 
-def init_solidworks_com(visible: bool = False) -> None:
+def init_solidworks_com(visible: bool = False, user_control: bool = False) -> None:
     """Initialize SolidWorks COM application singleton."""
     if not HAS_WIN32COM:
         print("[WARN] win32com is not available in current environment, running in mock mode.")
@@ -314,7 +314,7 @@ def init_solidworks_com(visible: bool = False) -> None:
     print("[INFO] Connecting to SOLIDWORKS COM application (DispatchEx)...")
     try:
         sw_app = win32com.client.DispatchEx("SldWorks.Application")
-        sw_app.UserControl = False
+        sw_app.UserControl = bool(user_control)
         sw_app.Visible = bool(visible)
 
         ver = "Unknown"
@@ -339,9 +339,10 @@ def main() -> int:
     parser.add_argument("--host", default=DEFAULT_HOST, help="Bind address (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Bind port (default: 18282)")
     parser.add_argument("--visible", action="store_true", help="Set swApp.Visible=True (for VNC monitor)")
+    parser.add_argument("--user-control", action="store_true", help="Set swApp.UserControl=True (for interactive VNC)")
     args = parser.parse_args()
 
-    init_solidworks_com(visible=args.visible)
+    init_solidworks_com(visible=args.visible, user_control=args.user_control)
 
     server_address = (args.host, args.port)
     httpd = HTTPServer(server_address, DaemonRequestHandler)

@@ -5,17 +5,21 @@ SERVER_PY="/opt/sw-runtime/scripts/daemon_server.py"
 
 PID_FILE="${SW_DAEMON_PID_FILE:-/tmp/sw-daemon.pid}"
 VNC_PID_FILE="${SW_DAEMON_VNC_PID_FILE:-/tmp/sw-daemon-vnc.pid}"
+OPENBOX_PID_FILE="${SW_DAEMON_OPENBOX_PID_FILE:-/tmp/sw-daemon-openbox.pid}"
 LOG_FILE="${SW_DAEMON_LOG_FILE:-/tmp/sw-daemon.log}"
 
 DEFAULT_HOST="127.0.0.1"
 DEFAULT_PORT="18282"
 DEFAULT_TIMEOUT="45"
 DEFAULT_VNC_PORT="5900"
+DEFAULT_VNC_RESOLUTION="1920x1080"
 
 HOST="${SW_DAEMON_HOST:-${DEFAULT_HOST}}"
 PORT="${SW_DAEMON_PORT:-${DEFAULT_PORT}}"
 TIMEOUT_SEC="${SW_DAEMON_TIMEOUT:-${DEFAULT_TIMEOUT}}"
 VNC_PORT="${SW_VNC_PORT:-${VNC_PORT:-${DEFAULT_VNC_PORT}}}"
+VNC_RESOLUTION="${SW_VNC_RESOLUTION:-${VNC_RESOLUTION:-${DEFAULT_VNC_RESOLUTION}}}"
+VNC_PASSWORD="${SW_VNC_PASSWORD:-${VNC_PASSWORD:-}}"
 
 ENABLE_VNC=false
 if [ "${SW_VNC:-false}" = "true" ]; then
@@ -26,6 +30,9 @@ if [ "${SW_VNC_INTERACTIVE:-false}" = "true" ]; then
     ENABLE_VNC=true
     VNC_INTERACTIVE=true
 fi
+
+VISIBLE=false
+USER_CONTROL=false
 
 DRY_RUN=false
 COMMAND=""
@@ -48,7 +55,13 @@ Commands:
 Options:
   --vnc               Start VNC in view-only mode (-viewonly, default observation mode)
   --vnc-interactive   Start VNC in full interactive mode (allowing mouse/keyboard input)
-  --vnc-port PORT     VNC port to bind (default: 5900)
+  -p, --vnc-port PORT VNC port to bind (default: 5900)
+  -r, --vnc-resolution WxH
+                      Virtual display resolution (default: 1920x1080)
+  -P, --vnc-password PASS
+                      Set VNC access password (default: none / passwordless)
+  --visible           Set SOLIDWORKS main window visible in X11 display
+  --user-control      Grant human user full UI control in SolidWorks
   --port PORT         Port to bind (default: 18282)
   --host HOST         Host address to bind (default: 127.0.0.1)
   --timeout SEC       Timeout in seconds waiting for daemon readiness (default: 45)
@@ -59,6 +72,8 @@ Environment Variables:
   SW_VNC                  Set to 'true' to automatically enable VNC with daemon
   SW_VNC_INTERACTIVE      Set to 'true' to allow mouse/keyboard input via VNC
   SW_VNC_PORT             VNC port to bind (default: 5900, falls back to VNC_PORT)
+  SW_VNC_RESOLUTION       VNC resolution (default: 1920x1080, falls back to VNC_RESOLUTION)
+  SW_VNC_PASSWORD         VNC password (falls back to VNC_PASSWORD)
   SW_DAEMON_HOST          Daemon host (default: 127.0.0.1)
   SW_DAEMON_PORT          Daemon port (default: 18282)
   SW_DAEMON_PID_FILE      Path to PID file (default: /tmp/sw-daemon.pid)
@@ -86,9 +101,25 @@ while [[ $# -gt 0 ]]; do
             VNC_INTERACTIVE=true
             shift
             ;;
-        --vnc-port)
+        -p|--vnc-port)
             VNC_PORT="$2"
             shift 2
+            ;;
+        -r|--vnc-resolution)
+            VNC_RESOLUTION="$2"
+            shift 2
+            ;;
+        -P|--vnc-password)
+            VNC_PASSWORD="$2"
+            shift 2
+            ;;
+        --visible)
+            VISIBLE=true
+            shift
+            ;;
+        --user-control)
+            USER_CONTROL=true
+            shift
             ;;
         --port)
             PORT="$2"
@@ -196,6 +227,16 @@ do_stop() {
         rm -f "${VNC_PID_FILE}"
     fi
 
+    if [ -f "${OPENBOX_PID_FILE}" ]; then
+        local ob_pid
+        ob_pid="$(cat "${OPENBOX_PID_FILE}" 2>/dev/null || true)"
+        if is_process_alive "${ob_pid}"; then
+            echo "[INFO] Stopping openbox window manager (PID: ${ob_pid})..."
+            kill "${ob_pid}" 2>/dev/null || true
+        fi
+        rm -f "${OPENBOX_PID_FILE}"
+    fi
+
     if [ "${stopped_anything}" = true ]; then
         echo "[OK] DockerSW daemon stopped."
     else
@@ -212,16 +253,29 @@ prepare_runtime() {
         if [ "${VNC_INTERACTIVE}" = false ]; then
             VNC_ARGS+=("-viewonly")
         fi
+        if [ -n "${VNC_PASSWORD}" ]; then
+            local vnc_dir="${HOME:-/root}/.vnc"
+            mkdir -p "${vnc_dir}"
+            x11vnc -storepasswd "${VNC_PASSWORD}" "${vnc_dir}/passwd" >/dev/null 2>&1 || true
+            VNC_ARGS+=("-rfbauth" "${vnc_dir}/passwd")
+        else
+            VNC_ARGS+=("-nopw")
+        fi
     fi
 
     VISIBLE_FLAG=""
-    if [ "${ENABLE_VNC}" = true ]; then
+    if [ "${ENABLE_VNC}" = true ] || [ "${VISIBLE:-false}" = "true" ]; then
         VISIBLE_FLAG="--visible"
+        if [ "${VNC_INTERACTIVE}" = true ] || [ "${USER_CONTROL:-false}" = "true" ]; then
+            VISIBLE_FLAG="--visible --user-control"
+        fi
     fi
 
     if [ "${DRY_RUN}" = true ]; then
         echo "[DRY-RUN] Would ${mode_desc} on http://${HOST}:${PORT}"
         if [ "${ENABLE_VNC}" = true ]; then
+            echo "[DRY-RUN] Screen resolution: ${VNC_RESOLUTION}"
+            echo "[DRY-RUN] Window manager: openbox"
             echo "[DRY-RUN] VNC command: x11vnc ${VNC_ARGS[*]}"
         fi
         echo "[DRY-RUN] Wine command: wine C:\\Python311\\python.exe Z:${SERVER_PY} --host ${HOST} --port ${PORT} ${VISIBLE_FLAG}"
@@ -230,21 +284,34 @@ prepare_runtime() {
 
     # Ensure X11 display exists
     if [ ! -S "/tmp/.X11-unix/X99" ]; then
-        if command -v Xvfb >/dev/null 2>&1; then
-            Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-            sleep 0.5
-        fi
+        Xvfb :99 -screen 0 "${VNC_RESOLUTION}x24" -ac +extension GLX +render -noreset >/dev/null 2>&1 &
+        for _ in {1..20}; do
+            [ -S "/tmp/.X11-unix/X99" ] && break
+            sleep 0.1
+        done
     fi
 
-    # Start companion VNC if requested
+    # Start companion openbox and VNC if requested
     if [ "${ENABLE_VNC}" = true ]; then
-        if command -v x11vnc >/dev/null 2>&1; then
-            x11vnc "${VNC_ARGS[@]}" -bg -nopw >/tmp/sw-vnc-daemon.log 2>&1 &
-            echo "$!" > "${VNC_PID_FILE}"
-            echo "[INFO] VNC server started on :${VNC_PORT} (interactive: ${VNC_INTERACTIVE})"
+        openbox >/dev/null 2>&1 &
+        echo "$!" > "${OPENBOX_PID_FILE}"
+
+        x11vnc "${VNC_ARGS[@]}" -bg >/tmp/sw-vnc-daemon.log 2>&1 &
+        echo "$!" > "${VNC_PID_FILE}"
+        echo "[INFO] VNC server started on :${VNC_PORT} (resolution: ${VNC_RESOLUTION}, interactive: ${VNC_INTERACTIVE})"
+
+        echo "========================================================="
+        echo "  DockerSW VNC 图形环境已就绪"
+        echo "========================================================="
+        echo "  - 屏幕分辨率: ${VNC_RESOLUTION} (:99)"
+        echo "  - VNC 端口:   ${VNC_PORT}"
+        if [ -n "${VNC_PASSWORD}" ]; then
+            echo "  - 访问密码:   [已设置]"
         else
-            echo "[WARN] x11vnc not installed; continuing without VNC." >&2
+            echo "  - 访问密码:   (无密码)"
         fi
+        echo "  - Mac 快速连接: open vnc://<宿主机IP>:${VNC_PORT}"
+        echo "========================================================="
     fi
 
     WIN_SERVER_PATH="Z:${SERVER_PY}"

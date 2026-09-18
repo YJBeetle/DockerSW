@@ -177,6 +177,23 @@ class TestDaemonServerHandler(unittest.TestCase):
         self.assertTrue(res["success"])
         self.assertEqual(res["doc_title"], "widget.SLDPRT")
 
+    def test_init_solidworks_com_user_control(self):
+        mock_win32 = MagicMock()
+        mock_sw = MagicMock()
+        mock_win32.client.DispatchEx.return_value = mock_sw
+        mock_sw.RevisionNumber.return_value = "33.0"
+
+        with patch.object(self.daemon_mod, "win32com", mock_win32), \
+             patch.object(self.daemon_mod, "pythoncom", MagicMock()), \
+             patch.object(self.daemon_mod, "HAS_WIN32COM", True):
+            self.daemon_mod.init_solidworks_com(visible=True, user_control=True)
+            self.assertTrue(mock_sw.Visible)
+            self.assertTrue(mock_sw.UserControl)
+
+            self.daemon_mod.init_solidworks_com(visible=False, user_control=False)
+            self.assertFalse(mock_sw.Visible)
+            self.assertFalse(mock_sw.UserControl)
+
 
 if __name__ == "__main__":
     unittest.main()
