@@ -188,6 +188,16 @@ def _run_in_sandbox(
         "duration_ms": 0,
     }
 
+    has_real_com = (
+        sw_app is not None
+        and HAS_WIN32COM
+        and (
+            hasattr(sw_app, "_oleobj_")
+            or "CDispatch" in type(sw_app).__name__
+            or getattr(GLOBAL_SERVER_STATE, "sw_connected", False)
+        )
+    )
+
     thread_exception: List[BaseException] = []
     thread_exit_code: List[int] = [0]
     timed_out: List[bool] = [False]
@@ -223,10 +233,13 @@ def _run_in_sandbox(
                 sandbox_stderr.write(str(code_val) + "\n")
             thread_exception.append(se)
         except BaseException as ex:
+            thread_exit_code[0] = 1
             thread_exception.append(ex)
             traceback.print_exc(file=sandbox_stderr)
         finally:
-            if HAS_WIN32COM and pythoncom is not None:
+            # On the main COM thread, keep the STA apartment alive for the daemon lifetime.
+            # Only uninitialize COM if running on an isolated worker thread.
+            if not has_real_com and HAS_WIN32COM and pythoncom is not None:
                 try:
                     pythoncom.CoUninitialize()
                 except Exception:
@@ -236,23 +249,35 @@ def _run_in_sandbox(
             sys.stderr = old_stderr
             sys.path = old_path
 
-    worker = threading.Thread(target=runner, daemon=True)
-    worker.start()
-    worker.join(timeout=timeout_s)
+    if has_real_com:
+        # COM STA Thread Affinity:
+        # In Windows/Wine COM, SldWorks.Application is bound to the STA apartment thread where
+        # it was initialized. Calling it from another worker thread causes RPC_E_WRONG_THREAD
+        # and AttributeError on dynamic dispatch. Since the daemon is naturally single-threaded,
+        # real COM tasks execute synchronously on the resident COM thread.
+        runner()
+    else:
+        worker = threading.Thread(target=runner, daemon=True)
+        worker.start()
+        worker.join(timeout=timeout_s)
+
+        if worker.is_alive():
+            timed_out[0] = True
+            sandbox_stderr.write(
+                f"\n[ERROR] Execution timed out after {timeout_s} seconds\n"
+                "[WARN] Note: In-process worker thread cannot be forcibly killed in Python/Wine runtime.\n"
+                "If the script is blocked on an unhandled modal COM dialog or deadlock, the resident daemon\n"
+                "may be unresponsive to further COM operations and should be restarted (sw-daemon restart).\n"
+            )
+            execution_result["success"] = False
+            execution_result["exit_code"] = 124  # Standard timeout exit code
 
     elapsed_ms = int((time.perf_counter() - start_t) * 1000)
     execution_result["duration_ms"] = elapsed_ms
 
-    if worker.is_alive():
-        timed_out[0] = True
-        sandbox_stderr.write(
-            f"\n[ERROR] Execution timed out after {timeout_s} seconds\n"
-            "[WARN] Note: In-process worker thread cannot be forcibly killed in Python/Wine runtime.\n"
-            "If the script is blocked on an unhandled modal COM dialog or deadlock, the resident daemon\n"
-            "may be unresponsive to further COM operations and should be restarted (sw-daemon restart).\n"
-        )
+    if timed_out[0]:
         execution_result["success"] = False
-        execution_result["exit_code"] = 124  # Standard timeout exit code
+        execution_result["exit_code"] = 124
     elif thread_exception:
         exc = thread_exception[0]
         if isinstance(exc, SystemExit):

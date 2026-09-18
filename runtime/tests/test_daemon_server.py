@@ -173,6 +173,37 @@ save_canvas("my_model.png")
             mock_pythoncom.CoInitialize.assert_called_once()
             mock_pythoncom.CoUninitialize.assert_called_once()
 
+    def test_sandbox_real_com_affinity_runs_synchronously(self):
+        import threading
+        calling_tid = threading.get_ident()
+        script_tid = []
+
+        class MockCOMDispatch:
+            def __init__(self):
+                self._oleobj_ = MagicMock()
+
+        com_sw_mock = MockCOMDispatch()
+
+        code = """
+import threading
+print(f'TID:{threading.get_ident()}')
+print('executed synchronously on COM thread')
+"""
+        mock_pythoncom = MagicMock()
+        with patch.object(self.daemon_mod, "pythoncom", mock_pythoncom), \
+             patch.object(self.daemon_mod, "HAS_WIN32COM", True):
+            result = self.daemon_mod.execute_code_snippet(
+                code=code,
+                args=[],
+                timeout_s=5,
+                sw_app=com_sw_mock,
+            )
+            self.assertTrue(result["success"], f"Failed: {result['stderr']}")
+            self.assertIn(f"TID:{calling_tid}", result["stdout"])
+            # CoInitialize called, but CoUninitialize NOT called to keep resident STA alive
+            mock_pythoncom.CoInitialize.assert_called_once()
+            mock_pythoncom.CoUninitialize.assert_not_called()
+
     def test_path_conversion(self):
         win_path = self.daemon_mod.to_win_path("/workspace/model.SLDPRT")
         self.assertEqual(win_path, "Z:\\workspace\\model.SLDPRT")

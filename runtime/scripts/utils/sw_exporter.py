@@ -208,7 +208,7 @@ def process_export_item(
         return True, "success", exported_files
 
     except Exception as e:
-        err_msg = f"Failed to process: {src_path} - {str(e)}"
+        err_msg = f"Failed to process: {src_path} - {type(e).__name__}: {str(e)}"
         _err(f"[ERROR] {err_msg}")
         return False, err_msg, exported_files
 
@@ -326,7 +326,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     sw_app = globals().get("swApp")
     need_cleanup_com = False
 
-    if sw_app is None:
+    is_connected = False
+    if sw_app is not None:
+        try:
+            _ = sw_app.Visible
+            is_connected = True
+        except Exception:
+            is_connected = False
+
+    if not is_connected:
         if not HAS_WIN32COM:
             print("[FATAL] swApp 未注入且无法加载 win32com 模块，请在 Windows/Wine 或 sw-daemon 下运行！", file=sys.stderr)
             return 1

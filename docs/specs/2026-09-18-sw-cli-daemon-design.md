@@ -161,10 +161,11 @@ SolidWorks 自身作为原生 Windows 桌面 CAD 软件，其所有官方操作�
    - 脚本中的语法错误、运行期异常或 `sys.exit()` 调用均被捕获在沙盒内。
    - 发生错误时完整提取异常回溯（Traceback）填入 `stderr`，标记 `success: false`，服务端进程绝不退出。
 2. **执行看门狗语义与限制**：
-   - 服务端以工作线程形式隔离执行，并通过 `thread.join(timeout)` 限制单次请求最长等待时长。超时后服务端立即返回响应（HTTP 200，响应体 `success: false`、`exit_code: 124`）并释放客户端。
+   - 当任务未持有真实 COM 实例时，服务端以工作线程隔离执行并通过 `thread.join(timeout)` 限制请求超时，超时返回 `exit_code: 124`。
    - **注意（线程模型局限）**：Wine Windows Python 运行期无法异步强杀正处于执行栈深处的线程。若用户脚本陷入底层 C/COM 阻塞或挂起模态弹窗，后台工作线程可能处于永久挂起状态，此时应触发 `sw-daemon restart` 予以复位重启。
-3. **COM STA 跨线程保障**：
-   - 服务端执行沙盒的工作线程在调度前强制执行 `pythoncom.CoInitialize()`，执行结束后在 `finally` 中严格执行 `pythoncom.CoUninitialize()`，确保在 Windows STA 单线程套间下安全调用全局持有之 `swApp` COM 实例。
+3. **COM STA 线程亲和性与执行保障**：
+   - SOLIDWORKS 是典型的 Windows STA（Single-Threaded Apartment，单线程套间）COM 服务器，其接口指针严格绑定在初始化它的主线程套间。跨线程调用未经列集（Marshaling）的 STA 指针会在底层触发 `RPC_E_WRONG_THREAD` 并导致动态分发抛出 `AttributeError: SldWorks.Application.<method>`。
+   - 由于 HTTP 服务本身单线程串行处理请求，当持有活跃 `swApp` COM 实例时，沙盒执行引擎严格在主套间线程中同步执行脚本，规避跨线程套间漂移；纯 Python/Mock 任务则调度工作线程以支持超时熔断。
 4. **统一路径协议单点化**：
    - 客户端与服务端通信协议纯粹使用 Linux 绝对路径，全量 Windows/Wine 盘符转换（`Z:\...` / `C:\...`）收敛在 `daemon_server.py` 服务端单点处理，杜绝路径多处转换导致的漂移。
 5. **无头弹窗压制**：
