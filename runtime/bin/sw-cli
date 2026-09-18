@@ -190,15 +190,6 @@ print(json.dumps({'code': content, 'args': args_list, 'timeout': timeout_val}))
         ;;
     screenshot)
         OUT_PATH="${ARG_LIST[0]:-/tmp/sw_screenshot.png}"
-        mkdir -p "$(dirname "${OUT_PATH}")"
-
-        # Capture X11 display directly if available on container
-        if command -v import >/dev/null 2>&1 && [ -n "${DISPLAY:-:99}" ]; then
-            import -display "${DISPLAY:-:99}" -window root "${OUT_PATH}" 2>/dev/null || true
-        elif command -v xwd >/dev/null 2>&1 && command -v convert >/dev/null 2>&1; then
-            xwd -display "${DISPLAY:-:99}" -root -silent | convert - "${OUT_PATH}" 2>/dev/null || true
-        fi
-
         PAYLOAD="$(python3 -c "import json, sys; print(json.dumps({'target_path': sys.argv[1]}))" "${OUT_PATH}")"
         send_http_request "POST" "/v1/screenshot" "${PAYLOAD}"
         ;;

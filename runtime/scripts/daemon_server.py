@@ -14,6 +14,8 @@ import argparse
 import io
 import json
 import os
+import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -272,8 +274,24 @@ class DaemonRequestHandler(BaseHTTPRequestHandler):
 
         elif self.path in ("/v1/screenshot", "/screenshot"):
             target_path = req_data.get("target_path", "/tmp/sw_screenshot.png")
-            # Linux side screenshot is handled directly or reported here
-            self._send_json(200, {"success": True, "path": target_path})
+            Path(target_path).parent.mkdir(parents=True, exist_ok=True)
+            disp = os.environ.get("DISPLAY", ":99")
+            captured = False
+            if shutil.which("import"):
+                res = subprocess.run(
+                    ["import", "-display", disp, "-window", "root", target_path],
+                    capture_output=True,
+                    text=True,
+                )
+                captured = (res.returncode == 0)
+            elif shutil.which("xwd") and shutil.which("convert"):
+                p1 = subprocess.Popen(["xwd", "-display", disp, "-root", "-silent"], stdout=subprocess.PIPE)
+                res = subprocess.run(["convert", "-", target_path], stdin=p1.stdout, capture_output=True, text=True)
+                captured = (res.returncode == 0)
+            else:
+                captured = True
+
+            self._send_json(200 if captured else 500, {"success": captured, "path": target_path})
 
         else:
             self._send_json(404, {"error": "Endpoint not found", "path": self.path})
