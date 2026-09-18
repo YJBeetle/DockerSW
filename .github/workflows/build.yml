@@ -15,10 +15,6 @@ on:
         description: 'Force full rebuild even if image for this commit SHA exists on GHCR'
         type: boolean
         default: false
-      skip_preinstall:
-        description: 'Only build and test sw-runtime (skip ISO preinstallation and CAD smoke test)'
-        type: boolean
-        default: false
       media_path:
         description: 'Path to the ISO inside the Google Drive remote'
         type: string
@@ -169,7 +165,6 @@ jobs:
   build-and-smoke-test:
     name: Build & Smoke Test SolidWorks
     needs: build-runtime
-    if: ${{ !inputs.skip_preinstall }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     env:
