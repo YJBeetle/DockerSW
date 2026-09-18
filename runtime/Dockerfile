@@ -50,7 +50,12 @@ COPY --chmod=755 runtime/patch_wine_mono.pl /usr/local/lib/sw-runtime/patch_wine
 
 
 # 3. 安装 Wine、下载 Mono 资产并初始化无头运行环境（合并在单层内执行反向去重，消除 540MB 重复物理占用）
-RUN --mount=type=bind,source=runtime,target=/mnt/runtime \
+# 仅绑定挂载本层真正消费的三个源（两个构建脚本 + registry 目录），避免把整个
+# runtime/ 树纳入缓存键——否则 runtime/bin、runtime/scripts、runtime/tests 的
+# 任何改动都会击穿这一层，导致约 145s 的 Wine/Mono/Python 安装被无谓重建。
+RUN --mount=type=bind,source=runtime/fetch_managed_com.sh,target=/mnt/runtime/fetch_managed_com.sh \
+    --mount=type=bind,source=runtime/init_wineprefix.sh,target=/mnt/runtime/init_wineprefix.sh \
+    --mount=type=bind,source=runtime/registry,target=/mnt/runtime/registry \
     . /opt/sw-runtime/managed_com.env && \
     apt-get update && \
     apt-get install -y --install-recommends \
