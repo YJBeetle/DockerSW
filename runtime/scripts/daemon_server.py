@@ -32,59 +32,15 @@ except ImportError:
     win32com = None
     HAS_WIN32COM = False
 
+# Ensure lib directory is in import path
+_LIB_DIR = Path(__file__).resolve().parent / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from sw_paths import to_win_path, to_linux_path
+
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 18282
-
-
-def to_win_path(path_str: str, wineprefix: Optional[str] = None) -> str:
-    """Convert Linux path to Wine/Windows path (e.g. /workspace/a -> Z:\\workspace\\a)."""
-    s = str(path_str).strip()
-    if not s:
-        return s
-
-    normalized = s.replace("\\", "/")
-    prefix = (wineprefix or os.environ.get("WINEPREFIX") or "/root/.wine").replace("\\", "/").rstrip("/")
-    drive_c_candidates = [f"{prefix}/drive_c"]
-    if prefix.startswith("/"):
-        drive_c_candidates.append(f"Z:{prefix}/drive_c")
-
-    for drive_c in drive_c_candidates:
-        normalized_folded = normalized.casefold()
-        drive_c_folded = drive_c.casefold()
-        if normalized_folded == drive_c_folded:
-            return "C:\\"
-        if normalized_folded.startswith(f"{drive_c_folded}/"):
-            suffix = normalized[len(drive_c):].replace("/", "\\")
-            return f"C:{suffix}"
-
-    if len(s) >= 2 and s[1] == ":" and s[0].isalpha():
-        return s.replace("/", "\\")
-
-    if s.startswith("/"):
-        return "Z:" + s.replace("/", "\\")
-
-    return s.replace("/", "\\")
-
-
-def to_linux_path(win_path_str: str, wineprefix: Optional[str] = None) -> str:
-    """Convert Windows/Wine path to Linux path (e.g. Z:\\workspace\\a -> /workspace/a)."""
-    s = str(win_path_str).strip().replace("\\", "/")
-    if not s:
-        return s
-
-    prefix = (wineprefix or os.environ.get("WINEPREFIX") or "/root/.wine").rstrip("/")
-
-    # Z:/... mapped to root /...
-    if len(s) >= 2 and s[0].upper() == "Z" and s[1] == ":":
-        rest = s[2:]
-        return rest if rest.startswith("/") else "/" + rest
-
-    # C:/... mapped to $WINEPREFIX/drive_c/...
-    if len(s) >= 2 and s[0].upper() == "C" and s[1] == ":":
-        rest = s[2:]
-        return f"{prefix}/drive_c{rest}"
-
-    return s
 
 
 class ServerState:
