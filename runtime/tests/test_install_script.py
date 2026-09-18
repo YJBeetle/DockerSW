@@ -93,10 +93,10 @@ class InstallScriptValidationTests(unittest.TestCase):
 
     def test_installer_uses_documented_silent_deployment_defaults(self) -> None:
         script = INSTALLER.read_text(encoding="utf-8")
-        self.assertIn(
-            'append_default_msi_property "INSTALLDIR" "${TARGET_INSTALL_DIR:-C:\\\\Program Files\\\\SOLIDWORKS}"',
-            script,
-        )
+        self.assertIn('if [ -n "${TARGET_INSTALL_DIR}" ]; then', script)
+        self.assertIn('normalized_install_dir="${normalized_install_dir//Program Files/PROGRA~1}"', script)
+        self.assertIn('append_default_msi_property "INSTALLDIR" "${normalized_install_dir}"', script)
+        self.assertIn('ln -sfn "Program Files" "${WINEPREFIX}/drive_c/PROGRA~1"', script)
         self.assertIn('append_default_msi_property "OFFICEOPTION" "3"', script)
         self.assertIn('append_default_msi_property "INSTALLLEVEL" "100"', script)
         self.assertIn(

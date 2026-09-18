@@ -322,6 +322,9 @@ if [ ! -s "${WINEPREFIX}/system.reg" ]; then
 fi
 
 run_installer "Wine prefix probe" wine cmd /c ver
+# Ensure standard Windows 8.3 short paths exist for space-containing system directories
+[ -d "${WINEPREFIX}/drive_c/Program Files" ] && ln -sfn "Program Files" "${WINEPREFIX}/drive_c/PROGRA~1"
+[ -d "${WINEPREFIX}/drive_c/Program Files (x86)" ] && ln -sfn "Program Files (x86)" "${WINEPREFIX}/drive_c/PROGRA~2"
 record_eula_acceptance
 
 MONO_ROOT="${WINEPREFIX}/drive_c/windows/mono/mono-2.0"
@@ -391,9 +394,17 @@ fi
 # native geometry dependencies needed by the package's registration actions.
 # Callers can still override every default with --property or
 # SW_MSI_PROPERTIES_FILE.
-# Explicitly pin the target installation directory in Wine's virtual drive C.
-# Defaults to C:\Program Files\SOLIDWORKS, but can be overridden by caller via --install-dir, SW_TARGET_INSTALL_DIR or --property.
-append_default_msi_property "INSTALLDIR" "${TARGET_INSTALL_DIR:-C:\\Program Files\\SOLIDWORKS}"
+# Target installation directory in Wine's virtual drive C:
+# When TARGET_INSTALL_DIR is empty/unset, do not pass INSTALLDIR on CLI; let
+# the package resolve its internal default ([ProgramFilesFolder]SOLIDWORKS).
+# When explicitly specified, normalize Program Files to 8.3 short name (PROGRA~1 / PROGRA~2)
+# to prevent Wine's CLI parser from wrapping space-containing properties with quotes (MSI 1639).
+if [ -n "${TARGET_INSTALL_DIR}" ]; then
+    normalized_install_dir="${TARGET_INSTALL_DIR}"
+    normalized_install_dir="${normalized_install_dir//Program Files (x86)/PROGRA~2}"
+    normalized_install_dir="${normalized_install_dir//Program Files/PROGRA~1}"
+    append_default_msi_property "INSTALLDIR" "${normalized_install_dir}"
+fi
 append_default_msi_property "ENABLEPERFORMANCE" "0"
 append_default_msi_property "OFFICEOPTION" "3"
 append_default_msi_property "INSTALLLEVEL" "100"
