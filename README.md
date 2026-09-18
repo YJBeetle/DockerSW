@@ -55,7 +55,7 @@ ghcr.io/yjbeetle/sw-executable:sha-xxxxxxx
 
 ### 1. 校验安装介质
 
-`sw-install` 接受已解压目录、ISO 或受支持的归档。完整介质至少需要包含主 MSI、VC++ x64 运行库、.NET 4.8 安装包及 `swloginmgr/SOLIDWORKS Login Manager.msi`。
+`sw-install` 接受挂载好的 ISO 目录或已解压目录。完整介质至少需要包含主 MSI、VC++ x64 运行库、.NET 4.8 安装包及 `swloginmgr/SOLIDWORKS Login Manager.msi`。
 
 可以先只校验介质，不启动 Wine 或安装任何组件：
 
@@ -106,7 +106,7 @@ docker build -t sw-preinstalled preinstall
 
 | 命令行参数 | 环境变量 | 默认值 | 说明 |
 |---|---|---|---|
-| `--media PATH` | `SW_MEDIA_PATH` | 无 | 完整安装介质目录、ISO 或归档；必填 |
+| `--media PATH` | `SW_MEDIA_PATH` | 无 | 已挂载或解压后的完整安装介质目录；必填 |
 | `--registry-dir PATH` | `SW_INSTALL_REGISTRY_DIR` | 空 | 主 MSI 前导入目录内的私有 `.reg` 文件 |
 | `--msi PATH` | `SW_MSI_RELATIVE_PATH` | `swwi/data/solidworks.msi` | 相对于介质根目录的主 MSI 路径 |
 | `--property NAME=VALUE` | `SW_MSI_PROPERTIES_FILE` | 空 | 追加 MSI 属性；文件格式为每行一个 `NAME=VALUE` |

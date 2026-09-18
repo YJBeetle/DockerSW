@@ -82,49 +82,14 @@ class InstallScriptValidationTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("SOLIDWORKS Login Manager MSI is missing", result.stderr)
 
-    def test_archive_uses_7z_before_a_false_positive_tar_probe(self) -> None:
+    def test_rejects_non_directory_media_archive(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            archive = root / "solidworks-media"
+            archive = root / "solidworks-media.iso"
             archive.write_bytes(b"fake-iso")
-            fake_bin = root / "bin"
-            fake_bin.mkdir()
-
-            tar = fake_bin / "tar"
-            tar.write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
-            tar.chmod(0o755)
-
-            seven_zip = fake_bin / "7z"
-            seven_zip.write_text(
-                """#!/bin/sh
-set -eu
-case "$1" in
-    t) exit 0 ;;
-    x)
-        destination=""
-        for argument in "$@"; do
-            case "$argument" in
-                -o*) destination="${argument#-o}" ;;
-            esac
-        done
-        test -n "$destination"
-        mkdir -p "$destination/swwi/data" "$destination/PreReqs/VCRedist17" "$destination/swloginmgr"
-        printf msi >"$destination/swwi/data/solidworks.msi"
-        printf vc >"$destination/PreReqs/VCRedist17/VC_redist.x64.exe"
-        printf login >"$destination/swloginmgr/SOLIDWORKS Login Manager.msi"
-        ;;
-    *) exit 2 ;;
-esac
-""",
-                encoding="utf-8",
-            )
-            seven_zip.chmod(0o755)
-
-            result = self.run_validation(
-                archive, extra_env={"PATH": f"{fake_bin}:{os.environ['PATH']}"}
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("Validated complete media layout", result.stdout)
+            result = self.run_validation(archive)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("--media must be a mounted or extracted directory", result.stderr)
 
     def test_installer_uses_documented_silent_deployment_defaults(self) -> None:
         script = INSTALLER.read_text(encoding="utf-8")

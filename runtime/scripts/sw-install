@@ -36,7 +36,7 @@ Usage:
   sw-install --media PATH [options]
 
 Required:
-  --media PATH             Complete official SOLIDWORKS media directory or archive.
+  --media PATH             Complete mounted or extracted official SOLIDWORKS media directory.
 
 Options:
   --serial-solidworks KEY  SOLIDWORKS core serial number.
@@ -52,7 +52,7 @@ Options:
   --timeout SECONDS        Timeout for each long-running installer operation.
   --accept-eula            Confirm acceptance of the applicable SOLIDWORKS EULA
                            and record the media-version marker before installation.
-  --validate-only          Validate/extract the media without running Wine.
+  --validate-only          Validate the media layout without running Wine.
   -h, --help               Show this help.
 
 Environment equivalents:
@@ -181,27 +181,8 @@ fi
 
 prepare_media() {
     local source="$1"
-    if [ -d "${source}" ]; then
-        MEDIA_CONTAINER="${source}"
-        return
-    fi
-
-    local destination
-    destination="$(mktemp -d /tmp/sw-media.XXXXXX)"
-    TEMP_DIRS+=("${destination}")
-    info "Extracting the private installation-media archive..." >&2
-
-    # GNU tar can mistake the leading zero blocks in an ISO image for an empty
-    # tar archive and return success. Let 7-Zip identify arbitrary media first;
-    # keep tar only as a fallback for environments without a capable 7-Zip.
-    if command -v 7z >/dev/null 2>&1 && 7z t "${source}" >/dev/null 2>&1; then
-        7z x -y -o"${destination}" "${source}" >/dev/null
-    elif tar -tf "${source}" >/dev/null 2>&1; then
-        tar -xf "${source}" -C "${destination}"
-    else
-        die "installation media is not a supported archive or ISO image"
-    fi
-    MEDIA_CONTAINER="${destination}"
+    [ -d "${source}" ] || die "--media must be a mounted or extracted directory containing the SOLIDWORKS installation media"
+    MEDIA_CONTAINER="${source}"
 }
 
 MEDIA_CONTAINER=""
