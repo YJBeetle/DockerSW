@@ -24,6 +24,7 @@ DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、�
   - `*.REND.SLDASM` 导出为 `.GLB`；
   - 支持 Linux、Wine Windows、绝对及相对路径。
 - **两种许可接入方式**：优先使用局域网浮动许可服务器，也可按需挂载 `lmgrd.exe` 与许可文件并在容器内启动。
+- **交互式 VNC 图形工作站**：内置 `openbox` 与 `x11vnc`，提供 `sw-vnc` 一键拉起具备 OpenGL 4.5 本地加速的 1080P/2K 远程桌面，Mac 原生屏幕共享直连，支持完整 3D 建模交互与图形化排错。
 
 ## 三阶段对称架构流水线
 
@@ -199,7 +200,37 @@ docker run --rm \
   sw-export --list list.txt --workspace /workspace --outdir /workspace/dist
 ```
 
-### 3. CI/CD 流水线集成示例 (GitLab CI)
+### 3. 交互式 VNC 远程图形操作 (`sw-vnc`)
+
+镜像内置了完整的 Xvfb (OpenGL 4.5)、`openbox` 窗口管理器与 `x11vnc` 服务。不仅支持纯无头导出，还可以一键启动远程桌面，在 macOS 或 Windows 上直连进行可视化建模与调试：
+
+```bash
+# 启动可执行镜像进入 VNC 模式（默认密码 123456，端口 5900）
+podman run --rm -it   --net=host   --ipc=host   --security-opt label=disable   -v "$(pwd):/workspace"   ghcr.io/yjbeetle/sw-executable:latest   sw-vnc
+```
+
+在 **macOS 本机** 上无需安装任何第三方客户端，直接在终端执行或 Finder (Cmd+K) 连接：
+
+```bash
+open vnc://<宿主机IP>:5900
+```
+
+输入密码（默认 `123456`）即可在 Mac 原生“屏幕共享”中秒开 SOLIDWORKS 3D 界面！
+
+**常用参数与环境变量**：
+
+```bash
+# 自定义访问密码与 2K 高清分辨率
+sw-vnc --password mypass --resolution 2560x1440
+
+# 启动桌面环境并进入交互式 Bash 终端排错
+sw-vnc --bash
+
+# 仅启动桌面环境 (openbox)，等待远端操作
+sw-vnc --desktop
+```
+
+### 4. CI/CD 流水线集成示例 (GitLab CI)
 
 在私有 GitLab Runner 中使用 `sw-preinstalled` 镜像批量导出 CAD 产物：
 
@@ -232,6 +263,10 @@ export_cad_assets:
 | `START_LOCAL_LICENSE` | `false` | 设为 `true` 时启动已挂载的本地 `lmgrd.exe` |
 | `FLEXNET_DIR` | `/opt/SolidWorks_Flexnet_Server` | 本地 FlexNet 目录，需由使用者提供 `lmgrd.exe` 与 `.lic` |
 | `DISPLAY` | `:99` | 由容器内 Xvfb 托管的虚拟屏幕 |
+| `DISPLAY_RESOLUTION` | `1920x1080` | Xvfb 虚拟屏幕默认分辨率 |
+| `VNC_PORT` | `5900` | `sw-vnc` 监听的 RFB 端口 |
+| `VNC_PASSWORD` | `123456` | `sw-vnc` 访问密码 (建议 6~8 位) |
+| `VNC_RESOLUTION` | `1920x1080` | `sw-vnc` 虚拟屏幕分辨率 (形如 1920x1080、2560x1440) |
 | `WINEPREFIX` | `/root/.wine` | Wine 前缀路径 |
 
 ## 导出清单

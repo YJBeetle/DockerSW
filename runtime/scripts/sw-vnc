@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PORT="${VNC_PORT:-5900}"
+RESOLUTION="${VNC_RESOLUTION:-1920x1080}"
+PASSWORD="${VNC_PASSWORD:-123456}"
+TARGET="sw"
+DRY_RUN=false
+CUSTOM_CMD=()
+
+show_help() {
+    cat << 'HELP_EOF'
+用法: sw-vnc [选项] [-- 自定义命令...]
+
+启动 DockerSW 内置的 VNC 图形工作站模式，提供基于 Xvfb (OpenGL 4.5) 与 openbox 的可视化桌面环境。
+
+选项:
+  -p, --port <port>          指定 VNC 监听端口 (默认: 5900，环境变量: VNC_PORT)
+  -P, --password <pass>      设置 VNC 访问密码 (默认: 123456，环境变量: VNC_PASSWORD)
+  -r, --resolution <WxH>     设置虚拟屏幕分辨率 (默认: 1920x1080，环境变量: VNC_RESOLUTION)
+      --desktop              仅启动桌面环境 (openbox)，不自动拉起应用
+      --bash                 启动桌面环境并在前台进入交互式 bash 终端
+      --dry-run              打印解析后的配置并安全退出 (用于测试和调试)
+  -h, --help                 显示此帮助信息
+
+环境变量:
+  VNC_PORT                   VNC 服务端口 (默认: 5900)
+  VNC_PASSWORD               VNC 访问密码 (默认: 123456)
+  VNC_RESOLUTION             虚拟屏幕分辨率 (默认: 1920x1080)
+  DISPLAY                    目标 X11 显示号 (默认: :99)
+
+示例:
+  sw-vnc                     # 默认拉起 VNC 并直接运行 SOLIDWORKS 主程序
+  sw-vnc --password mypass   # 自定义密码启动
+  sw-vnc --resolution 2560x1440 # 2K 分辨率启动
+  sw-vnc --bash              # 启动 VNC 并进入 bash
+  sw-vnc wine notepad        # 启动 VNC 并运行指定程序
+HELP_EOF
+}
+
+# 解析命令行参数
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        -p|--port)
+            [[ $# -ge 2 ]] || { echo "[ERROR] --port 需要一个参数" >&2; exit 1; }
+            PORT="$2"
+            shift 2
+            ;;
+        -P|--password)
+            [[ $# -ge 2 ]] || { echo "[ERROR] --password 需要一个参数" >&2; exit 1; }
+            PASSWORD="$2"
+            shift 2
+            ;;
+        -r|--resolution)
+            [[ $# -ge 2 ]] || { echo "[ERROR] --resolution 需要一个参数" >&2; exit 1; }
+            RESOLUTION="$2"
+            shift 2
+            ;;
+        --desktop)
+            TARGET="desktop"
+            shift
+            ;;
+        --bash)
+            TARGET="bash"
+            shift
+            ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        --)
+            shift
+            CUSTOM_CMD=("$@")
+            TARGET="custom"
+            break
+            ;;
+        -*)
+            echo "[ERROR] 未知选项: $1" >&2
+            echo "请运行 'sw-vnc --help' 查看可用选项" >&2
+            exit 1
+            ;;
+        *)
+            CUSTOM_CMD=("$@")
+            TARGET="custom"
+            break
+            ;;
+    esac
+done
+
+# 如果是 dry-run 模式，直接输出解析后的配置
+if [ "${DRY_RUN}" = true ]; then
+    echo "CONFIG:PORT=${PORT}"
+    echo "CONFIG:RESOLUTION=${RESOLUTION}"
+    echo "CONFIG:PASSWORD_SET=$([ -n "${PASSWORD}" ] && echo true || echo false)"
+    echo "CONFIG:TARGET=${TARGET}"
+    if [ "${TARGET}" = "custom" ]; then
+        echo "CONFIG:CUSTOM_CMD=${CUSTOM_CMD[*]}"
+    fi
+    exit 0
+fi
+
+# 检查分辨率格式
+if [[ ! "${RESOLUTION}" =~ ^[0-9]+x[0-9]+$ ]]; then
+    echo "[ERROR] 分辨率格式错误: '${RESOLUTION}' (应形如 1920x1080)" >&2
+    exit 1
+fi
+
+export DISPLAY="${DISPLAY:-:99}"
+SCREEN_NUM=$(echo "${DISPLAY}" | sed -E 's/.*:([0-9]+).*/\1/')
+
+XVFB_STARTED_BY_US=false
+XVFB_PID=""
+OPENBOX_PID=""
+X11VNC_PID=""
+
+cleanup() {
+    local sig=$?
+    trap - SIGINT SIGTERM EXIT
+    [ -n "${X11VNC_PID}" ] && kill "${X11VNC_PID}" 2>/dev/null || true
+    [ -n "${OPENBOX_PID}" ] && kill "${OPENBOX_PID}" 2>/dev/null || true
+    if [ "${XVFB_STARTED_BY_US}" = true ] && [ -n "${XVFB_PID}" ]; then
+        kill "${XVFB_PID}" 2>/dev/null || true
+    fi
+    exit "${sig}"
+}
+trap cleanup SIGINT SIGTERM EXIT
+
+# 1. 确保虚拟显示屏 (Xvfb) 运行
+if [ ! -S "/tmp/.X11-unix/X${SCREEN_NUM}" ]; then
+    echo "[DockerSW] 正在创建虚拟显示屏 (:${SCREEN_NUM}, ${RESOLUTION} 24bpp)..."
+    Xvfb ":${SCREEN_NUM}" -screen 0 "${RESOLUTION}x24" -ac +extension GLX +render -noreset >/dev/null 2>&1 &
+    XVFB_PID=$!
+    XVFB_STARTED_BY_US=true
+    for _ in {1..20}; do
+        if [ -S "/tmp/.X11-unix/X${SCREEN_NUM}" ]; then
+            break
+        fi
+        sleep 0.2
+    done
+fi
+
+# 2. 启动轻量窗口管理器 openbox（负责窗口标题栏、拖拽、缩放、多窗口管理）
+if command -v openbox >/dev/null 2>&1; then
+    openbox >/dev/null 2>&1 &
+    OPENBOX_PID=$!
+fi
+
+# 3. 配置密码并启动 x11vnc
+VNC_AUTH_ARGS=("-nopw")
+if [ -n "${PASSWORD}" ]; then
+    VNC_DIR="${HOME:-/root}/.vnc"
+    mkdir -p "${VNC_DIR}"
+    x11vnc -storepasswd "${PASSWORD}" "${VNC_DIR}/passwd" >/dev/null 2>&1
+    VNC_AUTH_ARGS=("-rfbauth" "${VNC_DIR}/passwd")
+fi
+
+x11vnc -display "${DISPLAY}" -forever -shared -rfbport "${PORT}" "${VNC_AUTH_ARGS[@]}" >/dev/null 2>&1 &
+X11VNC_PID=$!
+
+echo "========================================================="
+echo "  DockerSW 交互式 VNC 图形工作站已就绪                   "
+echo "========================================================="
+echo "  - 屏幕分辨率: ${RESOLUTION} (: ${DISPLAY})"
+echo "  - VNC 端口:   ${PORT}"
+if [ -n "${PASSWORD}" ]; then
+    echo "  - 访问密码:   ${PASSWORD}"
+else
+    echo "  - 访问密码:   (无密码)"
+fi
+echo "  - Mac 快速连接: open vnc://<宿主机IP>:${PORT}"
+echo "========================================================="
+
+# 4. 执行目标程序
+if [ "${TARGET}" = "sw" ]; then
+    SW_EXE="/root/.wine/drive_c/Program Files/SOLIDWORKS/SLDWORKS.exe"
+    if [ ! -f "${SW_EXE}" ]; then
+        echo "[DockerSW][WARN] 未在默认路径检测到 ${SW_EXE}，切换至交互式终端"
+        exec /bin/bash
+    fi
+    echo "[DockerSW] 正在启动 SOLIDWORKS..."
+    exec wine "${SW_EXE}"
+elif [ "${TARGET}" = "bash" ]; then
+    echo "[DockerSW] 进入交互式 Bash 终端..."
+    exec /bin/bash
+elif [ "${TARGET}" = "desktop" ]; then
+    echo "[DockerSW] 桌面环境就绪，等待客户端连接 (按 Ctrl+C 退出)..."
+    wait "${X11VNC_PID}"
+elif [ "${TARGET}" = "custom" ]; then
+    echo "[DockerSW] 启动自定义命令: ${CUSTOM_CMD[*]}"
+    exec "${CUSTOM_CMD[@]}"
+fi

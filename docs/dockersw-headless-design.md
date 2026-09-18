@@ -124,6 +124,22 @@
 
 ---
 
+### 3.4 交互式 VNC 图形工作站模式 (`sw-vnc`)
+
+为了满足人工交互建模、许可证图形化配置、插件调试及三维着色效果直观校验等场景需求，DockerSW 在保持无头核心纯净的同时，提供了开箱即用的远程桌面子系统：
+
+1. **规避 XQuartz 历史协议断言崩溃**：
+   - macOS XQuartz 间接 GLX 协议仅支持 OpenGL 1.4，在 Wine 尝试激活 DirectX 11 / OpenGL 上下文时会触发 `GLXBadCurrentWindow` 致命协议错误；
+   - `sw-vnc` 架构使 SOLIDWORKS 与 Mesa 驱动完全运行在 Linux 容器内部的 `Xvfb` (:99) 虚拟屏幕上，原生调用完整的 **OpenGL 4.5 Core Profile** 本地软件光栅化（llvmpipe），不向客户端发起任何未知的 GLX 扩展请求；
+2. **三件套标准编排（Xvfb + Openbox + x11vnc）**：
+   - 自动检测并启动 1080P/2K/4K 虚拟屏幕 (`Xvfb :99`)；
+   - 自动拉起轻量窗口管理器 `openbox`，提供完整的窗口缩放、最大化、最小化和标题栏拖拽；
+   - 自动配置并启动 `x11vnc`，支持自定义端口、密码鉴权与多客户端共享连接；
+3. **极简客户端访问体验**：
+   - 采用标准 RFB 协议，macOS 用户无需安装任何第三方应用，直接在终端执行 `open vnc://<宿主机IP>:5900` 即可通过系统原生“屏幕共享”应用秒级直连操作。
+
+---
+
 ## 4. 关键底层兼容机制（Wine & Graphics）
 
 1. **Wine 11.x 24-bit DIB 离屏 OpenGL 渲染修复**：

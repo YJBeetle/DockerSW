@@ -2,7 +2,7 @@
 FROM ubuntu:22.04
 
 LABEL maintainer="YJBeetle"
-LABEL description="Headless Wine container for SolidWorks automated CI export (STEP/PDF/DWG/GLB)"
+LABEL description="Headless Wine container for SolidWorks automated CI export (STEP/PDF/DWG/GLB) & VNC GUI"
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WINEARCH=win64
@@ -22,6 +22,10 @@ RUN dpkg --add-architecture i386 && \
         wget \
         gnupg \
         xvfb \
+        openbox \
+        x11vnc \
+        libgl1-mesa-dri \
+        mesa-utils \
         cabextract \
         msitools \
         p7zip-full \
@@ -64,7 +68,7 @@ RUN --mount=type=bind,source=runtime,target=/mnt/runtime \
 
 # 5. 安装核心导出脚本与全局 CLI 命令
 COPY runtime/scripts/export_sw.py runtime/scripts/lib/solidworks_version.sh /opt/sw-runtime/scripts/
-COPY --chmod=755 runtime/scripts/sw-export runtime/scripts/sw-install /usr/local/bin/
+COPY --chmod=755 runtime/scripts/sw-export runtime/scripts/sw-install runtime/scripts/sw-vnc /usr/local/bin/
 
 # 6. 配置容器 Entrypoint
 COPY --chmod=755 runtime/entrypoint.sh /usr/local/bin/entrypoint.sh
