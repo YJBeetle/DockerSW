@@ -321,7 +321,7 @@ export_cad_assets:
 | `DISPLAY` | `:99` | 由容器内 Xvfb 托管的虚拟屏幕 |
 | `DISPLAY_RESOLUTION` | `1920x1080` | Xvfb 虚拟屏幕默认分辨率 |
 | `VNC_PORT` | `5900` | `sw-vnc` 监听的 RFB 端口 |
-| `VNC_PASSWORD` | `123456` | `sw-vnc` 访问密码 (建议 6~8 位) |
+| `VNC_PASSWORD` | 空 | `sw-vnc` 访问密码（默认无密码直连；若设置建议 6~8 位） |
 | `VNC_RESOLUTION` | `1920x1080` | `sw-vnc` 虚拟屏幕分辨率 (形如 1920x1080、2560x1440) |
 | `WINEPREFIX` | `/root/.wine` | Wine 前缀路径 |
 
