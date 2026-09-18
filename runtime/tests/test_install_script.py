@@ -93,9 +93,10 @@ class InstallScriptValidationTests(unittest.TestCase):
 
     def test_installer_uses_documented_silent_deployment_defaults(self) -> None:
         script = INSTALLER.read_text(encoding="utf-8")
-        # Keep the package's own default installation path. Older Wine releases
-        # can turn a property containing spaces into MSI error 1639.
-        self.assertNotIn('append_default_msi_property "INSTALLDIR"', script)
+        self.assertIn(
+            'append_default_msi_property "INSTALLDIR" "${TARGET_INSTALL_DIR:-C:\\\\Program Files\\\\SOLIDWORKS}"',
+            script,
+        )
         self.assertIn('append_default_msi_property "OFFICEOPTION" "3"', script)
         self.assertIn('append_default_msi_property "INSTALLLEVEL" "100"', script)
         self.assertIn(
@@ -206,6 +207,8 @@ class InstallScriptValidationTests(unittest.TestCase):
         self.assertIn("--serial-motion", script)
         self.assertIn("--serial-mbd", script)
         self.assertIn("--license-server", script)
+        self.assertIn("--install-dir", script)
+        self.assertIn('SW_TARGET_INSTALL_DIR', script)
         self.assertIn('SW_SERIAL_SOLIDWORKS', script)
         self.assertIn('SW_SERIAL_SIMULATION', script)
         self.assertIn('SW_SERIAL_MOTION', script)

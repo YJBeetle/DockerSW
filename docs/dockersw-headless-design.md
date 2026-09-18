@@ -75,8 +75,9 @@
 3. **Wine-Mono 与托管 COM 运行时支持**：
    - 校验 Wine-Mono 并在全新前缀初始化时自动完成静默配置；
    - 执行 `prepare_managed_com.sh`，确保 x86/x64 托管 RegAsm、`RegistrationServices` 与 `stdole` 正确注册，消除 .NET 插件加载时的 COM 错误；
-4. **程序路径映射与 ProgramData 挂载**：
-   - 支持挂载或内置的 `SW_INSTALL_DIR`（默认 `/opt/solidworks`），并在 Wine 虚拟 C 盘中建立标准链接：`drive_c/Program Files/SOLIDWORKS`；
+4. **程序路径映射与外部卷挂载**：
+   - **预安装模式**：通过 `sw-install` 预装的镜像，主程序直接位于 Wine 虚拟 C 盘（`drive_c/Program Files/SOLIDWORKS`）；
+   - **外部挂载模式**：支持通过外部卷挂载已有程序目录至 `SW_INSTALL_DIR`（默认 `/opt/solidworks`），容器启动时会自动在虚拟 C 盘中建立标准软链接：`drive_c/Program Files/SOLIDWORKS`；
    - 支持挂载外部 `SW_PROGRAMDATA` 并映射至 `drive_c/ProgramData/SOLIDWORKS`；
 5. **许可服务智能判定与开关（私有环境专有配置）**：
    - **远程网络许可模式（推荐）**：在私有镜像构建期固化或私有 CI 运行时注入环境变量 `SW_LICENSE_SERVER`（如 `25734@10.0.0.1`），容器自动注入 `FLEXlm License Manager` 与系统环境变量，无需在容器内跑常驻许可进程；
@@ -90,7 +91,7 @@
 为了彻底解决挂载纯文件时丢失庞大 COM 注册表与依赖环境的问题，设计了独立的标准安装工具 `sw-install`：
 
 1. **介质结构自动检测与校验**：
-   - 支持解压目录、ISO 镜像或归档文件；
+   - 支持已挂载的 ISO 介质目录或已解压目录；
    - 验证关键核心组件完备性：主安装包 MSI、VC++ 运行库、.NET 4.8 框架以及 `swloginmgr/SOLIDWORKS Login Manager.msi`；
    - 提供 `--validate-only` 模式，用于在无头 CI 中仅做介质合法性校验；
 2. **严格明确的 EULA 确认模型**：

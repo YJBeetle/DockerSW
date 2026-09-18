@@ -109,6 +109,7 @@ docker build -t sw-preinstalled preinstall
 | `--media PATH` | `SW_MEDIA_PATH` | 无 | 已挂载或解压后的完整安装介质目录；必填 |
 | `--registry-dir PATH` | `SW_INSTALL_REGISTRY_DIR` | 空 | 主 MSI 前导入目录内的私有 `.reg` 文件 |
 | `--msi PATH` | `SW_MSI_RELATIVE_PATH` | `swwi/data/solidworks.msi` | 相对于介质根目录的主 MSI 路径 |
+| `--install-dir PATH` | `SW_TARGET_INSTALL_DIR` | `C:\Program Files\SOLIDWORKS` | Wine 虚拟 C 盘中的目标安装路径 |
 | `--property NAME=VALUE` | `SW_MSI_PROPERTIES_FILE` | 空 | 追加 MSI 属性；文件格式为每行一个 `NAME=VALUE` |
 | `--log-dir PATH` | `SW_INSTALL_LOG_DIR` | `/var/log/sw-install` | 权限受限的安装日志目录 |
 | `--timeout SECONDS` | `SW_INSTALL_TIMEOUT` | `10800` | 每个长时间安装步骤的超时秒数 |
@@ -227,7 +228,7 @@ export_cad_assets:
 
 | 环境变量 | 默认值 | 说明 |
 |---|---|---|
-| `SW_INSTALL_DIR` | `/opt/solidworks` | 可选的外部 SOLIDWORKS 程序目录；完整 MSI 安装通常位于 `WINEPREFIX` 内 |
+| `SW_INSTALL_DIR` | `/opt/solidworks` | 可选的外部卷挂载程序目录（映射到虚拟 C 盘 Program Files/SOLIDWORKS）；镜像预装时主程序直接位于 WINEPREFIX 内 |
 | `SW_PROGRAMDATA` | `/opt/solidworks_programdata` | 可选的外部 ProgramData 映射目录 |
 | `SW_LICENSE_SERVER` | 空 | 远程 FlexNet 服务器，例如 `25734@192.168.1.100`；配置后优先使用 |
 | `START_LOCAL_LICENSE` | `false` | 设为 `true` 时启动已挂载的本地 `lmgrd.exe` |

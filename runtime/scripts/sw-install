@@ -21,6 +21,7 @@ SERIAL_MBD="${SW_SERIAL_MBD:-}"
 LICENSE_SERVER="${SW_LICENSE_SERVER:-}"
 REGISTRY_DIR="${SW_INSTALL_REGISTRY_DIR:-}"
 MSI_RELATIVE_PATH="${SW_MSI_RELATIVE_PATH:-swwi/data/solidworks.msi}"
+TARGET_INSTALL_DIR="${SW_TARGET_INSTALL_DIR:-}"
 LOG_DIR="${SW_INSTALL_LOG_DIR:-/var/log/sw-install}"
 INSTALL_TIMEOUT="${SW_INSTALL_TIMEOUT:-10800}"
 VALIDATE_ONLY=false
@@ -47,6 +48,7 @@ Options:
   --registry-dir PATH      Import every .reg file in PATH before installation.
   --msi PATH               MSI path relative to the media root.
                            Default: swwi/data/solidworks.msi
+  --install-dir PATH       Target installation directory in Wine (default: C:\Program Files\SOLIDWORKS).
   --property NAME=VALUE    Additional MSI property; may be repeated.
   --log-dir PATH           Protected installation log directory.
   --timeout SECONDS        Timeout for each long-running installer operation.
@@ -56,7 +58,7 @@ Options:
   -h, --help               Show this help.
 
 Environment equivalents:
-  SW_MEDIA_PATH, SW_SERIAL_SOLIDWORKS, SW_SERIAL_SIMULATION,
+  SW_MEDIA_PATH, SW_TARGET_INSTALL_DIR, SW_SERIAL_SOLIDWORKS, SW_SERIAL_SIMULATION,
   SW_SERIAL_MOTION, SW_SERIAL_MBD, SW_LICENSE_SERVER,
   SW_INSTALL_REGISTRY_DIR, SW_MSI_RELATIVE_PATH,
   SW_MSI_PROPERTIES_FILE, SW_INSTALL_LOG_DIR, SW_INSTALL_TIMEOUT,
@@ -103,6 +105,11 @@ while [ "$#" -gt 0 ]; do
         --msi)
             [ "$#" -ge 2 ] || die "--msi requires a relative path"
             MSI_RELATIVE_PATH="$2"
+            shift 2
+            ;;
+        --install-dir)
+            [ "$#" -ge 2 ] || die "--install-dir requires a path"
+            TARGET_INSTALL_DIR="$2"
             shift 2
             ;;
         --property)
@@ -384,8 +391,9 @@ fi
 # native geometry dependencies needed by the package's registration actions.
 # Callers can still override every default with --property or
 # SW_MSI_PROPERTIES_FILE.
-# Do not pass the package's default INSTALLDIR: Wine releases before the 2026
-# msiexec quoting fix can reject properties containing spaces with MSI 1639.
+# Explicitly pin the target installation directory in Wine's virtual drive C.
+# Defaults to C:\Program Files\SOLIDWORKS, but can be overridden by caller via --install-dir, SW_TARGET_INSTALL_DIR or --property.
+append_default_msi_property "INSTALLDIR" "${TARGET_INSTALL_DIR:-C:\\Program Files\\SOLIDWORKS}"
 append_default_msi_property "ENABLEPERFORMANCE" "0"
 append_default_msi_property "OFFICEOPTION" "3"
 append_default_msi_property "INSTALLLEVEL" "100"
