@@ -5,6 +5,7 @@ export WINEARCH="win64"
 export WINEPREFIX="${WINEPREFIX:-/root/.wine}"
 export WINEDEBUG="${WINEDEBUG:--all}"
 export DISPLAY="${DISPLAY:-:99}"
+export DISPLAY_RESOLUTION="${DISPLAY_RESOLUTION:-1920x1080}"
 
 export FLEXNET_DIR="${FLEXNET_DIR:-/opt/SolidWorks_Flexnet_Server}"
 export START_LOCAL_LICENSE="${START_LOCAL_LICENSE:-false}"
@@ -24,12 +25,11 @@ if [ -f "/usr/local/lib/sw-runtime/patch_wine_mono.pl" ]; then
     perl /usr/local/lib/sw-runtime/patch_wine_mono.pl >/dev/null 2>&1 || true
 fi
 
-# 1. 守护启动 Xvfb 无头虚拟显示服务（COM 消息循环必需）
-
+# 1. 守护启动 Xvfb 无头虚拟显示服务（COM 消息循环与 3D 渲染必需）
 SCREEN_NUM=$(echo "${DISPLAY}" | sed -E 's/.*:([0-9]+).*/\1/')
 if [ ! -S "/tmp/.X11-unix/X${SCREEN_NUM}" ]; then
-    echo "[DockerSW] 正在拉起 Xvfb 虚拟屏幕 (${DISPLAY})..."
-    Xvfb "${DISPLAY}" -screen 0 1024x768x24 -ac +extension GLX +render -noreset >/dev/null 2>&1 &
+    echo "[DockerSW] 正在拉起 Xvfb 虚拟屏幕 (:${SCREEN_NUM}, ${DISPLAY_RESOLUTION} 24bpp)..."
+    Xvfb ":${SCREEN_NUM}" -screen 0 "${DISPLAY_RESOLUTION}x24" -ac +extension GLX +render -noreset >/dev/null 2>&1 &
     XVFB_PID=$!
     for _ in {1..20}; do
         if [ -S "/tmp/.X11-unix/X${SCREEN_NUM}" ]; then
@@ -37,7 +37,7 @@ if [ ! -S "/tmp/.X11-unix/X${SCREEN_NUM}" ]; then
         fi
         sleep 0.2
     done
-    echo "[DockerSW] Xvfb 虚拟屏幕 (${DISPLAY}) 已就绪 (PID: ${XVFB_PID})"
+    echo "[DockerSW] Xvfb 虚拟屏幕 (:${SCREEN_NUM}) 已就绪 (PID: ${XVFB_PID})"
 else
     echo "[DockerSW] 已检测到现有 X11 服务 (${DISPLAY})"
 fi
@@ -148,6 +148,6 @@ if [ "$#" -gt 0 ]; then
     echo "[DockerSW] 执行指令: $@"
     exec "$@"
 else
-    echo "[DockerSW] 容器就绪。可以通过 'sw-export' 命令进行批量文件导出。"
+    echo "[DockerSW] 容器就绪。可以通过 'sw-export' 进行文件导出，或运行 'sw-vnc' 启动可视化桌面。"
     exec /bin/bash
 fi
