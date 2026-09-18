@@ -102,6 +102,10 @@ SolidWorks 自身作为原生 Windows 桌面 CAD 软件，其所有官方操作�
          "duration_ms": 35
        }
        ```
+   - `POST /v1/canvas`：
+     - 请求体：`{"target_path": "Z:\\tmp\\canvas.png"}`（可指定保存路径，缺省时自动生成临时文件）
+     - 行为：调用当前活动文档 `swApp.ActiveDoc.Extension.SaveAs3(path, 0, 1, ...)`，直接将当前 3D 画布渲染为纯净 PNG 图像（无 UI 杂质）。
+     - 响应体：`{"success": true, "path": "...", "doc_title": "part1.SLDPRT"}`。
    - `POST /v1/screenshot`：
      - 请求体：`{"target_path": "Z:\\tmp\\screen.png"}`
      - 响应体：`{"success": true, "path": "..."}`。
@@ -112,6 +116,7 @@ SolidWorks 自身作为原生 Windows 桌面 CAD 软件，其所有官方操作�
 * `swApp`：已预连接且处于就绪状态的 `SldWorks.Application` COM 实例。
 * `args`：由客户端传入的参数列表（`list[str]`）。
 * `set_output(data: dict)`：辅助函数，供脚本输出键值对数据，最终在 JSON 响应的 `data` 字段中返回。
+* `save_canvas(path: str = "canvas.png", doc = None)`：高阶辅助函数，直接将当前文档（或指定文档）的 3D 画布渲染保存为指定路径图片。AI 生成的脚本可直接单行调用看图。
 * `to_win_path(path: str)` 与 `to_linux_path(path: str)`：内置路径双向解析函数。
 * `log(msg)` 与 `log_err(msg)`：标准格式化日志工具。
 
@@ -139,8 +144,10 @@ SolidWorks 自身作为原生 Windows 桌面 CAD 软件，其所有官方操作�
   * 读取本地 Python 文件内容，将请求发送至 `127.0.0.1:18282/v1/execute`。
 * **内联代码执行**：
   * `sw-cli eval "print(swApp.RevisionNumber())" [--json]`
-* **屏幕抓取（冒烟测试支持）**：
-  * `sw-cli screenshot [output.png]`：直接抓取 Display `:99` 的当前画面，保存为指定路径的 PNG 图像。
+* **3D 画布视图导出（AI 多模态首选）**：
+  * `sw-cli canvas [output.png] [--json]`：调用 SolidWorks 原生光栅化渲染，导出当前活动 3D 模型的干净画布图像（无窗口边框、无菜单栏，纯几何）。
+* **整机屏幕抓取（调试/冒烟测试）**：
+  * `sw-cli screenshot [output.png]`：直接抓取 Display `:99` 的当前画面（含特征树与弹窗），保存为指定路径的 PNG 图像。
 * **自愈与自动拉起**：
   * 若执行命令时检测到守护进程未运行，可提示或通过 `--auto-start` 选项在后台自动拉起 `sw-daemon` 后再行执行。
 

@@ -32,11 +32,12 @@
 编写测试用例覆盖：
 1. 请求处理类 `DaemonRequestHandler` 的路由分发与上下文构建。
 2. 沙盒执行函数 `execute_code_snippet`：
-   - 注入变量测试：验证 `swApp`、`args`、`set_output`、`to_win_path`、`to_linux_path` 在代码内可用。
+   - 注入变量测试：验证 `swApp`、`args`、`set_output`、`save_canvas`、`to_win_path`、`to_linux_path` 在代码内可用。
    - 标准输出与错误捕获测试：验证 `print()` 输出写入 `stdout`。
    - 异常捕获测试：验证未捕获异常返回 `success: False` 并携带 traceback。
    - 超时机制测试：验证看门狗机制能够截断超时任务。
 3. `GET /v1/health` 路由响应结构。
+4. `POST /v1/canvas` 路由响应结构（调用 `SaveAs3` 导出 3D 纯净模型视图 PNG）。
 
 - [ ] **步骤 2：运行测试验证失败**
 
@@ -47,8 +48,8 @@
 
 实现包含：
 1. 模块导入兼容：在 Linux 离线单测与 Wine Windows 环境下优雅适配（延迟或可选导入 `pythoncom` / `win32com`，提供 Mock 注入支持）。
-2. `execute_code_snippet(code, args, timeout, sw_app)` 执行沙盒。
-3. `DaemonServer` 与 `DaemonRequestHandler`（处理 `/v1/health`、`/v1/execute` 与 `/v1/screenshot`）。
+2. `execute_code_snippet(code, args, timeout, sw_app)` 执行沙盒，内置 `save_canvas` 高阶辅助函数。
+3. `DaemonServer` 与 `DaemonRequestHandler`（处理 `/v1/health`、`/v1/execute`、`/v1/canvas` 与 `/v1/screenshot`）。
 4. 路径映射工具 `to_win_path` 与 `to_linux_path`。
 
 - [ ] **步骤 4：运行测试验证通过**
@@ -60,7 +61,7 @@
 
 ```bash
 git add runtime/tests/test_daemon_server.py runtime/scripts/daemon_server.py
-git commit -m "feat(daemon): implement Wine daemon server and sandbox execution engine"
+git commit -m "feat(daemon): implement Wine daemon server with sandbox and canvas export"
 ```
 
 ---
@@ -121,11 +122,12 @@ git commit -m "feat(daemon): add sw-daemon process manager with view-only VNC su
 
 编写测试用例覆盖：
 1. 语法检查：`bash -n runtime/scripts/sw-cli`。
-2. 帮助信息：`sw-cli --help` 覆盖 `run`, `eval`, `status`, `screenshot`, `--json`, `--timeout`。
+2. 帮助信息：`sw-cli --help` 覆盖 `run`, `eval`, `status`, `canvas`, `screenshot`, `--json`, `--timeout`。
 3. 子命令解析与请求分发：
    - `eval` 模式拼接 JSON 请求体。
    - `run` 模式读取 Python 文件并传递参数。
-   - `screenshot` 模式触发屏幕抓取。
+   - `canvas` 模式触发 3D 画布导出（向 `/v1/canvas` 发送请求）。
+   - `screenshot` 模式触发 X11 整机桌面屏幕抓取。
 4. `--json` 格式化：验证 AI 模式下输出纯 JSON，人类模式下输出纯 stdout/stderr 并保留退出码。
 
 - [ ] **步骤 2：运行测试验证失败**
@@ -136,11 +138,12 @@ git commit -m "feat(daemon): add sw-daemon process manager with view-only VNC su
 - [ ] **步骤 3：实现 `runtime/scripts/sw-cli` 脚本**
 
 实现包含：
-1. 参数解析系统（支持 `run`, `eval`, `status`, `screenshot` 及全局选项 `--json`, `--timeout`, `--host`, `--port`）。
+1. 参数解析系统（支持 `run`, `eval`, `status`, `canvas`, `screenshot` 及全局选项 `--json`, `--timeout`, `--host`, `--port`）。
 2. HTTP 通信封装（基于 `curl` 或 Python 标准库 `urllib`）。
 3. 状态码与响应解析：根据 `--json` 标志切换纯文本终端展示或 JSON 原始输出，退出码与服务返回对齐。
-4. 屏幕截取逻辑（`screenshot`）：直接通过 X11 工具（如 `import`、`xwd` 或 Wine 屏幕服务）抓取 `:99` 显示器保存为 PNG。
-5. 设置文件可执行权限：`chmod +x runtime/scripts/sw-cli`。
+4. 3D 画布导出逻辑（`canvas`）：调用守护服务 `/v1/canvas` 渲染当前活动文档的 3D 模型纯净视口。
+5. 屏幕截取逻辑（`screenshot`）：直接通过 X11 工具（如 `import`、`xwd` 或 Wine 屏幕服务）抓取 `:99` 显示器保存为 PNG。
+6. 设置文件可执行权限：`chmod +x runtime/scripts/sw-cli`。
 
 - [ ] **步骤 4：运行测试验证通过**
 
@@ -151,7 +154,7 @@ git commit -m "feat(daemon): add sw-daemon process manager with view-only VNC su
 
 ```bash
 git add runtime/tests/test_cli_script.py runtime/scripts/sw-cli
-git commit -m "feat(cli): add sw-cli client with run, eval, and screenshot commands"
+git commit -m "feat(cli): add sw-cli client with run, eval, canvas, and screenshot commands"
 ```
 
 ---
