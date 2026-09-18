@@ -20,7 +20,15 @@ PORT="${SW_DAEMON_PORT:-${DEFAULT_PORT}}"
 TIMEOUT_SEC="${SW_DAEMON_TIMEOUT:-${DEFAULT_TIMEOUT}}"
 
 ENABLE_VNC=false
+if [ "${SW_VNC:-false}" = "true" ]; then
+    ENABLE_VNC=true
+fi
 VNC_INTERACTIVE=false
+if [ "${SW_VNC_INTERACTIVE:-false}" = "true" ]; then
+    ENABLE_VNC=true
+    VNC_INTERACTIVE=true
+fi
+
 DRY_RUN=false
 COMMAND=""
 POSITIONAL_ARGS=()
@@ -33,6 +41,7 @@ Usage:
   sw-daemon [options] <command> [command-options]
 
 Commands:
+  run                 Run the daemon server in foreground (ideal for Docker CMD / container PID 1)
   start               Start the background SolidWorks daemon server
   stop                Stop the running daemon server
   restart             Restart the daemon server
@@ -48,6 +57,8 @@ Options:
   -h, --help          Show this help message
 
 Environment Variables:
+  SW_VNC                  Set to 'true' to automatically enable VNC with daemon
+  SW_VNC_INTERACTIVE      Set to 'true' to allow mouse/keyboard input via VNC
   SW_DAEMON_HOST          Daemon host (default: 127.0.0.1)
   SW_DAEMON_PORT          Daemon port (default: 18282)
   SW_DAEMON_PID_FILE      Path to PID file (default: /tmp/sw-daemon.pid)
@@ -87,7 +98,7 @@ while [[ $# -gt 0 ]]; do
             TIMEOUT_SEC="$2"
             shift 2
             ;;
-        start|stop|restart|status)
+        run|start|stop|restart|status)
             if [ -z "${COMMAND}" ]; then
                 COMMAND="$1"
             else
@@ -282,7 +293,90 @@ do_start() {
     return 1
 }
 
+do_run() {
+    local vnc_args=()
+    if [ "${ENABLE_VNC}" = true ]; then
+        vnc_args+=("-display" ":99" "-rfbport" "5900" "-forever" "-shared")
+        if [ "${VNC_INTERACTIVE}" = false ]; then
+            vnc_args+=("-viewonly")
+        fi
+    fi
+
+    local visible_flag=""
+    if [ "${ENABLE_VNC}" = true ]; then
+        visible_flag="--visible"
+    fi
+
+    if [ "${DRY_RUN}" = true ]; then
+        echo "[DRY-RUN] Would run DockerSW daemon in foreground on http://${HOST}:${PORT}"
+        if [ "${ENABLE_VNC}" = true ]; then
+            echo "[DRY-RUN] VNC command: x11vnc ${vnc_args[*]}"
+        fi
+        echo "[DRY-RUN] Wine foreground command: wine C:\\Python311\\python.exe Z:${SERVER_PY} --host ${HOST} --port ${PORT} ${visible_flag}"
+        return 0
+    fi
+
+    # Ensure X11 display exists
+    if [ ! -S "/tmp/.X11-unix/X99" ]; then
+        if [ -x "/usr/local/bin/entrypoint.sh" ]; then
+            /usr/local/bin/entrypoint.sh --init-only >/dev/null 2>&1 || true
+        elif command -v Xvfb >/dev/null 2>&1; then
+            Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+            sleep 0.5
+        fi
+    fi
+
+    local vnc_pid=""
+    # Start companion VNC if requested
+    if [ "${ENABLE_VNC}" = true ]; then
+        if command -v x11vnc >/dev/null 2>&1; then
+            x11vnc "${vnc_args[@]}" -bg -nopw >/tmp/sw-vnc-daemon.log 2>&1 &
+            vnc_pid="$!"
+            echo "${vnc_pid}" > "${VNC_PID_FILE}"
+            echo "[INFO] VNC server started on :5900 (interactive: ${VNC_INTERACTIVE})"
+        else
+            echo "[WARN] x11vnc not installed; continuing without VNC." >&2
+        fi
+    fi
+
+    local python_bin="python3"
+    local win_server_path="${SERVER_PY}"
+    if command -v wine >/dev/null 2>&1; then
+        python_bin="wine"
+        win_server_path="Z:${SERVER_PY}"
+        win_server_path="${win_server_path//\//\\}"
+    fi
+
+    cleanup() {
+        echo "[INFO] Caught termination signal, stopping daemon and companion services..."
+        if [ -n "${vnc_pid}" ] && is_process_alive "${vnc_pid}"; then
+            kill "${vnc_pid}" 2>/dev/null || true
+        fi
+        if [ -n "${server_pid:-}" ] && is_process_alive "${server_pid}"; then
+            kill "${server_pid}" 2>/dev/null || true
+            wait "${server_pid}" 2>/dev/null || true
+        fi
+        rm -f "${PID_FILE}" "${VNC_PID_FILE}"
+        exit 0
+    }
+    trap cleanup SIGTERM SIGINT SIGHUP
+
+    echo "[INFO] Running DockerSW daemon in foreground on http://${HOST}:${PORT}..."
+    if [ "${python_bin}" = "wine" ]; then
+        wine "C:\\Python311\\python.exe" "${win_server_path}" --host "${HOST}" --port "${PORT}" ${visible_flag} &
+    else
+        python3 "${SERVER_PY}" --host "${HOST}" --port "${PORT}" ${visible_flag} &
+    fi
+
+    server_pid="$!"
+    echo "${server_pid}" > "${PID_FILE}"
+    wait "${server_pid}"
+}
+
 case "${COMMAND}" in
+    run)
+        do_run
+        ;;
     start)
         do_start
         ;;

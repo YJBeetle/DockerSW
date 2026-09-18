@@ -27,6 +27,7 @@ class TestDaemonScript(unittest.TestCase):
         out = res.stdout.lower()
         self.assertIn("usage", out)
         self.assertIn("start", out)
+        self.assertIn("run", out)
         self.assertIn("stop", out)
         self.assertIn("restart", out)
         self.assertIn("status", out)
@@ -63,6 +64,38 @@ class TestDaemonScript(unittest.TestCase):
         )
         self.assertEqual(res_interactive.returncode, 0, res_interactive.stderr)
         self.assertNotIn("-viewonly", res_interactive.stdout)
+
+    def test_run_foreground_dry_run(self):
+        res = subprocess.run(
+            [SCRIPT_PATH, "--dry-run", "run"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertIn("foreground", res.stdout.lower())
+
+    def test_env_vnc_triggers(self):
+        env_vnc = dict(os.environ, SW_VNC="true")
+        res = subprocess.run(
+            [SCRIPT_PATH, "--dry-run", "run"],
+            capture_output=True,
+            text=True,
+            env=env_vnc,
+        )
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertIn("x11vnc", res.stdout)
+        self.assertIn("-viewonly", res.stdout)
+
+        env_interactive = dict(os.environ, SW_VNC="true", SW_VNC_INTERACTIVE="true")
+        res_inter = subprocess.run(
+            [SCRIPT_PATH, "--dry-run", "run"],
+            capture_output=True,
+            text=True,
+            env=env_interactive,
+        )
+        self.assertEqual(res_inter.returncode, 0, res_inter.stderr)
+        self.assertIn("x11vnc", res_inter.stdout)
+        self.assertNotIn("-viewonly", res_inter.stdout)
 
 
 if __name__ == "__main__":

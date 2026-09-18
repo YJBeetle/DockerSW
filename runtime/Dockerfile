@@ -76,4 +76,4 @@ COPY --chmod=755 runtime/entrypoint.sh /usr/local/bin/entrypoint.sh
 WORKDIR /workspace
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["/usr/local/bin/sw-export", "--help"]
+CMD ["/usr/local/bin/sw-daemon", "run"]
