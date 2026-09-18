@@ -14,7 +14,7 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-SCRIPT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts", "sw-cli"))
+SCRIPT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "bin", "sw-cli"))
 
 
 class MockDaemonHandler(BaseHTTPRequestHandler):

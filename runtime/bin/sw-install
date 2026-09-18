@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-VERSION_HELPER="/opt/sw-runtime/scripts/solidworks_version.sh"
-if [ ! -r "${VERSION_HELPER}" ]; then
-    VERSION_HELPER="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/solidworks_version.sh"
-fi
+VERSION_HELPER="${SW_VERSION_HELPER:-/opt/sw-runtime/scripts/lib/solidworks_version.sh}"
 [ -r "${VERSION_HELPER}" ] || {
-    echo "[DockerSW Install][ERROR] SOLIDWORKS version helper is unavailable" >&2
+    echo "[DockerSW Install][ERROR] SOLIDWORKS version helper is unavailable: ${VERSION_HELPER}" >&2
     exit 1
 }
 # shellcheck source=runtime/scripts/lib/solidworks_version.sh

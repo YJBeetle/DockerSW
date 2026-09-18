@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-VNC_SCRIPT = REPO_ROOT / "runtime" / "scripts" / "sw-vnc"
+VNC_SCRIPT = REPO_ROOT / "runtime" / "bin" / "sw-vnc"
 
 
 class TestVncScript(unittest.TestCase):

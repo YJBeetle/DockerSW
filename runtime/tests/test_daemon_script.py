@@ -9,7 +9,7 @@ import os
 import subprocess
 import unittest
 
-SCRIPT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts", "sw-daemon"))
+SCRIPT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "bin", "sw-daemon"))
 
 
 class TestDaemonScript(unittest.TestCase):

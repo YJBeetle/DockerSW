@@ -7,7 +7,7 @@ from pathlib import Path
 
 RUNTIME_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-INSTALLER = RUNTIME_ROOT / "scripts" / "sw-install"
+INSTALLER = RUNTIME_ROOT / "bin" / "sw-install"
 VERSION_HELPER = RUNTIME_ROOT / "scripts" / "lib" / "solidworks_version.sh"
 
 
@@ -46,7 +46,11 @@ class InstallScriptValidationTests(unittest.TestCase):
     def run_validation(
         self, media: Path, *, extra_env: dict[str, str] | None = None
     ) -> subprocess.CompletedProcess[str]:
-        environment = {**os.environ, "LC_ALL": "C"}
+        environment = {
+            **os.environ,
+            "LC_ALL": "C",
+            "SW_VERSION_HELPER": str(VERSION_HELPER),
+        }
         if extra_env:
             environment.update(extra_env)
         return subprocess.run(
