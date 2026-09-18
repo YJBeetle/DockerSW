@@ -216,9 +216,16 @@ jobs:
             --read-only \
             --vfs-cache-mode full \
             --vfs-cache-max-size 20G \
-            --vfs-read-ahead 256M \
-            --buffer-size 128M \
-            --dir-cache-time 5m \
+            --vfs-read-ahead 32M \
+            --vfs-read-chunk-size 16M \
+            --vfs-read-chunk-size-limit 64M \
+            --buffer-size 16M \
+            --dir-cache-time 24h \
+            --attr-timeout 1h \
+            --drive-acknowledge-abuse \
+            --drive-pacer-min-sleep 10ms \
+            --retries 5 \
+            --low-level-retries 10 \
             --log-file "${RUNNER_TEMP}/rclone-gdrive.log" \
             --log-level INFO
 
@@ -238,7 +245,7 @@ jobs:
             exit 1
           }
 
-          sudo mount -o loop,ro "${iso_path}" "${SW_MEDIA_MOUNT}"
+          sudo mount -o loop,ro,noatime "${iso_path}" "${SW_MEDIA_MOUNT}"
           test -s "${SW_MEDIA_MOUNT}/swwi/data/solidworks.msi"
 
           df -h /
