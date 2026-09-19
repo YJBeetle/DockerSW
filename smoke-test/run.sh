@@ -73,7 +73,7 @@ export_document() {
     for output in "$@"; do
         export_args=(document export "${outdir}/${output}" --json)
         if [[ "${output,,}" == *.dwg ]]; then
-            export_args+=(--allow-source-modification)
+            export_args+=(--allow-source-dirty)
         fi
         sw-cli "${export_args[@]}"
     done
