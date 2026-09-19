@@ -11,9 +11,18 @@ smoke_root="${RUNNER_TEMP:-${PWD}/.ci-logs}/sw-cli-export-smoke"
 output_dir="${smoke_root}/output"
 log_file="${smoke_root}/sw-cli-export.log"
 export_timeout="${SW_EXPORT_TIMEOUT:-600}"
+document_open=false
 
 cleanup() {
     local status=$?
+    trap - EXIT
+    if [ "${document_open}" = true ]; then
+        timeout --foreground 30 \
+            docker exec "${smoke_container}" \
+            sw-cli document close --discard --json >/dev/null 2>&1 || true
+    fi
+    timeout --foreground 30 \
+        docker exec "${smoke_container}" swclid stop --json >/dev/null 2>&1 || true
     docker rm -f "${smoke_container}" >/dev/null 2>&1 || true
     rm -rf "${ASSETS_DIR}" 2>/dev/null || true
     return "${status}"
@@ -47,70 +56,81 @@ if ! docker exec "${smoke_container}" \
     exit 1
 fi
 
-set +e
-timeout --foreground "${export_timeout}" \
-    docker exec -i "${smoke_container}" bash -s 2>&1 <<'EXPORT_SCRIPT' \
-    | tee "${log_file}"
-set -Eeuo pipefail
-
 workspace=/root/.wine/drive_c
 outdir=/ci-smoke/output
+deadline=$((SECONDS + export_timeout))
+
+# Keep Docker transport, logging, and the shared deadline out of the example
+# workflow below. Every call still maps directly to one `docker exec ... sw-cli`.
+run_cli() {
+    local remaining=$((deadline - SECONDS))
+    local -a pipeline_status
+    if [ "${remaining}" -le 0 ]; then
+        echo "SOLIDWORKS export smoke test timed out after ${export_timeout} seconds" >&2
+        return 1
+    fi
+
+    set +e
+    timeout --foreground "${remaining}" \
+        docker exec "${smoke_container}" sw-cli "$@" 2>&1 \
+        | tee -a "${log_file}"
+    pipeline_status=("${PIPESTATUS[@]}")
+    set -e
+
+    if [ "${pipeline_status[1]}" -ne 0 ]; then
+        echo "Failed to write SOLIDWORKS export log" >&2
+        return 1
+    fi
+    case "${pipeline_status[0]}" in
+        0)
+            ;;
+        124)
+            echo "SOLIDWORKS export smoke test timed out after ${export_timeout} seconds" >&2
+            return 1
+            ;;
+        *)
+            echo "sw-cli failed with status ${pipeline_status[0]}: $*" >&2
+            return 1
+            ;;
+    esac
+}
+
+# The export workflow is deliberately explicit so downstream CI users can copy
+# it and replace only the source/output paths.
+
+# Drawing: export one PDF and one DWG, then discard SOLIDWORKS' dirty flag.
+document_open=true
+run_cli document open \
+    "${workspace}/Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/bezel moldbase.slddrw" --json
+run_cli document export "${outdir}/bezel moldbase.PDF" --json
+run_cli document export "${outdir}/bezel moldbase.DWG" --allow-source-dirty --json
+run_cli document close --discard --json
 document_open=false
 
-cleanup_document() {
-    if [ "${document_open}" = true ]; then
-        sw-cli document close --discard --json >/dev/null 2>&1 || true
-    fi
-}
-trap cleanup_document EXIT
+# Assembly: export one neutral STEP artifact.
+document_open=true
+run_cli document open \
+    "${workspace}/Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/bezel moldbase.sldasm" --json
+run_cli document export "${outdir}/bezel moldbase.STEP" --json
+run_cli document close --discard --json
+document_open=false
 
-export_document() {
-    local source="$1"
-    shift
-    sw-cli document open "${workspace}/${source}" --json
-    document_open=true
-    local output
-    for output in "$@"; do
-        export_args=(document export "${outdir}/${output}" --json)
-        if [[ "${output,,}" == *.dwg ]]; then
-            export_args+=(--allow-source-dirty)
-        fi
-        sw-cli "${export_args[@]}"
-    done
-    sw-cli document close --discard --json
-    document_open=false
-}
+# Drawing: the DWG exporter may set the source dirty flag without saving it.
+document_open=true
+run_cli document open \
+    "${workspace}/users/Public/Documents/SOLIDWORKS/SOLIDWORKS 2025/samples/introsw/cabinet_bath.slddrw" --json
+run_cli document export "${outdir}/cabinet_bath.PDF" --json
+run_cli document export "${outdir}/cabinet_bath.DWG" --allow-source-dirty --json
+run_cli document close --discard --json
+document_open=false
 
-export_document \
-    'Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/bezel moldbase.slddrw' \
-    'bezel moldbase.PDF' 'bezel moldbase.DWG'
-export_document \
-    'Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/bezel moldbase.sldasm' \
-    'bezel moldbase.STEP'
-export_document \
-    'users/Public/Documents/SOLIDWORKS/SOLIDWORKS 2025/samples/introsw/cabinet_bath.slddrw' \
-    'cabinet_bath.PDF' 'cabinet_bath.DWG'
-export_document \
-    'users/Public/Documents/SOLIDWORKS/SOLIDWORKS 2025/samples/learn/Paper Airplane.SLDPRT' \
-    'Paper Airplane.STEP'
-
-swclid stop --json
-EXPORT_SCRIPT
-export_status=${PIPESTATUS[0]}
-set -e
-
-case "${export_status}" in
-    0)
-        ;;
-    124)
-        echo "SOLIDWORKS export smoke test timed out after ${export_timeout} seconds" >&2
-        exit 1
-        ;;
-    *)
-        echo "SOLIDWORKS export smoke test failed with status ${export_status}" >&2
-        exit 1
-        ;;
-esac
+# Part: export one neutral STEP artifact.
+document_open=true
+run_cli document open \
+    "${workspace}/users/Public/Documents/SOLIDWORKS/SOLIDWORKS 2025/samples/learn/Paper Airplane.SLDPRT" --json
+run_cli document export "${outdir}/Paper Airplane.STEP" --json
+run_cli document close --discard --json
+document_open=false
 
 expected_outputs=(
     "bezel moldbase.PDF"
