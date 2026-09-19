@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from typing import Any, Dict, Optional, Sequence
 
+from swcli.hosts.windows import wait_windows_host_ready
 from swcli.utils.export import batch_export_windows
 
 
 PROG_ID = "SldWorks.Application"
+DEFAULT_STARTUP_TIMEOUT_SECONDS = 120.0
 
 
 def _error(exc: BaseException) -> Dict[str, str]:
@@ -73,7 +76,31 @@ def run_export(args: argparse.Namespace) -> Dict[str, Any]:
             app = win32com.client.DispatchEx(PROG_ID)
             app.UserControl = False
             app.Visible = False
-            result["host"] = {"ok": True, "started": True, "com": _describe_app(app)}
+            startup_timeout = float(
+                os.environ.get(
+                    "SWCLI_HOST_START_TIMEOUT", DEFAULT_STARTUP_TIMEOUT_SECONDS
+                )
+            )
+            print(
+                "[DockerSW] Waiting for SOLIDWORKS startup to complete...",
+                file=sys.stderr,
+                flush=True,
+            )
+            startup_wait_seconds = wait_windows_host_ready(
+                app, timeout_seconds=startup_timeout
+            )
+            print(
+                f"[DockerSW] SOLIDWORKS startup is ready "
+                f"({startup_wait_seconds:.1f}s).",
+                file=sys.stderr,
+                flush=True,
+            )
+            result["host"] = {
+                "ok": True,
+                "started": True,
+                "startup_wait_seconds": startup_wait_seconds,
+                "com": _describe_app(app),
+            }
         except Exception as exc:
             result["host"] = {"ok": False, "started": False, "error": _error(exc)}
             result["error"] = {

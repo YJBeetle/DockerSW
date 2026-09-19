@@ -121,6 +121,7 @@
    - DockerSW 仅把 Linux 路径转换为 Wine Windows 路径，并提供容器生命周期适配；
 3. **Wine COM worker**：
    - 使用 `win32com.client.DispatchEx("SldWorks.Application")` 获取 DockerSW 独占实例，规避 Wine 下 `GetActiveObject` 对直接启动进程的不可靠行为；
+   - 按官方 `StartupProcessCompleted` 状态等待启动加载完成，再调用 `OpenDoc6`，避免 Wine 下 COM 已返回但启动插件尚未就绪的竞态；等待默认最多 120 秒，可由 `SWCLI_HOST_START_TIMEOUT` 调整；
    - 强制设置 `UserControl = False` 与 `Visible = False`；
    - 在同一个 Windows Python 进程内把实例绑定给 SWCLI typed operations；
    - 仅当无活动文档残留时调用 `ExitApp()`，关闭失败会让整个任务失败；

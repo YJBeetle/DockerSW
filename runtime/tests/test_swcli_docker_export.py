@@ -30,6 +30,7 @@ class DockerExportRunnerTests(unittest.TestCase):
         app.RevisionNumber = "33.5"
         app.GetProcessID = 123
         app.Visible = False
+        app.StartupProcessCompleted = True
         exit_app = mock.Mock()
         app.ExitApp = lambda: exit_app()
         fake_client = types.ModuleType("win32com.client")

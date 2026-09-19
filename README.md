@@ -276,6 +276,10 @@ docker run --rm \
   ghcr.io/yjbeetle/sw-executable:latest
 ```
 
+`sw-export` 通过 `DispatchEx` 创建独占 SOLIDWORKS 实例后，会等待官方
+`StartupProcessCompleted` 状态再打开首个文档。默认启动等待上限为 120 秒，可通过
+`SWCLI_HOST_START_TIMEOUT` 调整；该上限独立于完整导出任务的 CI 超时。
+
 ### 许可服务配置 (License)
 
 | 环境变量 | 默认值 | 说明 |
