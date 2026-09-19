@@ -60,6 +60,7 @@ class DockerExportRunnerTests(unittest.TestCase):
             workspace="C:\\workspace",
             outdir="C:\\output",
             overwrite=False,
+            app=app,
         )
         exit_app.assert_called_once_with()
         fake_pythoncom.CoInitialize.assert_called_once_with()

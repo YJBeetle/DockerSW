@@ -67,7 +67,6 @@ def run_export(args: argparse.Namespace) -> Dict[str, Any]:
 
     pythoncom.CoInitialize()
     app = None
-    original_get_active_object = win32com.client.GetActiveObject
     try:
         try:
             # Wine does not reliably publish a directly launched LocalServer32
@@ -109,15 +108,12 @@ def run_export(args: argparse.Namespace) -> Dict[str, Any]:
             }
             return result
 
-        # Typed SWCLI operations deliberately attach through GetActiveObject.
-        # Keep that core policy intact while binding all calls in this Wine worker
-        # to the single DispatchEx-owned instance above.
-        win32com.client.GetActiveObject = lambda prog_id: app
         batch = batch_export_windows(
             args.manifest,
             workspace=args.workspace,
             outdir=args.outdir,
             overwrite=args.overwrite,
+            app=app,
         )
         result["batch"] = batch
         result["ok"] = bool(batch.get("ok"))
@@ -127,7 +123,6 @@ def run_export(args: argparse.Namespace) -> Dict[str, Any]:
                 "message": "SWCLI batch export failed",
             }
     finally:
-        win32com.client.GetActiveObject = original_get_active_object
         if app is not None:
             try:
                 if _com_value(app, "ActiveDoc") is not None:
