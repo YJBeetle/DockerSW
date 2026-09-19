@@ -74,15 +74,19 @@
 2. **Xvfb 无头显示守护**：
    - 检测并拉起 `Xvfb ${DISPLAY:-:99} -screen 0 1024x768x24 -ac +extension GLX +render -noreset`；
    - 保证 Wine COM 体系与 SOLIDWORKS 宿主窗口消息泵具备合法的图形显示后端；
-3. **Wine-Mono 与托管 COM 运行时支持**：
+3. **可选 VNC 人类监看层**：
+   - 默认不启动；设置 `VNC_ENABLE=true` 后，由 entrypoint 在现有 Xvfb 桌面上启动 Openbox 与 x11vnc；
+   - `VNC_VIEW_ONLY=true` 默认为只读监看，不改变 SWCLI、COM 或导出行为；显式关闭后才接受远程键盘和鼠标输入；
+   - 未设置 `VNC_PASSWORD` 时发出安全警告，推荐只向宿主机回环地址发布 VNC 端口；
+4. **Wine-Mono 与托管 COM 运行时支持**：
    - 校验 Wine-Mono 并在全新前缀初始化时自动完成静默配置；
    - 执行 `prepare_managed_com.sh`，确保 x86/x64 托管 RegAsm、`RegistrationServices` 与 `stdole` 正确注册，消除 .NET 插件加载时的 COM 错误；
-4. **统一原生预装模型**：
+5. **统一原生预装模型**：
    - 彻底摒弃容易缺失注册表与 COM 组件的免安装目录挂载机制；所有环境均基于 `sw-install` 进行 100% 完整原版无人值守安装，主程序严格位于虚拟 C 盘（`drive_c/Program Files/SOLIDWORKS`），保证 COM 类映射与注册表完整可用；
-5. **许可服务智能判定与开关（私有环境专有配置）**：
+6. **许可服务智能判定与开关（私有环境专有配置）**：
    - **远程网络许可模式（推荐）**：在私有镜像构建期固化或私有 CI 运行时注入环境变量 `SW_LICENSE_SERVER`（如 `25734@10.0.0.1`），容器自动注入 `FLEXlm License Manager` 与系统环境变量，无需在容器内跑常驻许可进程；
    - **本地自启许可模式（按需）**：在私有构建期内置或运行时挂载到 `SW_FLEXNET_DIR`（默认 `/opt/SolidWorks_Flexnet_Server`），只要目录下存在 `lmgrd.exe` 与许可文件即自动在后台拉起守护并等待端口就绪；
-6. **命令生命周期与构建支持**：
+7. **命令生命周期与构建支持**：
    - 支持 `--init-only` 参数，在 Docker 构建期刷新并持久化 Wine 注册表后干净退出；
    - 支持透明传递任意执行命令（如 `sw-export`、`sw-install` 或 `bash`）。
 
@@ -133,7 +137,7 @@
 
 ### 3.4 交互式图形能力
 
-当前重构只保留 SOLIDWORKS COM 与渲染所需的 Xvfb，不再发布依赖旧 `sw-daemon` 的 `sw-vnc` 命令。后续交互式桌面应作为独立 DockerSW 适配器重新接入，并复用 SWCLI 的 host 生命周期，不把 VNC 或进程监督逻辑塞回 SWCLI 核心。
+DockerSW 保留不依赖旧 `sw-daemon` 的人类监看能力。设置 `VNC_ENABLE=true` 后，容器入口会为现有 Xvfb 桌面启动 Openbox 与 x11vnc；默认 `VNC_VIEW_ONLY=true`，因此远程客户端只能观察 SOLIDWORKS 窗口。该能力只属于 Docker/Wine 运行环境，不进入 SWCLI，也不参与 SOLIDWORKS COM 生命周期。
 
 ---
 

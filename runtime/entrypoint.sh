@@ -6,11 +6,39 @@ export WINEPREFIX="${WINEPREFIX:-/root/.wine}"
 export WINEDEBUG="${WINEDEBUG:--all}"
 export DISPLAY="${DISPLAY:-:99}"
 export DISPLAY_RESOLUTION="${DISPLAY_RESOLUTION:-1920x1080}"
+export VNC_ENABLE="${VNC_ENABLE:-false}"
+export VNC_VIEW_ONLY="${VNC_VIEW_ONLY:-true}"
+export VNC_PORT="${VNC_PORT:-5900}"
+export VNC_LISTEN="${VNC_LISTEN:-0.0.0.0}"
+VNC_PASSWORD="${VNC_PASSWORD:-}"
 
 export SW_FLEXNET_DIR="${SW_FLEXNET_DIR:-/opt/SolidWorks_Flexnet_Server}"
 export SW_LICENSE_SERVER="${SW_LICENSE_SERVER:-}"
 
 export WINEDLLOVERRIDES="concrt140=n,b;msvcp140=n,b;msvcp140_1=n,b;msvcp140_2=n,b;msvcp140_atomic_wait=n,b;msvcp140_codecvt_ids=n,b;vcruntime140=n,b;vcruntime140_1=n,b;vcomp140=n,b;mfc140u=n,b;d3dcompiler_47=n,b;d3d11=n,b;dxgi=n,b"
+
+is_enabled() {
+    case "${1,,}" in
+        1|true|yes|on) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+is_disabled() {
+    case "${1,,}" in
+        0|false|no|off) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+require_boolean() {
+    local name="$1"
+    local value="$2"
+    if ! is_enabled "${value}" && ! is_disabled "${value}"; then
+        echo "[DockerSW][ERROR] ${name} 必须是 true/false、1/0、yes/no 或 on/off，当前值: ${value}" >&2
+        exit 1
+    fi
+}
 
 echo "========================================================="
 echo "  DockerSW Headless Container (Wine SolidWorks Runtime)  "
@@ -86,7 +114,57 @@ if [ "${1:-}" = "--init-only" ]; then
     exit 0
 fi
 
-# 6. 许可服务器配置与管理（运行时）
+# 6. 可选的人类 VNC 监看层。它只发布现有 Xvfb 桌面，不参与 SWCLI 或 COM 生命周期。
+require_boolean "VNC_ENABLE" "${VNC_ENABLE}"
+if is_enabled "${VNC_ENABLE}"; then
+    require_boolean "VNC_VIEW_ONLY" "${VNC_VIEW_ONLY}"
+    if ! [[ "${VNC_PORT}" =~ ^[0-9]+$ ]] || [ "${VNC_PORT}" -lt 1 ] || [ "${VNC_PORT}" -gt 65535 ]; then
+        echo "[DockerSW][ERROR] VNC_PORT 必须是 1-65535 之间的整数，当前值: ${VNC_PORT}" >&2
+        exit 1
+    fi
+
+    echo "[DockerSW] 正在为 ${DISPLAY} 启动 Openbox 窗口管理器..."
+    openbox --sm-disable >/tmp/openbox.log 2>&1 &
+    OPENBOX_PID=$!
+    sleep 0.2
+    if ! kill -0 "${OPENBOX_PID}" 2>/dev/null; then
+        echo "[DockerSW][ERROR] Openbox 启动失败，请检查 /tmp/openbox.log" >&2
+        exit 1
+    fi
+
+    VNC_ARGS=(
+        -display "${DISPLAY}"
+        -forever
+        -shared
+        -rfbport "${VNC_PORT}"
+        -listen "${VNC_LISTEN}"
+        -o /tmp/x11vnc.log
+    )
+    if is_enabled "${VNC_VIEW_ONLY}"; then
+        VNC_ARGS+=(-viewonly)
+    fi
+    if [ -n "${VNC_PASSWORD}" ]; then
+        VNC_PASSWORD_FILE=/tmp/x11vnc.pass
+        umask 077
+        x11vnc -storepasswd "${VNC_PASSWORD}" "${VNC_PASSWORD_FILE}" >/dev/null
+        VNC_ARGS+=(-rfbauth "${VNC_PASSWORD_FILE}")
+    else
+        VNC_ARGS+=(-nopw)
+        echo "[DockerSW][WARN] VNC 未配置密码；请仅将端口发布到可信网络（建议 127.0.0.1）。" >&2
+    fi
+
+    echo "[DockerSW] 正在启动 VNC 监看 (${VNC_LISTEN}:${VNC_PORT}, view-only=${VNC_VIEW_ONLY})..."
+    x11vnc "${VNC_ARGS[@]}" >/dev/null 2>&1 &
+    VNC_PID=$!
+    sleep 0.2
+    if ! kill -0 "${VNC_PID}" 2>/dev/null; then
+        echo "[DockerSW][ERROR] x11vnc 启动失败，请检查 /tmp/x11vnc.log" >&2
+        exit 1
+    fi
+    echo "[DockerSW] VNC 监看已就绪 (PID: ${VNC_PID})"
+fi
+
+# 7. 许可服务器配置与管理（运行时）
 configure_license_server() {
     local address="$1"
     wine reg add 'HKLM\SOFTWARE\FLEXlm License Manager' /v SW_D_LICENSE_FILE /t REG_SZ /d "${address}" /f >/dev/null
@@ -138,7 +216,7 @@ else
     echo "[DockerSW][WARN] 未配置 SW_LICENSE_SERVER，且未检测到本地许可服务"
 fi
 
-# 7. 执行传入命令或进入交互终端
+# 8. 执行传入命令或进入交互终端
 if [ "$#" -gt 0 ]; then
     echo "[DockerSW] 执行指令: $@"
     exec "$@"

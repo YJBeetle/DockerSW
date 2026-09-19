@@ -204,6 +204,20 @@ class InstallScriptValidationTests(unittest.TestCase):
         self.assertIn("regasm-x86.exe", prepare)
         self.assertIn("regasm-x86_64.exe", prepare)
 
+    def test_optional_vnc_monitoring_is_owned_by_the_runtime_entrypoint(self) -> None:
+        dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(encoding="utf-8")
+        entrypoint = (RUNTIME_ROOT / "entrypoint.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("        openbox \\\n", dockerfile)
+        self.assertIn("        x11vnc \\\n", dockerfile)
+        self.assertIn('export VNC_ENABLE="${VNC_ENABLE:-false}"', entrypoint)
+        self.assertIn('export VNC_VIEW_ONLY="${VNC_VIEW_ONLY:-true}"', entrypoint)
+        self.assertIn('if is_enabled "${VNC_ENABLE}"; then', entrypoint)
+        self.assertIn('VNC_ARGS+=(-viewonly)', entrypoint)
+        self.assertIn('x11vnc "${VNC_ARGS[@]}"', entrypoint)
+
     def test_serial_number_cli_and_msi_properties(self) -> None:
         script = INSTALLER.read_text(encoding="utf-8")
         self.assertIn("--serial-solidworks", script)

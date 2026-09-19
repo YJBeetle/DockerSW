@@ -22,6 +22,8 @@ RUN dpkg --add-architecture i386 && \
         wget \
         gnupg \
         xvfb \
+        openbox \
+        x11vnc \
         libgl1-mesa-dri \
         mesa-utils \
         cabextract \

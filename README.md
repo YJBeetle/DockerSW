@@ -257,6 +257,25 @@ export_cad_assets:
 | `DISPLAY_RESOLUTION` | `1920x1080` | Xvfb 虚拟屏幕分辨率（形如 `1920x1080`、`2560x1440`） |
 | `DISPLAY` | `:99` | 容器内 Xvfb 托管的虚拟屏幕编号 |
 
+### VNC 人类监看
+
+| 环境变量 | 默认值 | 说明 |
+|---|---|---|
+| `VNC_ENABLE` | `false` | 设为 `true` 时，在现有 Xvfb 桌面上启动 Openbox 与 x11vnc |
+| `VNC_VIEW_ONLY` | `true` | 只允许观看；设为 `false` 后允许远程键盘和鼠标输入，可能干扰自动化 |
+| `VNC_PORT` | `5900` | x11vnc 监听端口 |
+| `VNC_LISTEN` | `0.0.0.0` | x11vnc 在容器内的监听地址 |
+| `VNC_PASSWORD` | 空 | 可选 VNC 密码；留空时会打印安全警告 |
+
+默认不会启动 VNC。仅本机监看时，建议通过 `-p 127.0.0.1:5900:5900` 发布端口：
+
+```bash
+docker run --rm \
+  -e VNC_ENABLE=true \
+  -p 127.0.0.1:5900:5900 \
+  ghcr.io/yjbeetle/sw-executable:latest
+```
+
 ### 许可服务配置 (License)
 
 | 环境变量 | 默认值 | 说明 |
