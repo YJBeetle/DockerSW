@@ -127,7 +127,7 @@ docker build -t sw-preinstalled preinstall
 本项目提供完整的 GitHub Actions 单一持续集成流水线配置 [`.github/workflows/build.yml`](.github/workflows/build.yml)，实现原生 DAG 依赖与零多余网络开销的自动化交付：
 
 1. **`unit-tests`**：递归检出固定 SWCLI submodule，校验 Docker 适配器与安装脚本；
-2. **`build-runtime`**：构建公开通用基础运行时 `ghcr.io/yjbeetle/sw-runtime`，把固定 SWCLI 安装到 Wine Windows Python，并验证其版本入口；
+2. **`build-runtime`**：构建公开通用基础运行时 `ghcr.io/yjbeetle/sw-runtime`，让 Linux Python 运行 SWCLI 客户端、Wine Windows Python 运行 `swclid`/COM worker，并验证两侧入口；
 3. **`build-and-smoke-test`**：
    - 挂载 Google Drive，通过 `rclone` 开启 VFS 缓存稀疏读取官方 ISO；
    - 执行无人值守安装生成 `sw-preinstalled`；
@@ -203,7 +203,9 @@ docker run --rm \
 
 ### 3. 使用 SWCLI 建模与检查
 
-DockerSW 镜像把仓库固定的 SWCLI 安装在 Wine Windows Python 中，并提供同名 Linux 薄入口。DockerSW 只转换路径并启动 Wine 进程；命令语义、COM 类型处理、验证和 JSON 结果均来自 SWCLI。
+DockerSW 镜像使用 Linux Python 运行 `sw-cli` 协议客户端，只在 Wine Windows
+Python 中运行 `swclid` 与 COM worker。Linux 薄入口负责路径转换和按需启动
+daemon；命令语义、COM 类型处理、验证和 JSON 结果均来自同一份 SWCLI 源码。
 
 ```bash
 sw-cli version --json

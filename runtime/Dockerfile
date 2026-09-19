@@ -71,8 +71,8 @@ RUN --mount=type=bind,source=runtime/fetch_managed_com.sh,target=/mnt/runtime/fe
     bash /mnt/runtime/init_wineprefix.sh && \
     rm -rf /tmp/* /root/.cache/*
 
-# 5. 将仓库固定的 SWCLI submodule 安装到 Wine Windows Python。
-# DockerSW 只提供 Linux/Wine 适配；建模与导出行为由 SWCLI 自身拥有。
+# 5. 复制仓库固定的 SWCLI submodule：Linux Python 直接从 src 运行纯客户端，
+# Wine Windows Python 安装同一份源码以运行 swclid/COM worker。
 COPY SWCLI/ /opt/swcli/
 RUN wine "C:\\Python311\\python.exe" -m pip install \
         --no-cache-dir --no-deps --no-build-isolation "Z:\\opt\\swcli" && \

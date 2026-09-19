@@ -2,13 +2,16 @@
 
 swclid_configure() {
     WIN_PYTHON="${SWCLI_WINDOWS_PYTHON:-C:\\Python311\\python.exe}"
+    SWCLI_SOURCE="${SWCLI_SOURCE:-/opt/swcli/src}"
     SWCLI_ENDPOINT="${SWCLI_ENDPOINT:-127.0.0.1:18495}"
     SWCLID_LOG="${SWCLID_LOG:-/tmp/swclid.log}"
     SWCLID_START_TIMEOUT="${SWCLID_START_TIMEOUT:-${SWCLI_HOST_START_TIMEOUT:-120}}"
+    PYTHONPATH="${SWCLI_SOURCE}${PYTHONPATH:+:${PYTHONPATH}}"
+    export PYTHONPATH
 }
 
 swclid_ready() {
-    wine "${WIN_PYTHON}" -m swcli.daemon status \
+    python3 -m swcli.daemon status \
         --endpoint "${SWCLI_ENDPOINT}" --json >/dev/null 2>&1
 }
 

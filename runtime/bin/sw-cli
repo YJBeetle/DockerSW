@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# DockerSW only adapts Linux container paths/processes. The actual CLI runs in
-# the Wine Windows Python environment where SOLIDWORKS COM is registered.
+# The protocol client runs in Linux Python. Only explicit host diagnostics and
+# swclid's COM worker run in the Wine Windows Python environment.
 WIN_PYTHON="${SWCLI_WINDOWS_PYTHON:-C:\\Python311\\python.exe}"
 ARGS=("$@")
 SWCLID_HELPER="${SWCLID_HELPER:-/opt/sw-runtime/scripts/lib/swclid.sh}"
@@ -34,30 +34,19 @@ if [ "${#ARGS[@]}" -ge 2 ]; then
         "document open"|"document render"|"document export"|"part create-box")
             translate_positional_path 2
             ;;
-        "batch export")
-            for ((index = 2; index < ${#ARGS[@]}; index++)); do
-                case "${ARGS[${index}]}" in
-                    --list|--workspace|--outdir)
-                        next=$((index + 1))
-                        if [ "${#ARGS[@]}" -le "${next}" ]; then
-                            echo "sw-cli: ${ARGS[${index}]} requires a path" >&2
-                            exit 2
-                        fi
-                        ARGS[${next}]="$(to_windows_path "${ARGS[${next}]}")"
-                        index="${next}"
-                        ;;
-                esac
-            done
-            ;;
     esac
 fi
 
 if [ "${#ARGS[@]}" -gt 0 ]; then
     case "${ARGS[0]}" in
-        document|part|batch)
+        document|part)
             swclid_ensure
             ;;
     esac
 fi
 
-exec wine "${WIN_PYTHON}" -m swcli "${ARGS[@]}"
+if [ "${#ARGS[@]}" -gt 0 ] && [ "${ARGS[0]}" = "host" ]; then
+    exec wine "${WIN_PYTHON}" -m swcli "${ARGS[@]}"
+fi
+
+exec python3 -m swcli "${ARGS[@]}"

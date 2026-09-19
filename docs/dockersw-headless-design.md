@@ -26,8 +26,8 @@
 │  │  ├─ Wine-Mono 11.3.0 (集成托管 COM、stdcall 与 CCW 断言修复补丁)   │  │
 │  │  ├─ Windows Python 3.11 + pywin32 运行时                          │  │
 │  │  ├─ sw-install：官方介质校验、静默安装与 MSI COM 注册验证工具       │  │
-│  │  ├─ SWCLI：固定 submodule 版本，安装于 Wine Windows Python       │  │
-│  │  ├─ sw-cli：Linux 路径/进程薄适配，typed 建模命令来自 SWCLI       │  │
+│  │  ├─ SWCLI：固定 submodule，Linux client + Wine Windows host     │  │
+│  │  ├─ sw-cli：Linux Python 协议客户端与路径/daemon 薄适配          │  │
 │  │  └─ sw-export：调用 swcli.utils.export 的批量导出适配器           │  │
 │  │  ※ 纯净底座：不含商业软件实体、不预设许可、不预设 EULA              │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
