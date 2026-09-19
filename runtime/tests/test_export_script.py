@@ -7,14 +7,13 @@ from pathlib import Path
 
 RUNTIME_ROOT = Path(__file__).resolve().parents[1]
 SWCLI_SCRIPT = RUNTIME_ROOT / "bin" / "sw-cli"
-EXPORT_SCRIPT = RUNTIME_ROOT / "bin" / "sw-export"
 DAEMON_SCRIPT = RUNTIME_ROOT / "bin" / "swclid"
 DAEMON_HELPER = RUNTIME_ROOT / "scripts" / "lib" / "swclid.sh"
 
 
-class ExportWrapperTests(unittest.TestCase):
+class RuntimeWrapperTests(unittest.TestCase):
     def test_scripts_are_executable_and_valid_bash(self):
-        for script in (SWCLI_SCRIPT, EXPORT_SCRIPT, DAEMON_SCRIPT):
+        for script in (SWCLI_SCRIPT, DAEMON_SCRIPT):
             self.assertTrue(os.access(script, os.X_OK), f"not executable: {script}")
             result = subprocess.run(
                 ["bash", "-n", str(script)], capture_output=True, text=True
@@ -43,33 +42,13 @@ class ExportWrapperTests(unittest.TestCase):
             invocation,
         )
 
-    def test_sw_export_translates_manifest_paths_and_calls_daemon_client(self):
-        invocation = self._run_with_fake_wine(
-            EXPORT_SCRIPT,
-            [
-                "--list",
-                "/workspace/list.txt",
-                "--workspace",
-                "/workspace",
-                "--outdir",
-                "/workspace/out",
-                "--overwrite",
-            ],
-        )
-        self.assertIn("-m swcli.utils.export", invocation)
-        self.assertIn("--list W:/workspace/list.txt", invocation)
-        self.assertIn("--workspace W:/workspace", invocation)
-        self.assertIn("--outdir W:/workspace/out", invocation)
-        self.assertIn("--overwrite", invocation)
-
-    def test_sw_export_uses_resident_daemon(self):
-        script = EXPORT_SCRIPT.read_text(encoding="utf-8")
+    def test_typed_cli_uses_resident_daemon(self):
+        script = SWCLI_SCRIPT.read_text(encoding="utf-8")
         helper = DAEMON_HELPER.read_text(encoding="utf-8")
         self.assertIn("swclid_ensure", script)
         self.assertIn("python3 -m swcli.daemon status", helper)
         self.assertIn("-m swcli.daemon serve", helper)
         self.assertIn("SWCLI_ENDPOINT", helper)
-        self.assertNotIn("swcli_docker_export.py", script)
 
     def test_swclid_marks_docker_host_as_linux_wine(self):
         invocation = self._run_with_fake_wine(

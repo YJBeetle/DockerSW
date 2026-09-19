@@ -221,6 +221,6 @@ if [ "$#" -gt 0 ]; then
     echo "[DockerSW] 执行指令: $@"
     exec "$@"
 else
-    echo "[DockerSW] 容器就绪。使用 'sw-cli' 建模，或使用 'sw-export' 批量导出。"
+    echo "[DockerSW] 容器就绪。使用 'sw-cli' 执行建模、检查与导出。"
     exec /bin/bash
 fi

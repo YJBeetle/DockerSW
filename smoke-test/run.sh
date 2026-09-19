@@ -6,11 +6,10 @@ set -Eeuo pipefail
 SMOKE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ASSETS_DIR="${SMOKE_DIR}/assets"
 
-smoke_container="sw-export-smoke-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}"
-smoke_root="${RUNNER_TEMP:-${PWD}/.ci-logs}/sw-export-smoke"
-manifest="${smoke_root}/export-list.txt"
+smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}"
+smoke_root="${RUNNER_TEMP:-${PWD}/.ci-logs}/sw-cli-export-smoke"
 output_dir="${smoke_root}/output"
-log_file="${smoke_root}/sw-export.log"
+log_file="${smoke_root}/sw-cli-export.log"
 export_timeout="${SW_EXPORT_TIMEOUT:-600}"
 
 cleanup() {
@@ -21,32 +20,82 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# 准备导出测试清单与目录
+# 准备导出目录。转换策略只有这一个 CI 消费者，因此直接写在本脚本中。
 umask 077
 rm -rf "${smoke_root}"
 mkdir -p "${output_dir}"
-cat > "${manifest}" <<'EOF'
-Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/bezel moldbase.slddrw
-Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/bezel moldbase.sldasm
-users/Public/Documents/SOLIDWORKS/SOLIDWORKS 2025/samples/introsw/cabinet_bath.slddrw
-users/Public/Documents/SOLIDWORKS/SOLIDWORKS 2025/samples/learn/Paper Airplane.SLDPRT
-EOF
 
 echo "[Smoke Test] Creating test container from ${SW_IMAGE}..."
 docker create \
     --name "${smoke_container}" \
     --mount "type=bind,source=${smoke_root},target=/ci-smoke" \
     "${SW_IMAGE}" \
-    sw-export \
-        --list /ci-smoke/export-list.txt \
-        --workspace /root/.wine/drive_c \
-        --outdir /ci-smoke/output \
+    bash -lc 'touch /tmp/dockersw-container-ready; exec sleep infinity' \
     >/dev/null
+
+docker start "${smoke_container}" >/dev/null
+for _ in {1..60}; do
+    if docker exec "${smoke_container}" \
+        test -f /tmp/dockersw-container-ready >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
+if ! docker exec "${smoke_container}" \
+    test -f /tmp/dockersw-container-ready >/dev/null 2>&1; then
+    echo "DockerSW container did not become ready" >&2
+    exit 1
+fi
 
 set +e
 timeout --foreground "${export_timeout}" \
-    docker start --attach "${smoke_container}" 2>&1 \
+    docker exec -i "${smoke_container}" bash -s 2>&1 <<'EXPORT_SCRIPT' \
     | tee "${log_file}"
+set -Eeuo pipefail
+
+workspace=/root/.wine/drive_c
+outdir=/ci-smoke/output
+document_open=false
+
+cleanup_document() {
+    if [ "${document_open}" = true ]; then
+        sw-cli document close --discard --json >/dev/null 2>&1 || true
+    fi
+}
+trap cleanup_document EXIT
+
+export_document() {
+    local source="$1"
+    shift
+    sw-cli document open "${workspace}/${source}" --json
+    document_open=true
+    local output
+    for output in "$@"; do
+        export_args=(document export "${outdir}/${output}" --json)
+        if [[ "${output,,}" == *.dwg ]]; then
+            export_args+=(--allow-source-modification)
+        fi
+        sw-cli "${export_args[@]}"
+    done
+    sw-cli document close --discard --json
+    document_open=false
+}
+
+export_document \
+    'Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/bezel moldbase.slddrw' \
+    'bezel moldbase.PDF' 'bezel moldbase.DWG'
+export_document \
+    'Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/bezel moldbase.sldasm' \
+    'bezel moldbase.STEP'
+export_document \
+    'users/Public/Documents/SOLIDWORKS/SOLIDWORKS 2025/samples/introsw/cabinet_bath.slddrw' \
+    'cabinet_bath.PDF' 'cabinet_bath.DWG'
+export_document \
+    'users/Public/Documents/SOLIDWORKS/SOLIDWORKS 2025/samples/learn/Paper Airplane.SLDPRT' \
+    'Paper Airplane.STEP'
+
+swclid stop --json
+EXPORT_SCRIPT
 export_status=${PIPESTATUS[0]}
 set -e
 
