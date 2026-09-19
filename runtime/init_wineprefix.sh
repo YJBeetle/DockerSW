@@ -62,7 +62,7 @@ wineserver -w
 
 # 6. 安装 pywin32 并执行注册
 echo "[INFO] 使用 Windows Python 安装 pywin32..."
-wine "C:\\Python311\\python.exe" -m pip install --no-cache-dir --upgrade pip
+wine "C:\\Python311\\python.exe" -m pip install --no-cache-dir --upgrade pip "setuptools>=69"
 wine "C:\\Python311\\python.exe" -m pip install --no-cache-dir pywin32
 wineserver -w
 
@@ -103,4 +103,3 @@ if [ -f "/usr/local/lib/sw-runtime/patch_win32u.pl" ]; then
 fi
 
 echo "[SUCCESS] WinePrefix 与 Windows Python 初始化全部完成！"
-

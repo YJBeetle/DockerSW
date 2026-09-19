@@ -7,7 +7,8 @@
 DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、托管 COM、Windows Python 及无头显示环境，并内置：
 
 - `sw-install`：从用户提供的完整 SOLIDWORKS 安装介质执行静默安装；
-- `sw-export`：通过 SOLIDWORKS COM API 批量导出 CAD 文件。
+- [SWCLI](https://github.com/YJBeetle/SWCLI)：面向 AI 与自动化的 typed SOLIDWORKS 命令行；
+- `sw-export`：由 SWCLI `utils` 提供的 manifest 批量导出工具。
 
 > [!IMPORTANT]
 > 公开镜像 `ghcr.io/yjbeetle/sw-runtime` **不包含** SOLIDWORKS 安装介质、程序文件、序列号、许可文件或许可服务器。使用者必须自行合法取得安装介质，并在自己的私有环境中构建预安装镜像或持久化安装结果。
@@ -24,14 +25,14 @@ DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、�
   - `*.REND.SLDASM` 导出为 `.GLB`；
   - 支持 Linux、Wine Windows、绝对及相对路径。
 - **两种许可接入方式**：优先使用局域网浮动许可服务器，也可按需挂载 `lmgrd.exe` 与许可文件并在容器内启动。
-- **交互式 VNC 图形工作站**：内置 `openbox` 与 `x11vnc`，提供 `sw-vnc` 一键拉起具备 OpenGL 4.5 本地加速的 1080P/2K 远程桌面，Mac 原生屏幕共享直连，支持完整 3D 建模交互与图形化排错。
+- **固定 SWCLI 版本**：DockerSW 以 Git submodule 固定并安装经过真实 Wine/SOLIDWORKS 冒烟验证的 SWCLI 提交；容器只负责路径、进程、许可与显示环境适配。
 
 ## 三阶段对称架构流水线
 
 ```text
 [Stage 1: runtime/] 基础运行环境
 ghcr.io/yjbeetle/sw-runtime:sha-xxxxxxx
-  Ubuntu 22.04 + Wine 11.16 + Wine-Mono 11.3.0 + Python 3.11 + sw-install / sw-export CLI
+  Ubuntu 22.04 + Wine 11.16 + Wine-Mono 11.3.0 + Python 3.11 + sw-install + SWCLI
           │
           │ 挂载官方 ISO 介质执行无人值守安装 (build.yml 连续流水线)
           ▼
@@ -125,8 +126,8 @@ docker build -t sw-preinstalled preinstall
 
 本项目提供完整的 GitHub Actions 单一持续集成流水线配置 [`.github/workflows/build.yml`](.github/workflows/build.yml)，实现原生 DAG 依赖与零多余网络开销的自动化交付：
 
-1. **`unit-tests`**：自动校验所有 Shell 脚本语法与 Python COM 导出解析器单测；
-2. **`build-runtime`**：构建公开通用基础运行时 `ghcr.io/yjbeetle/sw-runtime`，验证 Wine、Wine-Mono、托管 COM 及 Windows Python 环境；
+1. **`unit-tests`**：递归检出固定 SWCLI submodule，校验 Docker 适配器与安装脚本；
+2. **`build-runtime`**：构建公开通用基础运行时 `ghcr.io/yjbeetle/sw-runtime`，把固定 SWCLI 安装到 Wine Windows Python，并验证其版本入口；
 3. **`build-and-smoke-test`**：
    - 挂载 Google Drive，通过 `rclone` 开启 VFS 缓存稀疏读取官方 ISO；
    - 执行无人值守安装生成 `sw-preinstalled`；
@@ -200,93 +201,29 @@ docker run --rm \
   sw-export --list list.txt --workspace /workspace --outdir /workspace/dist
 ```
 
-### 3. 交互式 VNC 远程图形操作 (`sw-vnc`)
+### 3. 使用 SWCLI 建模与检查
 
-镜像内置了完整的 Xvfb (OpenGL 4.5)、`openbox` 窗口管理器与 `x11vnc` 服务。不仅支持纯无头导出，还可以一键启动远程桌面，在 macOS 或 Windows 上直连进行可视化建模与调试：
-
-```bash
-# 启动可执行镜像进入 VNC 模式（默认端口 5900，支持 -P 或 VNC_PASSWORD 设置密码）
-podman run --rm -it \
-  --net=host \
-  --ipc=host \
-  --security-opt label=disable \
-  -v "$(pwd):/workspace" \
-  ghcr.io/yjbeetle/sw-executable:latest \
-  sw-vnc
-```
-
-在 **macOS 本机** 上无需安装任何第三方客户端，直接在终端执行或 Finder (Cmd+K) 连接：
+DockerSW 镜像把仓库固定的 SWCLI 安装在 Wine Windows Python 中，并提供同名 Linux 薄入口。DockerSW 只转换路径并启动 Wine 进程；命令语义、COM 类型处理、验证和 JSON 结果均来自 SWCLI。
 
 ```bash
-open vnc://<宿主机IP>:5900
+sw-cli version --json
+sw-cli host probe --json
+sw-cli host start --hidden --json
+sw-cli part create-box /workspace/box.SLDPRT \
+  --width-mm 100 --height-mm 50 --depth-mm 20 --json
+sw-cli document inspect --detail structure --json
+sw-cli document diagnose --json
+sw-cli document render /workspace/box.bmp \
+  --view isometric --width 1024 --height 768 --json
+sw-cli document close --json
+sw-cli host stop --json
 ```
 
-即可在 Mac 原生“屏幕共享”中秒开 SOLIDWORKS 3D 界面！若设置了密码输入密码即可连接。
+`sw-cli document export` 是只根据显式输出扩展名工作的原子能力，不解释源文件命名规则。manifest、`.REND.SLDASM -> GLB` 等策略属于 SWCLI 的 `swcli.utils.export` 高层工具，由 `sw-export` 命令暴露。
 
-**常用参数与环境变量**：
+DockerSW 的 `sw-export` 适配器使用 Wine 已验证的 `DispatchEx` 激活路径，在单个 Windows Python worker 中运行 typed batch workflow，并在没有残留活动文档时安全关闭自己创建的 SOLIDWORKS 实例。
 
-```bash
-# 自定义访问密码与 2K 高清分辨率
-sw-vnc --password mypass --resolution 2560x1440
-
-# 启动桌面环境并进入交互式 Bash 终端排错
-sw-vnc --bash
-
-# 仅启动桌面环境 (openbox)，等待远端操作
-sw-vnc --desktop
-```
-
-### 4. 常驻守护进程与 CLI 交互 (`sw-daemon` & `sw-cli`)
-
-为消除 SolidWorks 每次启动 15~30 秒的冷启动耗时，并为自动化脚本与 **AI 编码智能体（Claude / Cursor / Antigravity）** 提供低延迟、结构化感知的交互接口，DockerSW 内置了统一的守护与命令行子系统：
-
-#### 4.1 启动常驻守护服务 (`sw-daemon`)
-
-```bash
-# 1. 启动常驻服务（后台持有 SldWorks.Application 单例，监听 127.0.0.1:18282）
-sw-daemon start
-
-# 2. 启动服务并开启 VNC 监看模式（默认 view-only 只看模式，防止鼠标键盘误触干扰自动化）
-sw-daemon start --vnc
-
-# 3. 启动服务并开启交互式 VNC（允许远程键鼠接管调试）
-sw-daemon start --vnc-interactive
-
-# 4. 检查服务状态与健康指标
-sw-daemon status
-
-# 5. 安全停止守护进程
-sw-daemon stop
-```
-
-#### 4.2 客户端命令与 AI 动态交互 (`sw-cli`)
-
-通过 `sw-cli`，开发者或 AI Agent 可以秒级执行脚本、修改模型、导出纯净视口或抓取屏幕：
-
-```bash
-# 1. 内联执行 Python 表达式（自动注入 swApp）
-sw-cli eval "print('SW Version:', swApp.RevisionNumber())"
-
-# 2. 动态执行本地 Python 脚本（毫秒级响应，无需重启 SW）
-sw-cli run /workspace/my_script.py arg1 arg2 --timeout 60
-
-# 3. 导出当前 3D 模型的纯净画布渲染图（AI 多模态视觉校验首选，无 UI 边框）
-sw-cli canvas /workspace/dist/model_view.png
-
-# 4. 截取当前 X11 整体桌面/窗口（用于特征树报错诊断或 CI 冒烟测试产物归档）
-sw-cli screenshot /workspace/dist/desktop_smoke.png
-
-# 5. 结构化 JSON 模式（供 AI / 上游程序做无损解析）
-sw-cli eval "set_output({'volume': 120.5})" --json
-```
-
-在执行的脚本中，已预注入以下上下文：
-- `swApp`：实时处于就绪状态的 `SldWorks.Application` COM 实例；
-- `args`：CLI 传递的参数列表；
-- `set_output(dict)`：将自定义键值对返回给 CLI / AI（在 `--json` 模式下直接进入 `data` 字段）；
-- `save_canvas(path)`：一键将当前 3D 视口光栅化保存为高质量 PNG。
-
-### 5. CI/CD 流水线集成示例 (GitLab CI)
+### 4. CI/CD 流水线集成示例 (GitLab CI)
 
 在私有 GitLab Runner 中使用 `sw-preinstalled` 镜像批量导出 CAD 产物：
 
@@ -313,15 +250,11 @@ export_cad_assets:
 
 ## 运行时环境变量
 
-### 图形与远程桌面 (Display & VNC)
+### 无头显示 (Display)
 
 | 环境变量 | 默认值 | 说明 |
 |---|---|---|
-| `DISPLAY_RESOLUTION` | `1920x1080` | Xvfb 虚拟屏幕与 VNC 桌面分辨率（形如 `1920x1080`、`2560x1440`） |
-| `VNC_ENABLE` | `false` | 容器/Daemon 启动时是否自动拉起 VNC 监听服务（`sw-vnc` 默认开启） |
-| `VNC_INTERACTIVE` | `false` | 是否允许鼠标键盘交互控制（默认 `false` 为 view-only 监看模式） |
-| `VNC_PORT` | `5900` | x11vnc 监听的 RFB 端口 |
-| `VNC_PASSWORD` | 空 | VNC 访问密码（默认无密码直连；若设置建议 6~8 位） |
+| `DISPLAY_RESOLUTION` | `1920x1080` | Xvfb 虚拟屏幕分辨率（形如 `1920x1080`、`2560x1440`） |
 | `DISPLAY` | `:99` | 容器内 Xvfb 托管的虚拟屏幕编号 |
 
 ### 许可服务配置 (License)
@@ -330,14 +263,6 @@ export_cad_assets:
 |---|---|---|
 | `SW_LICENSE_SERVER` | 空 | 远程 FlexNet 许可服务器（例如 `25734@192.168.1.100`）；配置后优先使用 |
 | `SW_FLEXNET_DIR` | `/opt/SolidWorks_Flexnet_Server` | 本地 FlexNet 服务目录；未配置远程许可且目录下存在 `lmgrd.exe` 时自动拉起本地守护 |
-
-### 后台守护配置 (Daemon)
-
-| 环境变量 | 默认值 | 说明 |
-|---|---|---|
-| `SW_DAEMON_HOST` | `127.0.0.1` | 守护进程 HTTP 监听地址（若作为微服务对外暴露可设为 `0.0.0.0`） |
-| `SW_DAEMON_PORT` | `18282` | 守护进程 HTTP 监听端口 |
-| `SW_DAEMON_TIMEOUT` | `45` | 等待守护进程与 SOLIDWORKS COM 实例就绪的超时时间（秒） |
 
 ## 导出清单
 
@@ -360,7 +285,7 @@ SampleProject/Render/MainAssembly.REND.SLDASM
 python3 -m unittest discover -s runtime/tests -p "test_*.py" -v
 ```
 
-GitHub Actions 会构建真实容器，并校验固定 Wine/Wine-Mono 版本、stdcall 与托管 COM 修复、Windows Python/pywin32、`sw-install` 和 `sw-export`。SOLIDWORKS 与 Login Manager 的实际安装测试需要商业介质，因此应由持有合法介质的私有下游 CI 完成。
+GitHub Actions 会递归检出固定 SWCLI submodule，构建真实容器，并校验固定 Wine/Wine-Mono 版本、stdcall 与托管 COM 修复、Windows Python/pywin32、`sw-install`、`sw-cli` 和 `sw-export`。SOLIDWORKS 与 Login Manager 的实际安装测试需要商业介质，因此应由持有合法介质的私有下游 CI 完成。
 
 当前安装链主要按 SOLIDWORKS 2025 SP5.0 介质验证；其他版本的介质布局、安装属性或 Wine 行为可能不同，不能视为已经兼容。
 

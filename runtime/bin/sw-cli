@@ -1,218 +1,48 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DEFAULT_HOST="127.0.0.1"
-DEFAULT_PORT="18282"
-DEFAULT_TIMEOUT="60"
+# DockerSW only adapts Linux container paths/processes. The actual CLI runs in
+# the Wine Windows Python environment where SOLIDWORKS COM is registered.
+WIN_PYTHON="${SWCLI_WINDOWS_PYTHON:-C:\\Python311\\python.exe}"
+ARGS=("$@")
 
-HOST="${SW_DAEMON_HOST:-${DEFAULT_HOST}}"
-PORT="${SW_DAEMON_PORT:-${DEFAULT_PORT}}"
-TIMEOUT_SEC="${SW_CLI_TIMEOUT:-${DEFAULT_TIMEOUT}}"
-JSON_OUTPUT=false
-AUTO_START="${SW_CLI_AUTO_START:-false}"
-DAEMON_BIN="${DAEMON_BIN:-sw-daemon}"
-
-COMMAND=""
-ARG_LIST=()
-
-show_help() {
-    cat <<EOF
-DockerSW CLI Client (sw-cli)
-
-Usage:
-  sw-cli [global-options] <command> [arguments...]
-
-Commands:
-  run <script.py> [args...]    Execute a Python script against resident SolidWorks instance
-  eval "<code>"                Inline evaluate Python code snippet against swApp
-  canvas [output.png]          Export active 3D model viewport canvas directly as PNG
-  screenshot [output.png]      Capture full X11 desktop screen (:99) to PNG
-  status                       Query daemon status and SolidWorks COM health
-
-Global Options:
-  --auto-start                 Automatically start resident daemon if not running
-  --json                       Output raw JSON response (ideal for AI agents / automation)
-  --timeout SEC                Execution timeout in seconds (default: 60)
-  --host HOST                  Daemon host (default: 127.0.0.1)
-  --port PORT                  Daemon port (default: 18282)
-  -h, --help                   Show this help message
-EOF
+to_windows_path() {
+    local value="$1"
+    if [[ "${value}" =~ ^[A-Za-z]:[\\/].* ]]; then
+        printf '%s\n' "${value}"
+    else
+        winepath -w -- "${value}"
+    fi
 }
 
-# Parse options
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        -h|--help)
-            show_help
-            exit 0
+translate_positional_path() {
+    local index="$1"
+    if [ "${#ARGS[@]}" -gt "${index}" ]; then
+        ARGS[${index}]="$(to_windows_path "${ARGS[${index}]}")"
+    fi
+}
+
+if [ "${#ARGS[@]}" -ge 2 ]; then
+    case "${ARGS[0]} ${ARGS[1]}" in
+        "document open"|"document render"|"document export"|"part create-box")
+            translate_positional_path 2
             ;;
-        --auto-start)
-            AUTO_START=true
-            shift
-            ;;
-        --json)
-            JSON_OUTPUT=true
-            shift
-            ;;
-        --timeout)
-            TIMEOUT_SEC="$2"
-            shift 2
-            ;;
-        --host)
-            HOST="$2"
-            shift 2
-            ;;
-        --port)
-            PORT="$2"
-            shift 2
-            ;;
-        --)
-            shift
-            ARG_LIST+=("$@")
-            break
-            ;;
-        run|eval|canvas|screenshot|status)
-            if [ -z "${COMMAND}" ]; then
-                COMMAND="$1"
-            else
-                ARG_LIST+=("$1")
-            fi
-            shift
-            ;;
-        *)
-            ARG_LIST+=("$1")
-            shift
+        "batch export")
+            for ((index = 2; index < ${#ARGS[@]}; index++)); do
+                case "${ARGS[${index}]}" in
+                    --list|--workspace|--outdir)
+                        next=$((index + 1))
+                        if [ "${#ARGS[@]}" -le "${next}" ]; then
+                            echo "sw-cli: ${ARGS[${index}]} requires a path" >&2
+                            exit 2
+                        fi
+                        ARGS[${next}]="$(to_windows_path "${ARGS[${next}]}")"
+                        index="${next}"
+                        ;;
+                esac
+            done
             ;;
     esac
-done
-
-if [ -z "${COMMAND}" ]; then
-    show_help >&2
-    exit 1
 fi
 
-send_http_request() {
-    local method="$1"
-    local endpoint="$2"
-    local payload_json="$3"
-
-    if [ "${AUTO_START}" = "true" ] && [[ "${HOST}" == "127.0.0.1" || "${HOST}" == "localhost" ]]; then
-        if ! "${DAEMON_BIN}" --host "${HOST}" --port "${PORT}" status >/dev/null 2>&1; then
-            if [ "${JSON_OUTPUT}" != "true" ]; then
-                echo "[sw-cli] DockerSW daemon is not running, auto-starting resident daemon..." >&2
-            fi
-            "${DAEMON_BIN}" --host "${HOST}" --port "${PORT}" start
-        fi
-    fi
-
-    python3 -c "
-import json, sys, urllib.request, urllib.error
-
-method = sys.argv[1]
-url = sys.argv[2]
-payload_str = sys.argv[3]
-is_json = sys.argv[4].lower() == 'true'
-
-headers = {'Content-Type': 'application/json'} if method == 'POST' else {}
-data = payload_str.encode('utf-8') if method == 'POST' else None
-
-req = urllib.request.Request(url, data=data, headers=headers, method=method)
-opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-
-try:
-    with opener.open(req, timeout=float(sys.argv[5])) as resp:
-        body = resp.read().decode('utf-8')
-        try:
-            parsed = json.loads(body)
-        except Exception:
-            parsed = {'raw': body}
-
-        if is_json:
-            print(json.dumps(parsed, ensure_ascii=False))
-            sys.exit(parsed.get('exit_code', 0))
-        else:
-            # Human readable formatting
-            stdout_str = parsed.get('stdout', '')
-            stderr_str = parsed.get('stderr', '')
-            if stdout_str:
-                sys.stdout.write(stdout_str)
-                sys.stdout.flush()
-            if stderr_str:
-                sys.stderr.write(stderr_str)
-                sys.stderr.flush()
-
-            if 'status' in parsed and 'sw_connected' in parsed:
-                print(f'[STATUS] Daemon is {parsed.get(\"status\").upper()}, Ready: {parsed.get(\"ready\")}, SW Version: {parsed.get(\"sw_version\")}')
-            elif 'path' in parsed and 'doc_title' in parsed:
-                print(f'[OK] 3D Canvas exported: {parsed.get(\"path\")} (Document: {parsed.get(\"doc_title\")})')
-            elif 'path' in parsed:
-                print(f'[OK] Screenshot captured: {parsed.get(\"path\")}')
-
-            exit_code = parsed.get('exit_code', 0)
-            sys.exit(exit_code)
-
-except urllib.error.URLError as e:
-    err_msg = f'Connection to DockerSW daemon failed at {url}: {e.reason}'
-    if is_json:
-        print(json.dumps({'success': False, 'exit_code': 111, 'error': err_msg}))
-    else:
-        sys.stderr.write(f'[ERROR] {err_msg}\n')
-    sys.exit(111)
-except Exception as e:
-    if is_json:
-        print(json.dumps({'success': False, 'exit_code': 1, 'error': str(e)}))
-    else:
-        sys.stderr.write(f'[ERROR] Request error: {e}\n')
-    sys.exit(1)
-" "${method}" "http://${HOST}:${PORT}${endpoint}" "${payload_json}" "${JSON_OUTPUT}" "${TIMEOUT_SEC}"
-}
-
-case "${COMMAND}" in
-    status)
-        send_http_request "GET" "/v1/health" "{}"
-        ;;
-    eval)
-        if [ ${#ARG_LIST[@]} -eq 0 ]; then
-            echo "Error: 'eval' requires Python code string" >&2
-            exit 1
-        fi
-        CODE="${ARG_LIST[0]}"
-        PAYLOAD="$(python3 -c "import json, sys; print(json.dumps({'code': sys.argv[1], 'args': [], 'timeout': float(sys.argv[2])}))" "${CODE}" "${TIMEOUT_SEC}")"
-        send_http_request "POST" "/v1/execute" "${PAYLOAD}"
-        ;;
-    run)
-        if [ ${#ARG_LIST[@]} -eq 0 ]; then
-            echo "Error: 'run' requires script file path" >&2
-            exit 1
-        fi
-        SCRIPT_FILE="${ARG_LIST[0]}"
-        if [ ! -f "${SCRIPT_FILE}" ]; then
-            echo "Error: Script file not found: ${SCRIPT_FILE}" >&2
-            exit 1
-        fi
-        PAYLOAD="$(python3 -c "
-import json, os, sys
-print(json.dumps({
-    'path': os.path.abspath(sys.argv[1]),
-    'timeout': float(sys.argv[2]),
-    'args': sys.argv[3:]
-}))
-" "${SCRIPT_FILE}" "${TIMEOUT_SEC}" "${ARG_LIST[@]:1}")"
-        send_http_request "POST" "/v1/execute" "${PAYLOAD}"
-        ;;
-    canvas)
-        OUT_PATH="${ARG_LIST[0]:-canvas.png}"
-        PAYLOAD="$(python3 -c "import json, sys; print(json.dumps({'target_path': sys.argv[1]}))" "${OUT_PATH}")"
-        send_http_request "POST" "/v1/canvas" "${PAYLOAD}"
-        ;;
-    screenshot)
-        OUT_PATH="${ARG_LIST[0]:-/tmp/sw_screenshot.png}"
-        PAYLOAD="$(python3 -c "import json, sys; print(json.dumps({'target_path': sys.argv[1]}))" "${OUT_PATH}")"
-        send_http_request "POST" "/v1/screenshot" "${PAYLOAD}"
-        ;;
-    *)
-        echo "Error: Unknown command '${COMMAND}'" >&2
-        show_help >&2
-        exit 1
-        ;;
-esac
+exec wine "${WIN_PYTHON}" -m swcli "${ARGS[@]}"

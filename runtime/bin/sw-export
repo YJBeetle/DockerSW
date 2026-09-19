@@ -1,47 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# DockerSW Headless Batch Export CLI (sw-export)
-# 专用于无头批量静默导出 STEP/PDF/DWG/GLB。
-# 统一委托 sw-cli run --auto-start 执行 utils/sw_exporter.py 导出任务。
+# Docker-specific lifecycle adapter around SWCLI's typed batch workflow.
+WIN_PYTHON="${SWCLI_WINDOWS_PYTHON:-C:\\Python311\\python.exe}"
+RUNNER="${SWCLI_EXPORT_RUNNER:-/opt/sw-runtime/scripts/swcli_docker_export.py}"
+ARGS=("$@")
 
-CLI_BIN="${CLI_BIN:-sw-cli}"
-EXPORTER_SCRIPT="${EXPORTER_SCRIPT:-/opt/sw-runtime/scripts/utils/sw_exporter.py}"
-HOST="${SW_DAEMON_HOST:-127.0.0.1}"
-PORT="${SW_DAEMON_PORT:-18282}"
-TIMEOUT_SEC="${SW_EXPORT_TIMEOUT:-3600}"
-PASSTHROUGH_ARGS=()
+to_windows_path() {
+    local value="$1"
+    if [[ "${value}" =~ ^[A-Za-z]:[\\/].* ]]; then
+        printf '%s\n' "${value}"
+    else
+        winepath -w -- "${value}"
+    fi
+}
 
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        -h|--help)
-            exec python3 "${EXPORTER_SCRIPT}" --help
-            ;;
-        --host)
-            HOST="$2"
-            shift 2
-            ;;
-        --port)
-            PORT="$2"
-            shift 2
-            ;;
-        --timeout)
-            TIMEOUT_SEC="$2"
-            shift 2
-            ;;
-        *)
-            PASSTHROUGH_ARGS+=("$1")
-            shift
+for ((index = 0; index < ${#ARGS[@]}; index++)); do
+    case "${ARGS[${index}]}" in
+        --list|--workspace|--outdir)
+            next=$((index + 1))
+            if [ "${#ARGS[@]}" -le "${next}" ]; then
+                echo "sw-export: ${ARGS[${index}]} requires a path" >&2
+                exit 2
+            fi
+            ARGS[${next}]="$(to_windows_path "${ARGS[${next}]}")"
+            index="${next}"
             ;;
     esac
 done
 
-# 缺少任何参数时快速失败
-if [ ${#PASSTHROUGH_ARGS[@]} -eq 0 ]; then
-    echo "[sw-export] 错误: 缺少必须参数。" >&2
-    python3 "${EXPORTER_SCRIPT}" --help >&2 || true
-    exit 1
-fi
-
-# 委托 sw-cli run 执行导出脚本（利用 --auto-start 统一自愈策略）
-exec "${CLI_BIN}" --auto-start --host "${HOST}" --port "${PORT}" --timeout "${TIMEOUT_SEC}" run "${EXPORTER_SCRIPT}" "${PASSTHROUGH_ARGS[@]}"
+WIN_RUNNER="$(to_windows_path "${RUNNER}")"
+exec wine "${WIN_PYTHON}" "${WIN_RUNNER}" "${ARGS[@]}"

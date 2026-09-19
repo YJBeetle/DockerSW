@@ -22,8 +22,6 @@ RUN dpkg --add-architecture i386 && \
         wget \
         gnupg \
         xvfb \
-        openbox \
-        x11vnc \
         libgl1-mesa-dri \
         mesa-utils \
         cabextract \
@@ -71,16 +69,22 @@ RUN --mount=type=bind,source=runtime/fetch_managed_com.sh,target=/mnt/runtime/fe
     bash /mnt/runtime/init_wineprefix.sh && \
     rm -rf /tmp/* /root/.cache/*
 
-# 5. 安装运行时脚本与全局 CLI 命令
+# 5. 将仓库固定的 SWCLI submodule 安装到 Wine Windows Python。
+# DockerSW 只提供 Linux/Wine 适配；建模与导出行为由 SWCLI 自身拥有。
+COPY SWCLI/ /opt/swcli/
+RUN wine "C:\\Python311\\python.exe" -m pip install \
+        --no-cache-dir --no-deps --no-build-isolation "Z:\\opt\\swcli" && \
+    wine "C:\\Python311\\python.exe" -m swcli version --json && \
+    wineserver -w
+
+# 6. 安装 DockerSW 的进程/路径适配器与其余运行时脚本
 COPY runtime/scripts/ /opt/sw-runtime/scripts/
 COPY --chmod=755 runtime/bin/ /usr/local/bin/
 
-ENV PYTHONPATH=/opt/sw-runtime/scripts/lib
-
-# 6. 配置容器 Entrypoint
+# 7. 配置容器 Entrypoint
 COPY --chmod=755 runtime/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 WORKDIR /workspace
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["/usr/local/bin/sw-daemon", "run"]
+CMD ["/bin/bash"]

@@ -1,126 +1,74 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-"""
-Unit tests for sw-export wrapper script (runtime/scripts/sw-export).
-"""
-
 import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-SCRIPT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "bin", "sw-export"))
+
+RUNTIME_ROOT = Path(__file__).resolve().parents[1]
+SWCLI_SCRIPT = RUNTIME_ROOT / "bin" / "sw-cli"
+EXPORT_SCRIPT = RUNTIME_ROOT / "bin" / "sw-export"
 
 
-EXPORTER_SCRIPT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts", "utils", "sw_exporter.py"))
-
-
-class TestExportScript(unittest.TestCase):
-    def test_script_exists_and_is_executable(self):
-        self.assertTrue(os.path.isfile(SCRIPT_PATH), f"Script not found: {SCRIPT_PATH}")
-        self.assertTrue(os.access(SCRIPT_PATH, os.X_OK), "Script is not executable")
-
-    def test_bash_syntax(self):
-        res = subprocess.run(["bash", "-n", SCRIPT_PATH], capture_output=True, text=True)
-        self.assertEqual(res.returncode, 0, f"Bash syntax check failed: {res.stderr}")
-
-    def test_help_output(self):
-        env = dict(os.environ, EXPORTER_SCRIPT=EXPORTER_SCRIPT)
-        res = subprocess.run([SCRIPT_PATH, "--help"], capture_output=True, text=True, env=env)
-        self.assertEqual(res.returncode, 0, res.stderr)
-        out = res.stdout.lower()
-        self.assertIn("sw-export", out)
-        self.assertIn("--list", out)
-        self.assertIn("--workspace", out)
-        self.assertIn("--outdir", out)
-
-    def test_missing_args_fails(self):
-        env = dict(os.environ, EXPORTER_SCRIPT=EXPORTER_SCRIPT)
-        res = subprocess.run([SCRIPT_PATH], capture_output=True, text=True, env=env)
-        self.assertNotEqual(res.returncode, 0)
-        self.assertIn("缺少必须参数", res.stderr + res.stdout)
-
-    def test_auto_start_daemon_and_delegates_to_cli(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmp_path = Path(tmpdir)
-            fake_bin = tmp_path / "bin"
-            fake_bin.mkdir()
-
-            # Create a mock sw-cli that records invocations
-            cli_log = tmp_path / "cli_calls.log"
-            mock_cli = fake_bin / "sw-cli"
-            mock_cli.write_text(f"""#!/usr/bin/env bash
-echo "$@" >> "{cli_log}"
-exit 0
-""")
-            mock_cli.chmod(0o755)
-
-            env = dict(
-                os.environ,
-                PATH=f"{fake_bin}:{os.environ['PATH']}",
-                EXPORTER_SCRIPT=EXPORTER_SCRIPT,
+class ExportWrapperTests(unittest.TestCase):
+    def test_scripts_are_executable_and_valid_bash(self):
+        for script in (SWCLI_SCRIPT, EXPORT_SCRIPT):
+            self.assertTrue(os.access(script, os.X_OK), f"not executable: {script}")
+            result = subprocess.run(
+                ["bash", "-n", str(script)], capture_output=True, text=True
             )
-            res = subprocess.run(
-                [SCRIPT_PATH, "--list", "test.list", "--workspace", "/ws", "--outdir", "/out"],
-                capture_output=True,
-                text=True,
-                env=env,
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_sw_cli_translates_typed_path_argument(self):
+        invocation = self._run_with_fake_wine(
+            SWCLI_SCRIPT, ["document", "open", "/workspace/model.SLDPRT", "--json"]
+        )
+        self.assertIn("-m swcli document open W:/workspace/model.SLDPRT --json", invocation)
+
+    def test_sw_export_translates_manifest_paths_and_calls_docker_runner(self):
+        invocation = self._run_with_fake_wine(
+            EXPORT_SCRIPT,
+            [
+                "--list",
+                "/workspace/list.txt",
+                "--workspace",
+                "/workspace",
+                "--outdir",
+                "/workspace/out",
+                "--overwrite",
+            ],
+        )
+        self.assertIn("W:/opt/sw-runtime/scripts/swcli_docker_export.py", invocation)
+        self.assertIn("--list W:/workspace/list.txt", invocation)
+        self.assertIn("--workspace W:/workspace", invocation)
+        self.assertIn("--outdir W:/workspace/out", invocation)
+        self.assertIn("--overwrite", invocation)
+
+    def _run_with_fake_wine(self, script: Path, args: list[str]) -> str:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            binary_dir = root / "bin"
+            binary_dir.mkdir()
+            log = root / "wine.log"
+            winepath = binary_dir / "winepath"
+            winepath.write_text(
+                "#!/usr/bin/env bash\nprintf 'W:%s\\n' \"${@: -1}\"\n",
+                encoding="utf-8",
             )
-
-            self.assertEqual(res.returncode, 0, res.stderr)
-
-            # Check that sw-cli run was called with --auto-start and arguments
-            cli_calls = cli_log.read_text()
-            self.assertIn("--auto-start", cli_calls)
-            self.assertIn("run", cli_calls)
-            self.assertIn(EXPORTER_SCRIPT, cli_calls)
-            self.assertIn("test.list", cli_calls)
-            self.assertIn("/ws", cli_calls)
-            self.assertIn("/out", cli_calls)
-
-    def test_host_port_and_timeout_forwarding(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmp_path = Path(tmpdir)
-            fake_bin = tmp_path / "bin"
-            fake_bin.mkdir()
-
-            cli_log = tmp_path / "cli_calls.log"
-            mock_cli = fake_bin / "sw-cli"
-            mock_cli.write_text(f"""#!/usr/bin/env bash
-echo "$@" >> "{cli_log}"
-exit 0
-""")
-            mock_cli.chmod(0o755)
-
-            env = dict(
-                os.environ,
-                PATH=f"{fake_bin}:{os.environ['PATH']}",
-                EXPORTER_SCRIPT=EXPORTER_SCRIPT,
+            winepath.chmod(0o755)
+            wine = binary_dir / "wine"
+            wine.write_text(
+                f"#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" > '{log}'\n",
+                encoding="utf-8",
             )
-            res = subprocess.run(
-                [
-                    SCRIPT_PATH,
-                    "--host", "10.0.0.1",
-                    "--port", "19000",
-                    "--timeout", "120",
-                    "--list", "test.list",
-                ],
-                capture_output=True,
-                text=True,
-                env=env,
+            wine.chmod(0o755)
+            environment = dict(os.environ)
+            environment["PATH"] = f"{binary_dir}:{environment['PATH']}"
+            result = subprocess.run(
+                [str(script), *args], capture_output=True, text=True, env=environment
             )
-            self.assertEqual(res.returncode, 0, res.stderr)
-
-            # Verify sw-cli was invoked with host, port, timeout and run
-            cli_calls = cli_log.read_text()
-            self.assertIn("--auto-start", cli_calls)
-            self.assertIn("--host 10.0.0.1", cli_calls)
-            self.assertIn("--port 19000", cli_calls)
-            self.assertIn("--timeout 120", cli_calls)
-            self.assertIn("run", cli_calls)
-            self.assertIn("--list test.list", cli_calls)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return log.read_text(encoding="utf-8")
 
 
 if __name__ == "__main__":

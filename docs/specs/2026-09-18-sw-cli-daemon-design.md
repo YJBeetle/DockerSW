@@ -1,4 +1,7 @@
-# DockerSW CLI 与常驻 Daemon 交互子系统设计规范
+# DockerSW CLI 与常驻 Daemon 交互子系统设计规范（历史）
+
+> [!IMPORTANT]
+> 本文记录旧实现历史，已由独立 [SWCLI](https://github.com/YJBeetle/SWCLI) 与 DockerSW Wine 薄适配架构取代，不代表当前命令或兼容承诺。
 
 **文档版本：** 1.1.0  
 **设计日期：** 2026-09-19  

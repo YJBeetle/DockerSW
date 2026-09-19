@@ -143,6 +143,6 @@ if [ "$#" -gt 0 ]; then
     echo "[DockerSW] 执行指令: $@"
     exec "$@"
 else
-    echo "[DockerSW] 容器就绪。可以通过 'sw-export' 进行文件导出，或运行 'sw-vnc' 启动可视化桌面。"
+    echo "[DockerSW] 容器就绪。使用 'sw-cli' 建模，或使用 'sw-export' 批量导出。"
     exec /bin/bash
 fi

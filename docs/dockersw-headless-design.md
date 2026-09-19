@@ -26,10 +26,9 @@
 │  │  ├─ Wine-Mono 11.3.0 (集成托管 COM、stdcall 与 CCW 断言修复补丁)   │  │
 │  │  ├─ Windows Python 3.11 + pywin32 运行时                          │  │
 │  │  ├─ sw-install：官方介质校验、静默安装与 MSI COM 注册验证工具       │  │
-│  │  ├─ sw-export：无头静默批量导出 CLI (基于 win32com)              │  │
-│  │  ├─ sw-vnc：一键拉起 VNC 桌面 (openbox + x11vnc)                   │  │
-│  │  ├─ sw-daemon：常驻后台守护服务 (避免冷启动，支持只看 VNC 监看)    │  │
-│  │  └─ sw-cli：面向 AI 与自动化的命令行客户端 (run/eval/canvas/screenshot)│  │
+│  │  ├─ SWCLI：固定 submodule 版本，安装于 Wine Windows Python       │  │
+│  │  ├─ sw-cli：Linux 路径/进程薄适配，typed 建模命令来自 SWCLI       │  │
+│  │  └─ sw-export：调用 swcli.utils.export 的批量导出适配器           │  │
 │  │  ※ 纯净底座：不含商业软件实体、不预设许可、不预设 EULA              │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 └───────────────────────────────────┬────────────────────────────────────┘
@@ -106,40 +105,35 @@
 4. **私有镜像构建隔离**：
    - 配合 BuildKit 挂载机制（`--mount=type=bind`），安装介质在镜像构建完成后不会残留在任何镜像层中，保证产物整洁。
 
-### 3.3 无头静默批量导出引擎 (`sw-export` / `export_sw.py`)
+### 3.3 SWCLI 与无头批量导出适配 (`sw-cli` / `sw-export`)
 
 1. **Linux / Windows 路径智能透明转换**：
    - 脚本接收 Linux 格式的文件清单（支持绝对路径与相对路径）；
    - 自动转换为 Wine 虚拟 Windows 盘符路径（如 `/workspace/model.SLDPRT` -> `Z:\workspace\model.SLDPRT`，或 C 盘相对映射）；
-2. **静默调用与防阻塞设计**：
-   - 通过 `win32com.client.DispatchEx("SldWorks.Application")` 获取独立 COM 实例；
+2. **职责边界**：
+   - typed 建模、检查、重建、渲染与原子导出均由独立 SWCLI 项目维护；
+   - `sw-cli document export` 只根据显式输出扩展名选择 STEP、GLB、PDF 或 DWG，不解释源文件名；
+   - manifest 与 `.REND.SLDASM` 路由位于 SWCLI 的 `swcli.utils.export`，方便未来增加并列 utility；
+   - DockerSW 仅把 Linux 路径转换为 Wine Windows 路径，并提供容器生命周期适配；
+3. **Wine COM worker**：
+   - 使用 `win32com.client.DispatchEx("SldWorks.Application")` 获取 DockerSW 独占实例，规避 Wine 下 `GetActiveObject` 对直接启动进程的不可靠行为；
    - 强制设置 `UserControl = False` 与 `Visible = False`；
-   - 打开模型使用 `OpenDoc6` 并传入 `swOpenDocOptions_Silent`（值为 1），阻断所有 GUI 确认弹窗；
-   - 导出使用 `model.Extension.SaveAs3`，指定 `swSaveAsOptions_Silent`；
-   - 导出后显式调用 `CloseDoc` 释放内存，批量处理完成后安全调用 `sw_app.ExitApp()`；
-3. **导出格式映射体系**：
+   - 在同一个 Windows Python 进程内把实例绑定给 SWCLI typed operations；
+   - 仅当无活动文档残留时调用 `ExitApp()`，关闭失败会让整个任务失败；
+4. **导出格式映射体系**：
    - `.SLDPRT` / `.SLDASM` -> 导出为工业标准 `.STEP`
    - `.SLDDRW` -> 导出为工程图 `.PDF` 与 `.DWG`
    - `*.REND.SLDASM` -> 导出为 Web 3D 呈现格式 `.GLB`
-4. **CI 退出码与错误容忍机制**：
-   - 清单中单个文件导出失败不中断流程，记录告警日志并继续处理后续模型；
-   - 统计成功与失败总数；若存在失败项目则返回退出码 `1`，全部成功返回 `0`，与 CI/CD 流水线状态深度集成。
+5. **CI 安全语义**：
+   - 在启动 SOLIDWORKS 前完成缺失输入、目标冲突和覆盖策略预检；
+   - 每个文档执行 typed open/export/close，关闭失败时中止后续项目；
+   - 产物必须通过非空和文件签名验证；任一失败返回退出码 `1`。
 
 ---
 
-### 3.4 交互式 VNC 图形工作站模式 (`sw-vnc`)
+### 3.4 交互式图形能力
 
-为了满足人工交互建模、许可证图形化配置、插件调试及三维着色效果直观校验等场景需求，DockerSW 在保持无头核心纯净的同时，提供了开箱即用的远程桌面子系统：
-
-1. **规避 XQuartz 历史协议断言崩溃**：
-   - macOS XQuartz 间接 GLX 协议仅支持 OpenGL 1.4，在 Wine 尝试激活 DirectX 11 / OpenGL 上下文时会触发 `GLXBadCurrentWindow` 致命协议错误；
-   - `sw-vnc` 架构使 SOLIDWORKS 与 Mesa 驱动完全运行在 Linux 容器内部的 `Xvfb` (:99) 虚拟屏幕上，原生调用完整的 **OpenGL 4.5 Core Profile** 本地软件光栅化（llvmpipe），不向客户端发起任何未知的 GLX 扩展请求；
-2. **三件套标准编排（Xvfb + Openbox + x11vnc）**：
-   - 自动检测并启动 1080P/2K/4K 虚拟屏幕 (`Xvfb :99`)；
-   - 自动拉起轻量窗口管理器 `openbox`，提供完整的窗口缩放、最大化、最小化和标题栏拖拽；
-   - 自动配置并启动 `x11vnc`，支持自定义端口、密码鉴权与多客户端共享连接；
-3. **极简客户端访问体验**：
-   - 采用标准 RFB 协议，macOS 用户无需安装任何第三方应用，直接在终端执行 `open vnc://<宿主机IP>:5900` 即可通过系统原生“屏幕共享”应用秒级直连操作。
+当前重构只保留 SOLIDWORKS COM 与渲染所需的 Xvfb，不再发布依赖旧 `sw-daemon` 的 `sw-vnc` 命令。后续交互式桌面应作为独立 DockerSW 适配器重新接入，并复用 SWCLI 的 host 生命周期，不把 VNC 或进程监督逻辑塞回 SWCLI 核心。
 
 ---
 

@@ -1,4 +1,7 @@
-# DockerSW CLI 与常驻 Daemon 实现计划
+# DockerSW CLI 与常驻 Daemon 实现计划（历史）
+
+> [!IMPORTANT]
+> 本文保留旧实现过程，已由独立 [SWCLI](https://github.com/YJBeetle/SWCLI) 与 DockerSW Wine 薄适配架构取代，不代表当前命令或兼容承诺。
 
 > **面向 AI 代理的工作者：** 必需子技能：使用 subagent-driven-development（推荐）或 executing-plans 逐任务实现此计划。步骤使用复选框（`- [ ]`）语法来跟踪进度。
 
