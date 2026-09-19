@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Docker-specific lifecycle adapter around SWCLI's typed batch workflow.
+# Docker-specific path and daemon lifecycle adapter around SWCLI's export utility.
 WIN_PYTHON="${SWCLI_WINDOWS_PYTHON:-C:\\Python311\\python.exe}"
-RUNNER="${SWCLI_EXPORT_RUNNER:-/opt/sw-runtime/scripts/swcli_docker_export.py}"
 ARGS=("$@")
+SWCLID_HELPER="${SWCLID_HELPER:-/opt/sw-runtime/scripts/lib/swclid.sh}"
+if [ ! -f "${SWCLID_HELPER}" ]; then
+    SWCLID_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../scripts/lib/swclid.sh"
+fi
+# shellcheck source=../scripts/lib/swclid.sh
+source "${SWCLID_HELPER}"
+swclid_configure
 
 to_windows_path() {
     local value="$1"
@@ -29,5 +35,11 @@ for ((index = 0; index < ${#ARGS[@]}; index++)); do
     esac
 done
 
-WIN_RUNNER="$(to_windows_path "${RUNNER}")"
-exec wine "${WIN_PYTHON}" "${WIN_RUNNER}" "${ARGS[@]}"
+for argument in "${ARGS[@]}"; do
+    if [ "${argument}" = "--help" ] || [ "${argument}" = "-h" ]; then
+        exec wine "${WIN_PYTHON}" -m swcli.utils.export "${ARGS[@]}"
+    fi
+done
+
+swclid_ensure
+exec wine "${WIN_PYTHON}" -m swcli.utils.export "${ARGS[@]}"

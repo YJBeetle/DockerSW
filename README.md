@@ -221,7 +221,10 @@ sw-cli host stop --json
 
 `sw-cli document export` 是只根据显式输出扩展名工作的原子能力，不解释源文件命名规则。manifest、`.REND.SLDASM -> GLB` 等策略属于 SWCLI 的 `swcli.utils.export` 高层工具，由 `sw-export` 命令暴露。
 
-DockerSW 的 `sw-export` 适配器使用 Wine 已验证的 `DispatchEx` 激活路径，在单个 Windows Python worker 中运行 typed batch workflow，并在没有残留活动文档时安全关闭自己创建的 SOLIDWORKS 实例。
+DockerSW 的 `sw-export` 会按需启动 SWCLI 自己提供的 `swclid`。daemon 通过 Wine
+已验证的 `DispatchEx` 激活路径创建独占 SOLIDWORKS 实例，并在单一 COM worker
+中串行执行 typed batch workflow。后续 `sw-export` 调用会复用该实例，容器退出时
+由容器生命周期统一清理。
 
 ### 4. CI/CD 流水线集成示例 (GitLab CI)
 
@@ -276,9 +279,18 @@ docker run --rm \
   ghcr.io/yjbeetle/sw-executable:latest
 ```
 
-`sw-export` 通过 `DispatchEx` 创建独占 SOLIDWORKS 实例后，会等待官方
-`StartupProcessCompleted` 状态再打开首个文档。默认启动等待上限为 120 秒，可通过
-`SWCLI_HOST_START_TIMEOUT` 调整；该上限独立于完整导出任务的 CI 超时。
+`swclid` 通过 `DispatchEx` 创建独占 SOLIDWORKS 实例后，会等待官方
+`StartupProcessCompleted` 状态再开始接收请求。`sw-export` 第一次调用会按需启动
+daemon，后续调用通过本地回环协议复用同一个实例。默认启动等待上限为 120 秒，
+可通过 `SWCLID_START_TIMEOUT` 调整；单次导出请求默认仍有独立的 600 秒超时。
+
+### SWCLI daemon
+
+| 环境变量 | 默认值 | 说明 |
+|---|---|---|
+| `SWCLI_ENDPOINT` | `127.0.0.1:18495` | `swclid` 本地协议端点 |
+| `SWCLID_START_TIMEOUT` | `120` | 首次按需启动和 SOLIDWORKS 就绪等待秒数 |
+| `SWCLID_LOG` | `/tmp/swclid.log` | daemon 启动与运行日志 |
 
 ### 许可服务配置 (License)
 

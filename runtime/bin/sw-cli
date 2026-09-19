@@ -5,6 +5,13 @@ set -euo pipefail
 # the Wine Windows Python environment where SOLIDWORKS COM is registered.
 WIN_PYTHON="${SWCLI_WINDOWS_PYTHON:-C:\\Python311\\python.exe}"
 ARGS=("$@")
+SWCLID_HELPER="${SWCLID_HELPER:-/opt/sw-runtime/scripts/lib/swclid.sh}"
+if [ ! -f "${SWCLID_HELPER}" ]; then
+    SWCLID_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../scripts/lib/swclid.sh"
+fi
+# shellcheck source=../scripts/lib/swclid.sh
+source "${SWCLID_HELPER}"
+swclid_configure
 
 to_windows_path() {
     local value="$1"
@@ -41,6 +48,14 @@ if [ "${#ARGS[@]}" -ge 2 ]; then
                         ;;
                 esac
             done
+            ;;
+    esac
+fi
+
+if [ "${#ARGS[@]}" -gt 0 ]; then
+    case "${ARGS[0]}" in
+        document|part|batch)
+            swclid_ensure
             ;;
     esac
 fi

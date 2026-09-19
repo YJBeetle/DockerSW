@@ -119,12 +119,12 @@
    - `sw-cli document export` 只根据显式输出扩展名选择 STEP、GLB、PDF 或 DWG，不解释源文件名；
    - manifest 与 `.REND.SLDASM` 路由位于 SWCLI 的 `swcli.utils.export`，方便未来增加并列 utility；
    - DockerSW 仅把 Linux 路径转换为 Wine Windows 路径，并提供容器生命周期适配；
-3. **Wine COM worker**：
-   - 使用 `win32com.client.DispatchEx("SldWorks.Application")` 获取 DockerSW 独占实例，规避 Wine 下 `GetActiveObject` 对直接启动进程的不可靠行为；
-   - 按官方 `StartupProcessCompleted` 状态等待启动加载完成，再调用 `OpenDoc6`，避免 Wine 下 COM 已返回但启动插件尚未就绪的竞态；等待默认最多 120 秒，可由 `SWCLI_HOST_START_TIMEOUT` 调整；
-   - 强制设置 `UserControl = False` 与 `Visible = False`；
-   - 在同一个 Windows Python 进程内把实例绑定给 SWCLI typed operations；
-   - 仅当无活动文档残留时调用 `ExitApp()`，关闭失败会让整个任务失败；
+3. **常驻 `swclid` 与 Wine COM worker**：
+   - 第一次 `sw-export` 调用按需启动 SWCLI 提供的 `swclid`，后续调用通过 `127.0.0.1` 回环端点复用同一个实例；
+   - daemon 使用 `win32com.client.DispatchEx("SldWorks.Application")` 获取独占实例，规避 Wine 下 `GetActiveObject` 对直接启动进程的不可靠行为；
+   - 按官方 `StartupProcessCompleted` 状态等待启动加载完成，再开放协议端点，避免 COM 已返回但启动插件尚未就绪的竞态；
+   - supervisor 与 COM worker 分进程，worker 在单一 COM apartment 中串行执行全部请求；调用超时后会连同未知状态的 SOLIDWORKS 进程树一起替换；
+   - DockerSW 仅负责 Linux/Wine 路径转换、按需拉起和容器生命周期，协议、worker 与 typed operations 均由 SWCLI 拥有；
 4. **导出格式映射体系**：
    - `.SLDPRT` / `.SLDASM` -> 导出为工业标准 `.STEP`
    - `.SLDDRW` -> 导出为工程图 `.PDF` 与 `.DWG`

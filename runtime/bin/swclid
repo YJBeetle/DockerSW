@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+WIN_PYTHON="${SWCLI_WINDOWS_PYTHON:-C:\\Python311\\python.exe}"
+ARGS=("$@")
+if [ "${#ARGS[@]}" -gt 0 ] && [ "${ARGS[0]}" = "serve" ]; then
+    has_host_platform=false
+    for argument in "${ARGS[@]}"; do
+        if [ "${argument}" = "--host-platform" ]; then
+            has_host_platform=true
+            break
+        fi
+    done
+    if [ "${has_host_platform}" = false ]; then
+        ARGS=("serve" "--host-platform" "linux-wine" "${ARGS[@]:1}")
+    fi
+fi
+exec wine "${WIN_PYTHON}" -m swcli.daemon "${ARGS[@]}"
