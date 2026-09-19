@@ -11,7 +11,7 @@ smoke_root="${RUNNER_TEMP:-${PWD}/.ci-logs}/sw-export-smoke"
 manifest="${smoke_root}/export-list.txt"
 output_dir="${smoke_root}/output"
 log_file="${smoke_root}/sw-export.log"
-export_timeout="${SW_EXPORT_TIMEOUT:-1800}"
+export_timeout="${SW_EXPORT_TIMEOUT:-600}"
 
 cleanup() {
     local status=$?
