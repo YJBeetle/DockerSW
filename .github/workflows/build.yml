@@ -54,7 +54,7 @@ jobs:
           bash -n runtime/fetch_managed_com.sh
           bash -n runtime/prepare_managed_com.sh
           bash -n runtime/bin/*
-          bash -n smoke-test/run.sh
+          bash -n smoke-test/export.sh
           perl -c runtime/patch_win32u.pl
           perl -c runtime/patch_wine_mono.pl
 
@@ -377,9 +377,45 @@ jobs:
       - name: Smoke test real SOLIDWORKS exports
         if: steps.check-images.outputs.already_verified != 'true'
         shell: bash
+        timeout-minutes: 10
         run: |
-          export SW_IMAGE="${SW_EXECUTABLE_IMAGE}"
-          bash smoke-test/run.sh
+          set -Eeuo pipefail
+
+          smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
+          output_dir="${smoke_root}/output"
+          log_file="${smoke_root}/sw-cli-export.log"
+
+          rm -rf "${smoke_root}"
+          mkdir -p "${output_dir}"
+          docker rm -f "${smoke_container}" >/dev/null 2>&1 || true
+
+          docker run --rm \
+            --name "${smoke_container}" \
+            --mount "type=bind,source=${smoke_root},target=/ci-smoke" \
+            --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/export.sh,target=/opt/dockersw-smoke/export.sh,readonly" \
+            "${SW_EXECUTABLE_IMAGE}" \
+            bash /opt/dockersw-smoke/export.sh 2>&1 \
+            | tee "${log_file}"
+
+          expected_outputs=(
+            "bezel moldbase.PDF"
+            "bezel moldbase.DWG"
+            "bezel moldbase.STEP"
+            "cabinet_bath.PDF"
+            "cabinet_bath.DWG"
+            "Paper Airplane.STEP"
+          )
+          for output_name in "${expected_outputs[@]}"; do
+            output_path="${output_dir}/${output_name}"
+            test -s "${output_path}" || {
+              echo "Expected export is missing or empty: ${output_name}" >&2
+              exit 1
+            }
+            printf '[CI export] verified %s (%s bytes)\n' \
+              "${output_name}" "$(stat -c %s "${output_path}")"
+          done
+          echo "SOLIDWORKS export smoke test passed: ${#expected_outputs[@]} files verified."
 
       - name: Publish verified images & promote atomically
         if: steps.check-images.outputs.already_verified != 'true'
@@ -426,6 +462,8 @@ jobs:
         if: always() && steps.check-images.outputs.already_verified != 'true'
         shell: bash
         run: |
+          docker rm -f "sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true
+          rm -rf smoke-test/assets
           sudo umount "${SW_MEDIA_MOUNT}" 2>/dev/null || true
           fusermount3 -u "${GDRIVE_MOUNT}" 2>/dev/null || \
             sudo umount "${GDRIVE_MOUNT}" 2>/dev/null || true

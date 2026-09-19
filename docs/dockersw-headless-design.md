@@ -130,6 +130,8 @@
    - 当前真实门禁将 `.SLDPRT` / `.SLDASM` 导出为 `.STEP`，将 `.SLDDRW` 导出为 `.PDF` 与 `.DWG`；
    - 若业务 CI 需要 `*.REND.SLDASM -> .GLB`，同样直接调用原子 `document export`；
 5. **CI 安全语义**：
+   - GitHub Actions workflow 直接负责容器生命周期、总超时、日志与产物收集，不保留单一消费者的包装脚本；
+   - `smoke-test/export.sh` 是容器内可复制的使用范例，直接按业务规则排列 typed SWCLI 命令；
    - 在启动 SOLIDWORKS 前完成缺失输入、目标冲突和覆盖策略预检；
    - 每个文档执行 typed open/export/close，关闭失败时中止后续项目；
    - 产物必须通过非空和文件签名验证；任一失败返回退出码 `1`。

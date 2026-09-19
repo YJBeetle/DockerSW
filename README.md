@@ -307,10 +307,11 @@ docker run --rm \
 
 ## CI 真实导出门禁
 
-[`smoke-test/run.sh`](smoke-test/run.sh) 直接组合 typed SWCLI 命令，对四个官方样例
-执行 `open -> export -> close`，生成并校验 6 个 STEP、PDF、DWG 产物。只有这一真实
-SOLIDWORKS 门禁通过后，流水线才会晋升镜像。业务项目可在自己的 GitLab CI 或
-GitHub Actions 中用同样方式明确声明文件选择、命名及目标格式。
+[`.github/workflows/build.yml`](.github/workflows/build.yml) 直接负责启动容器、限制
+总时长、收集日志并验证产物；容器内的 [`smoke-test/export.sh`](smoke-test/export.sh)
+则只组合 typed SWCLI 命令，对四个官方样例执行 `open -> export -> close`，生成 6 个
+STEP、PDF、DWG 产物。业务项目可以直接参考 `export.sh`，替换源文件、输出路径与
+格式规则。只有这一真实 SOLIDWORKS 门禁通过后，流水线才会晋升镜像。
 
 ## 测试
 
