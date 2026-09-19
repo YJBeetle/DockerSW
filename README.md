@@ -7,8 +7,7 @@
 DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、托管 COM、Windows Python 及无头显示环境，并内置：
 
 - `sw-install`：从用户提供的完整 SOLIDWORKS 安装介质执行静默安装；
-- [SWCLI](https://github.com/YJBeetle/SWCLI)：面向 AI 与自动化的 typed SOLIDWORKS 命令行；
-- `sw-export`：由 SWCLI `utils` 提供的 manifest 批量导出工具。
+- [SWCLI](https://github.com/YJBeetle/SWCLI)：面向 AI 与自动化的 typed SOLIDWORKS 命令行及常驻 `swclid` 服务。
 
 > [!IMPORTANT]
 > 公开镜像 `ghcr.io/yjbeetle/sw-runtime` **不包含** SOLIDWORKS 安装介质、程序文件、序列号、许可文件或许可服务器。使用者必须自行合法取得安装介质，并在自己的私有环境中构建预安装镜像或持久化安装结果。
@@ -19,7 +18,7 @@ DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、�
 - **完整安装链**：检查介质布局，安装 VC++ 运行库与官方 Login Manager，再执行 SOLIDWORKS 主 MSI，并验证 MSI 产生的主程序 COM 注册。
 - **Wine COM 兼容修复**：包含与 MacSW 对齐的 x86 stdcall、`RegistrationServices`、x86/x64 托管 RegAsm 与 `stdole` 修复，并验证 Login Manager 的真实托管 COM 注册。
 - **显式 EULA 处理**：仅在调用者传入 `--accept-eula` 后，才根据 MSI 版本写入对应的接受标记；公共运行时不预置接受状态。
-- **无头批量导出**：
+- **无头自动化导出**：
   - `.SLDPRT` / `.SLDASM` 导出为 `.STEP`；
   - `.SLDDRW` 导出为 `.PDF` 与 `.DWG`；
   - `*.REND.SLDASM` 导出为 `.GLB`；
@@ -188,7 +187,9 @@ echo "<YOUR_GITHUB_PAT>" | docker login ghcr.io -u <YOUR_GITHUB_USERNAME> --pass
 docker run --rm \
   -v "$(pwd):/workspace" \
   ghcr.io/yjbeetle/sw-executable:latest \
-  sw-export --list list.txt --workspace /workspace --outdir /workspace/dist
+  bash -lc 'sw-cli document open /workspace/model.SLDPRT --json &&
+            sw-cli document export /workspace/dist/model.STEP --json &&
+            sw-cli document close --discard --json'
 ```
 
 #### 模式 B：使用纯净预装镜像（连接局域网 FlexNet 许可服务器）
@@ -198,7 +199,9 @@ docker run --rm \
   -e SW_LICENSE_SERVER=25734@192.168.1.100 \
   -v "$(pwd):/workspace" \
   ghcr.io/yjbeetle/sw-preinstalled:latest \
-  sw-export --list list.txt --workspace /workspace --outdir /workspace/dist
+  bash -lc 'sw-cli document open /workspace/model.SLDPRT --json &&
+            sw-cli document export /workspace/dist/model.STEP --json &&
+            sw-cli document close --discard --json'
 ```
 
 ### 3. 使用 SWCLI 建模与检查
@@ -221,16 +224,19 @@ sw-cli document close --json
 sw-cli host stop --json
 ```
 
-`sw-cli document export` 是只根据显式输出扩展名工作的原子能力，不解释源文件命名规则。manifest、`.REND.SLDASM -> GLB` 等策略属于 SWCLI 的 `swcli.utils.export` 高层工具，由 `sw-export` 命令暴露。
+`sw-cli document export` 只根据显式输出扩展名工作，不解释源文件命名规则。
+`.REND.SLDASM -> GLB`、工程图同时导出 PDF/DWG 等策略由实际 CI 脚本组合
+`document open/export/close` 完成，不进入 SWCLI 协议，也不再提供额外的
+`sw-export` 包装层。
 
-DockerSW 的 `sw-export` 会按需启动 SWCLI 自己提供的 `swclid`。daemon 通过 Wine
-已验证的 `DispatchEx` 激活路径创建独占 SOLIDWORKS 实例，并在单一 COM worker
-中串行执行 typed batch workflow。后续 `sw-export` 调用会复用该实例，容器退出时
-由容器生命周期统一清理。
+第一个 typed `sw-cli` 命令会按需启动 SWCLI 自己提供的 `swclid`。daemon 通过
+Wine 已验证的 `DispatchEx` 激活路径创建独占 SOLIDWORKS 实例，并在单一 COM
+worker 中串行执行请求；同一容器内的后续命令复用该实例，容器退出时统一清理。
 
 ### 4. CI/CD 流水线集成示例 (GitLab CI)
 
-在私有 GitLab Runner 中使用 `sw-preinstalled` 镜像批量导出 CAD 产物：
+在私有 GitLab Runner 中使用 `sw-preinstalled` 镜像导出 CAD 产物。源文件到目标
+格式的规则直接属于该项目的 CI 配置：
 
 ```yaml
 export_cad_assets:
@@ -240,11 +246,9 @@ export_cad_assets:
     SW_LICENSE_SERVER: "25734@192.168.1.100"  # 建议配置为 masked/protected CI/CD Variable
   script:
     - mkdir -p ./dist
-    - >
-      sw-export
-      --list ./export_list.txt
-      --workspace "$CI_PROJECT_DIR"
-      --outdir ./dist
+    - sw-cli document open "$CI_PROJECT_DIR/model.SLDPRT" --json
+    - sw-cli document export "$CI_PROJECT_DIR/dist/model.STEP" --json
+    - sw-cli document close --discard --json
   artifacts:
     paths:
       - ./dist/
@@ -282,8 +286,8 @@ docker run --rm \
 ```
 
 `swclid` 通过 `DispatchEx` 创建独占 SOLIDWORKS 实例后，会等待官方
-`StartupProcessCompleted` 状态再开始接收请求。`sw-export` 第一次调用会按需启动
-daemon，后续调用通过本地回环协议复用同一个实例。默认启动等待上限为 120 秒，
+`StartupProcessCompleted` 状态再开始接收请求。第一个 typed `sw-cli` 命令会按需
+启动 daemon，后续调用通过本地回环协议复用同一个实例。默认启动等待上限为 120 秒，
 可通过 `SWCLID_START_TIMEOUT` 调整；单次导出请求默认仍有独立的 600 秒超时。
 
 ### SWCLI daemon
@@ -301,20 +305,12 @@ daemon，后续调用通过本地回环协议复用同一个实例。默认启�
 | `SW_LICENSE_SERVER` | 空 | 远程 FlexNet 许可服务器（例如 `25734@192.168.1.100`）；配置后优先使用 |
 | `SW_FLEXNET_DIR` | `/opt/SolidWorks_Flexnet_Server` | 本地 FlexNet 服务目录；未配置远程许可且目录下存在 `lmgrd.exe` 时自动拉起本地守护 |
 
-## 导出清单
+## CI 真实导出门禁
 
-清单支持 UTF-8、相对或绝对路径、空行及以 `#` 开头的注释。工程实测清单可参考 [`smoke-test/run.sh`](smoke-test/run.sh)：
-
-```text
-# 装配体工程图：输出 PDF 与 DWG
-SampleProject/Drawings/MainAssembly.SLDDRW
-
-# 零件：输出 STEP
-SampleProject/Parts/MountingBracket.SLDPRT
-
-# 渲染装配体：输出 GLB
-SampleProject/Render/MainAssembly.REND.SLDASM
-```
+[`smoke-test/run.sh`](smoke-test/run.sh) 直接组合 typed SWCLI 命令，对四个官方样例
+执行 `open -> export -> close`，生成并校验 6 个 STEP、PDF、DWG 产物。只有这一真实
+SOLIDWORKS 门禁通过后，流水线才会晋升镜像。业务项目可在自己的 GitLab CI 或
+GitHub Actions 中用同样方式明确声明文件选择、命名及目标格式。
 
 ## 测试
 
@@ -322,13 +318,13 @@ SampleProject/Render/MainAssembly.REND.SLDASM
 python3 -m unittest discover -s runtime/tests -p "test_*.py" -v
 ```
 
-GitHub Actions 会递归检出固定 SWCLI submodule，构建真实容器，并校验固定 Wine/Wine-Mono 版本、stdcall 与托管 COM 修复、Windows Python/pywin32、`sw-install`、`sw-cli` 和 `sw-export`。SOLIDWORKS 与 Login Manager 的实际安装测试需要商业介质，因此应由持有合法介质的私有下游 CI 完成。
+GitHub Actions 会递归检出固定 SWCLI submodule，构建真实容器，并校验固定 Wine/Wine-Mono 版本、stdcall 与托管 COM 修复、Windows Python/pywin32、`sw-install`、Linux `sw-cli` 客户端和 Wine `swclid`。SOLIDWORKS 与 Login Manager 的实际安装测试需要商业介质，因此应由持有合法介质的私有下游 CI 完成。
 
 当前安装链主要按 SOLIDWORKS 2025 SP5.0 介质验证；其他版本的介质布局、安装属性或 Wine 行为可能不同，不能视为已经兼容。
 
 ## 许可与免责声明
 
 1. 本项目是非官方兼容与自动化工具，与 Dassault Systèmes 或 SOLIDWORKS 无隶属、认可或支持关系；Wine 运行方式也不属于厂商官方支持的平台。
-2. 本项目只提供通用 Wine 运行时、安装辅助与导出脚本，不分发 SOLIDWORKS 商业软件、安装介质、序列号、许可文件或破解授权。
+2. 本项目只提供通用 Wine 运行时、安装辅助、SWCLI 集成与 CI 验证脚本，不分发 SOLIDWORKS 商业软件、安装介质、序列号、许可文件或破解授权。
 3. 使用者应自行确认其下载、安装、容器化、缓存、内部再分发和自动化使用方式符合适用的许可协议、合同与当地法律。
 4. SOLIDWORKS 是 Dassault Systèmes 的注册商标。

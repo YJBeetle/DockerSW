@@ -6,7 +6,7 @@
 
 ## 1. 现象与排查背景
 
-在无头 CI 环境中使用 `sw-export` 命令导出 SOLIDWORKS 官方图纸（如 `cabinet_bath.slddrw` 与 `bezel moldbase.slddrw`）为 PDF 时：
+在无头 CI 环境中使用 `sw-cli document export` 导出 SOLIDWORKS 官方图纸（如 `cabinet_bath.slddrw` 与 `bezel moldbase.slddrw`）为 PDF 时：
 - **线框视图（Wireframe / HLR）**：导出完全正常且矢量线条清晰；
 - **3D 着色视图（Shaded View）**：出现严重的几何畸变与光栅瑕疵：
   1. 水平方向被压缩为原本的 $1/4$，并连续横向**平铺复制了 4 次**；

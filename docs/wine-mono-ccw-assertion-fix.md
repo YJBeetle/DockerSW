@@ -6,7 +6,7 @@
 
 ## 1. 现象与排查背景
 
-在 GitLab CI 等高并发批处理场景下，使用 `sw-export` 连续批量导出多个复杂工程图（`.SLDDRW` -> `.PDF` 与 `.DWG`）时：
+在 GitLab CI 等高并发批处理场景下，使用 `sw-cli document export` 连续导出多个复杂工程图（`.SLDDRW` -> `.PDF` 与 `.DWG`）时：
 1. **PDF 导出成功**：在第一阶段通常能顺利导出高质量 PDF；
 2. **DWG 转换时偶发崩溃**：当进入 DWG 转换环节，控制台输出断言失败：
    ```text
