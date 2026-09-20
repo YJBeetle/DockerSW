@@ -36,7 +36,7 @@ sw-runtime-base
                     └── 执行真实 CAD 导出门禁
 ```
 
-每个仓库均发布不可变的 `sha-xxxxxxx` 镜像并维护独立 registry build cache。三个 `*-base` 镜像不带 `main`/`latest`；真实导出通过后，仅将三个包含当前 SWCLI 的 Delivery 镜像晋升为分支标签和 `latest`。因此 CLI 高频变化不会触发 Wine、SOLIDWORKS 安装和测试授权层重建，同时 E2E 仍验证最终交付镜像，而不是缓存本身。
+每个仓库均发布不可变的 `sha-xxxxxxx` 镜像并维护独立 registry build cache。Base 与 `sw-runtime` SHA 候选可按后续 Dockerfile 的 `FROM` 依赖顺序提前发布，但 Base 不带 `main`/`latest`；真实导出通过后，才发布包含 SOLIDWORKS 的 Delivery SHA 候选，并晋升三个最终镜像的分支标签和 `latest`。因此 CLI 高频变化不会触发 Wine、SOLIDWORKS 安装和测试授权层重建，同时 E2E 仍验证最终交付镜像，而不是缓存本身。
 
 ---
 

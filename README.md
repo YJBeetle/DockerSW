@@ -48,7 +48,7 @@ sw-runtime-base                 低频：Wine + Mono + Python + sw-install
                                       └── 真实导出 6 个产物通过后晋升
 ```
 
-六个镜像均使用不可变的 `sha-xxxxxxx` 标签推送到 GHCR；三个 `*-base` 仓库只保存构建基础与 `buildcache`，不晋升 `main` 或 `latest`。只有包含当前 SWCLI 的 `sw-runtime`、`sw-preinstalled`、`sw-executable` 在同一份 `sw-executable` 完成真实导出后才晋升分支标签和 `latest`。
+六个镜像均使用不可变的 `sha-xxxxxxx` 标签推送到 GHCR；三个 `*-base` 仓库只保存后续阶段需要的构建基础与 `buildcache`，不晋升 `main` 或 `latest`。作为下游输入的 Base 与 `sw-runtime` SHA 候选可提前发布；包含 SOLIDWORKS 的 `sw-preinstalled`、`sw-executable` SHA 候选，以及三个最终镜像的分支标签和 `latest`，仍须等待同一份 `sw-executable` 完成真实导出。
 
 ## 安装 SOLIDWORKS
 
@@ -136,7 +136,7 @@ docker build \
    - 执行无人值守安装生成 `sw-preinstalled-base`，再加入当前应用层生成 `sw-preinstalled`；
    - 就地构建 `sw-executable-base` 与最终 `sw-executable`，后者执行真实 CAD 导出冒烟测试（验证 6 个 STEP、PDF、DWG 输出）；
    - 六个仓库分别使用 GHCR registry cache；仅修改 SWCLI 时会复用 Wine、SOLIDWORKS 安装与测试运行时层；
-   - **原子晋升发布**：冒烟测试通过后推送六个不可变 SHA 镜像，并只为三个最终镜像晋升 `:latest` 与分支标签。
+   - Base 与 `sw-runtime` SHA 候选按后续 `FROM` 依赖顺序发布；**原子晋升发布**仍只在冒烟测试通过后推送包含 SOLIDWORKS 的 Delivery SHA 候选，并为三个最终镜像晋升 `:latest` 与分支标签。
 
 ### Google Drive Secret 配置
 
