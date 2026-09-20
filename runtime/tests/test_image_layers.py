@@ -112,8 +112,10 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn("preinstall/media", dockerignore)
         for context_name, relative_path in (
             ("sw-data", "preinstall/media/swwi/data"),
+            ("sw-toolbox", "preinstall/media/Toolbox"),
             ("sw-login", "preinstall/media/swloginmgr"),
             ("sw-vcredist", "preinstall/media/PreReqs/VCRedist17"),
+            ("sw-dotnet", "preinstall/media/PreReqs/dotNetFx"),
         ):
             self.assertIn(f"from={context_name}", installer)
             self.assertIn(

@@ -215,9 +215,15 @@ fi
 
 VC_INSTALLER="${MEDIA_ROOT}/PreReqs/VCRedist17/VC_redist.x64.exe"
 LOGIN_MANAGER_INSTALLER="${MEDIA_ROOT}/swloginmgr/SOLIDWORKS Login Manager.msi"
+DOTNET_INSTALLER="${MEDIA_ROOT}/PreReqs/dotNetFx/ndp48-x86-x64-allos-enu.exe"
+TOOLBOX_DIR="${MEDIA_ROOT}/Toolbox"
 [ -s "${MSI_PATH}" ] || die "SOLIDWORKS MSI is empty"
 [ -s "${VC_INSTALLER}" ] || die "official VC++ x64 prerequisite is missing"
 [ -s "${LOGIN_MANAGER_INSTALLER}" ] || die "official SOLIDWORKS Login Manager MSI is missing"
+[ -s "${DOTNET_INSTALLER}" ] || die "official .NET 4.8 prerequisite is missing"
+[ -d "${TOOLBOX_DIR}" ] \
+    && find "${TOOLBOX_DIR}" -maxdepth 1 -type f -iname '*.zip' -print -quit | grep -q . \
+    || die "official SOLIDWORKS Toolbox payload is missing"
 
 info "Validated complete media layout and official prerequisite files."
 if [ "${VALIDATE_ONLY}" = true ]; then
@@ -272,8 +278,13 @@ run_installer() {
             ;;
         *)
             if [ -f "${LOG_DIR}/solidworks-msi.log" ]; then
-                echo "[DockerSW Install][DIAGNOSTIC] Tail of ${LOG_DIR}/solidworks-msi.log:" >&2
-                tail -n 60 "${LOG_DIR}/solidworks-msi.log" >&2 || true
+                echo "[DockerSW Install][DIAGNOSTIC] MSI error summary:" >&2
+                grep -nEi \
+                    'SW MESSAGE\|ERROR\||Return value 3|Error [0-9]{4}|source file.*not found|cannot find|unable to' \
+                    "${LOG_DIR}/solidworks-msi.log" \
+                    | grep -Evi 'SERIALNUMBER|SERVERLIST' \
+                    | tail -n 120 >&2 \
+                    || true
             fi
             die "${label} failed with exit status ${status}; inspect ${LOG_DIR}"
             ;;
@@ -438,7 +449,7 @@ MSI_ARGUMENTS=(
 )
 MSI_ARGUMENTS+=("${MSI_PROPERTIES[@]}")
 run_installer "SOLIDWORKS MSI" wine "${MSI_ARGUMENTS[@]}"
-if ! timeout --foreground 600 wineserver -w; then
+if ! timeout --foreground 30 wineserver -w; then
     # The package can leave optional updater/UI helpers alive after msiexec has
     # committed the installation. They are not part of the installed runtime
     # and must not keep an image build open indefinitely.
@@ -481,12 +492,10 @@ validate_solidworks_com_registration
 install_wpf_themes() {
     [ "${INSTALL_WPF_THEMES}" = true ] || return
     command -v 7z >/dev/null 2>&1 || die "7z is required to extract WPF themes"
-    local dotnet temp mzz system_wpf source_name theme filename
-    dotnet="${MEDIA_ROOT}/PreReqs/dotNetFx/ndp48-x86-x64-allos-enu.exe"
-    [ -s "${dotnet}" ] || die "official .NET 4.8 prerequisite is missing; cannot extract WPF themes"
+    local temp mzz system_wpf source_name theme filename
     temp="$(mktemp -d /tmp/sw-wpf.XXXXXX)"
     TEMP_DIRS+=("${temp}")
-    7z e -y -o"${temp}" "${dotnet}" netfx_Full.mzz >>"${LOG_DIR}/wpf-themes.log" 2>&1
+    7z e -y -o"${temp}" "${DOTNET_INSTALLER}" netfx_Full.mzz >>"${LOG_DIR}/wpf-themes.log" 2>&1
     mzz="${temp}/netfx_Full.mzz"
     [ -s "${mzz}" ] || die "netfx_Full.mzz was not found in the official .NET package"
     7z e -y -o"${temp}" "${mzz}" \

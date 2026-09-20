@@ -13,11 +13,13 @@ ARG SW_SERIAL_MOTION=""
 ARG SW_SERIAL_MBD=""
 ARG SW_LICENSE_SERVER=""
 
-# 只向 BuildKit 传入当前安装流程需要的完整官方组件目录：
-# 核心 MSI 及全部配套 CAB、Login Manager，以及 VC++ x64 前置组件。
+# 只向 BuildKit 传入安装流程已在真实 MSI 安装中验证过的官方目录。
+# Toolbox 是核心 MSI InstallFinalize 的必需输入；dotNetFx 用于补齐 Wine WPF 主题。
 RUN --mount=type=bind,from=sw-data,target=/mnt/sw-media/swwi/data \
+    --mount=type=bind,from=sw-toolbox,target=/mnt/sw-media/Toolbox \
     --mount=type=bind,from=sw-login,target=/mnt/sw-media/swloginmgr \
     --mount=type=bind,from=sw-vcredist,target=/mnt/sw-media/PreReqs/VCRedist17 \
+    --mount=type=bind,from=sw-dotnet,target=/mnt/sw-media/PreReqs/dotNetFx \
     SW_SERIAL_SOLIDWORKS="${SW_SERIAL_SOLIDWORKS}" \
     SW_SERIAL_SIMULATION="${SW_SERIAL_SIMULATION}" \
     SW_SERIAL_MOTION="${SW_SERIAL_MOTION}" \

@@ -33,7 +33,12 @@ class InstallScriptValidationTests(unittest.TestCase):
         )
 
     def create_media(
-        self, root: Path, include_vc: bool = True, include_login_manager: bool = True
+        self,
+        root: Path,
+        include_vc: bool = True,
+        include_login_manager: bool = True,
+        include_dotnet: bool = True,
+        include_toolbox: bool = True,
     ) -> None:
         msi = root / "swwi" / "data" / "solidworks.msi"
         msi.parent.mkdir(parents=True)
@@ -46,6 +51,14 @@ class InstallScriptValidationTests(unittest.TestCase):
             login_manager = root / "swloginmgr" / "SOLIDWORKS Login Manager.msi"
             login_manager.parent.mkdir(parents=True)
             login_manager.write_bytes(b"test-login-manager")
+        if include_dotnet:
+            dotnet = root / "PreReqs" / "dotNetFx" / "ndp48-x86-x64-allos-enu.exe"
+            dotnet.parent.mkdir(parents=True)
+            dotnet.write_bytes(b"test-dotnet")
+        if include_toolbox:
+            toolbox = root / "Toolbox" / "ToolboxUpdates.zip"
+            toolbox.parent.mkdir(parents=True)
+            toolbox.write_bytes(b"test-toolbox")
 
     def run_validation(
         self, media: Path, *, extra_env: dict[str, str] | None = None
@@ -88,6 +101,22 @@ class InstallScriptValidationTests(unittest.TestCase):
             result = self.run_validation(media)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("SOLIDWORKS Login Manager MSI is missing", result.stderr)
+
+    def test_rejects_media_without_dotnet_prerequisite(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            media = Path(temporary)
+            self.create_media(media, include_dotnet=False)
+            result = self.run_validation(media)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(".NET 4.8 prerequisite is missing", result.stderr)
+
+    def test_rejects_media_without_toolbox_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            media = Path(temporary)
+            self.create_media(media, include_toolbox=False)
+            result = self.run_validation(media)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Toolbox payload is missing", result.stderr)
 
     def test_rejects_non_directory_media_archive(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -135,6 +164,9 @@ class InstallScriptValidationTests(unittest.TestCase):
         )
         self.assertIn('info "Stopping background Wine helpers', script)
         self.assertIn("wineserver -k || true", script)
+        self.assertIn("timeout --foreground 30 wineserver -w", script)
+        self.assertIn("SW MESSAGE\\|ERROR\\|", script)
+        self.assertNotIn("Tail of ${LOG_DIR}/solidworks-msi.log", script)
 
     def test_eula_acceptance_is_explicit_and_not_preseeded(self) -> None:
         script = INSTALLER.read_text(encoding="utf-8")
