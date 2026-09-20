@@ -334,11 +334,14 @@ jobs:
           # whenever the runtime base, installation recipe and configured media
           # identity are unchanged; do not mount or scan the ISO merely to ask
           # BuildKit whether its RUN layer is cached.
-          docker pull "${SW_RUNTIME_BASE_IMAGE}"
           runtime_base_digest="$(
-            docker image inspect "${SW_RUNTIME_BASE_IMAGE}" \
-              --format '{{index .RepoDigests 0}}' | sed 's/.*@//'
+            docker buildx imagetools inspect "${SW_RUNTIME_BASE_IMAGE}" \
+              --format '{{json .Manifest}}' | jq -r '.digest'
           )"
+          [[ "${runtime_base_digest}" == sha256:* ]] || {
+            echo "Unable to resolve runtime base digest: ${runtime_base_digest}" >&2
+            exit 1
+          }
           recipe_digest="$(sha256sum preinstall/Dockerfile.base | cut -d' ' -f1)"
           install_key="$(
             printf '%s\n%s\n%s\n' \
@@ -546,15 +549,14 @@ jobs:
           SW_SERIAL_MBD: ${{ secrets.SW_SERIAL_MBD }}
         run: |
           set -Eeuo pipefail
-          docker pull "${SW_RUNTIME_IMAGE}"
-
           if [ "${{ steps.check-installed-base.outputs.exists }}" = "true" ]; then
-            echo "[CI cache] Pulling reusable installation base without mounting the ISO..."
-            docker pull "${SW_PREINSTALLED_REUSABLE_IMAGE}"
-            docker tag "${SW_PREINSTALLED_REUSABLE_IMAGE}" "${SW_PREINSTALLED_BASE_IMAGE}"
+            echo "[CI cache] Reusing installation base entirely inside GHCR..."
+            docker buildx imagetools create --prefer-index=false \
+              --tag "${SW_PREINSTALLED_BASE_IMAGE}" \
+              "${SW_PREINSTALLED_REUSABLE_IMAGE}"
           else
             echo "[CI build] Building installation base from the immutable ISO..."
-            docker buildx build --load \
+            docker buildx build --push \
               --target sw-preinstalled-base \
               --build-context "sw-data=preinstall/media/swwi/data" \
               --build-context "sw-toolbox=preinstall/media/Toolbox" \
@@ -572,13 +574,7 @@ jobs:
               -t "${SW_PREINSTALLED_REUSABLE_IMAGE}" \
               -t "${SW_PREINSTALLED_BASE_IMAGE}" \
               .
-            docker push "${SW_PREINSTALLED_REUSABLE_IMAGE}"
           fi
-
-          # Publish the immutable per-commit candidate before the delivery build:
-          # the docker-container builder cannot resolve images loaded only into
-          # the host Docker Engine.
-          docker push "${SW_PREINSTALLED_BASE_IMAGE}"
 
           docker buildx build --load \
             --target sw-preinstalled \
@@ -590,13 +586,13 @@ jobs:
             -t "${SW_PREINSTALLED_IMAGE}" \
             .
 
-      - name: Build sw-executable image (from local sw-preinstalled, zero pull overhead)
+      - name: Build sw-executable image
         if: steps.check-images.outputs.already_verified != 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
-          echo "[CI build] Building sw-executable locally from ${SW_PREINSTALLED_IMAGE}..."
-          docker buildx build --load \
+          echo "[CI build] Building sw-executable from ${SW_PREINSTALLED_BASE_IMAGE}..."
+          docker buildx build --push \
             --target sw-executable-base \
             --build-context "smoke-assets=smoke-test/assets" \
             --build-arg "BASE_IMAGE=${SW_PREINSTALLED_BASE_IMAGE}" \
@@ -605,11 +601,6 @@ jobs:
             -f smoke-test/Dockerfile.base \
             -t "${SW_EXECUTABLE_BASE_IMAGE}" \
             .
-
-          # The delivery Dockerfile consumes the base as an external image.
-          # Publish this immutable candidate so the docker-container builder can
-          # resolve it without rebuilding or reading the private test assets.
-          docker push "${SW_EXECUTABLE_BASE_IMAGE}"
 
           docker buildx build --load \
             --target sw-executable \
@@ -636,11 +627,12 @@ jobs:
             executable_language_image="${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
 
             if [ "${language_cached}" = "true" ]; then
-              docker pull "${language_reusable_image}"
-              docker tag "${language_reusable_image}" "${preinstalled_language_base}"
+              docker buildx imagetools create --prefer-index=false \
+                --tag "${preinstalled_language_base}" \
+                "${language_reusable_image}"
             else
               echo "[CI language] Installing ${language_tag} resources from ${media_directory}/${language_msi}..."
-              docker buildx build --load \
+              docker buildx build --push \
                 --target sw-language-base \
                 --build-context "sw-language=preinstall/media/swwi/lang/${media_directory}" \
                 --build-arg "BASE_IMAGE=${SW_PREINSTALLED_BASE_IMAGE}" \
@@ -656,9 +648,7 @@ jobs:
                 -t "${language_reusable_image}" \
                 -t "${preinstalled_language_base}" \
                 .
-              docker push "${language_reusable_image}"
             fi
-            docker push "${preinstalled_language_base}"
 
             docker buildx build --load \
               --target sw-preinstalled \
@@ -670,7 +660,7 @@ jobs:
               -t "${preinstalled_language_image}" \
               .
 
-            docker buildx build --load \
+            docker buildx build --push \
               --target sw-executable-base \
               --build-context "smoke-assets=smoke-test/assets" \
               --build-arg "BASE_IMAGE=${preinstalled_language_base}" \
@@ -679,7 +669,6 @@ jobs:
               -f smoke-test/Dockerfile.base \
               -t "${executable_language_base}" \
               .
-            docker push "${executable_language_base}"
 
             docker buildx build --load \
               --target sw-executable \
@@ -774,7 +763,6 @@ jobs:
           set -Eeuo pipefail
           echo "[CI push] Smoke test PASSED! Publishing verified candidates to GHCR..."
           docker push "${SW_PREINSTALLED_IMAGE}"
-          docker push "${SW_EXECUTABLE_BASE_IMAGE}"
           docker push "${SW_EXECUTABLE_IMAGE}"
           while IFS=$'\t' read -r language_tag _; do
             docker push "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
@@ -784,49 +772,39 @@ jobs:
           target_tag="${{ github.ref_name }}"
           if [ -n "${target_tag}" ]; then
             echo "[CI promote] Promoting verified tags for ${target_tag}..."
-            docker tag "${SW_RUNTIME_IMAGE}" "${SW_RUNTIME_REPO}:${target_tag}"
-            docker push "${SW_RUNTIME_REPO}:${target_tag}"
-
-            docker tag "${SW_PREINSTALLED_IMAGE}" "${SW_PREINSTALLED_REPO}:${target_tag}"
-            docker push "${SW_PREINSTALLED_REPO}:${target_tag}"
-
-            docker tag "${SW_EXECUTABLE_IMAGE}" "${SW_EXECUTABLE_REPO}:${target_tag}"
-            docker push "${SW_EXECUTABLE_REPO}:${target_tag}"
+            docker buildx imagetools create --prefer-index=false \
+              --tag "${SW_RUNTIME_REPO}:${target_tag}" "${SW_RUNTIME_IMAGE}"
+            docker buildx imagetools create --prefer-index=false \
+              --tag "${SW_PREINSTALLED_REPO}:${target_tag}" "${SW_PREINSTALLED_IMAGE}"
+            docker buildx imagetools create --prefer-index=false \
+              --tag "${SW_EXECUTABLE_REPO}:${target_tag}" "${SW_EXECUTABLE_IMAGE}"
 
             while IFS=$'\t' read -r language_tag _; do
-              docker tag \
-                "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}" \
-                "${SW_PREINSTALLED_REPO}:${target_tag}-${language_tag}"
-              docker push "${SW_PREINSTALLED_REPO}:${target_tag}-${language_tag}"
-
-              docker tag \
-                "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}" \
-                "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}"
-              docker push "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}"
+              docker buildx imagetools create --prefer-index=false \
+                --tag "${SW_PREINSTALLED_REPO}:${target_tag}-${language_tag}" \
+                "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
+              docker buildx imagetools create --prefer-index=false \
+                --tag "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}" \
+                "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
             done < "${SW_LANGUAGE_BUILD_PLAN}"
           fi
 
           if [ "${target_tag}" = "main" ]; then
             echo "[CI promote] Promoting verified :latest tags..."
-            docker tag "${SW_RUNTIME_IMAGE}" "${SW_RUNTIME_REPO}:latest"
-            docker push "${SW_RUNTIME_REPO}:latest"
-
-            docker tag "${SW_PREINSTALLED_IMAGE}" "${SW_PREINSTALLED_REPO}:latest"
-            docker push "${SW_PREINSTALLED_REPO}:latest"
-
-            docker tag "${SW_EXECUTABLE_IMAGE}" "${SW_EXECUTABLE_REPO}:latest"
-            docker push "${SW_EXECUTABLE_REPO}:latest"
+            docker buildx imagetools create --prefer-index=false \
+              --tag "${SW_RUNTIME_REPO}:latest" "${SW_RUNTIME_IMAGE}"
+            docker buildx imagetools create --prefer-index=false \
+              --tag "${SW_PREINSTALLED_REPO}:latest" "${SW_PREINSTALLED_IMAGE}"
+            docker buildx imagetools create --prefer-index=false \
+              --tag "${SW_EXECUTABLE_REPO}:latest" "${SW_EXECUTABLE_IMAGE}"
 
             while IFS=$'\t' read -r language_tag _; do
-              docker tag \
-                "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}" \
-                "${SW_PREINSTALLED_REPO}:latest-${language_tag}"
-              docker push "${SW_PREINSTALLED_REPO}:latest-${language_tag}"
-
-              docker tag \
-                "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}" \
-                "${SW_EXECUTABLE_REPO}:latest-${language_tag}"
-              docker push "${SW_EXECUTABLE_REPO}:latest-${language_tag}"
+              docker buildx imagetools create --prefer-index=false \
+                --tag "${SW_PREINSTALLED_REPO}:latest-${language_tag}" \
+                "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
+              docker buildx imagetools create --prefer-index=false \
+                --tag "${SW_EXECUTABLE_REPO}:latest-${language_tag}" \
+                "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
             done < "${SW_LANGUAGE_BUILD_PLAN}"
           fi
 

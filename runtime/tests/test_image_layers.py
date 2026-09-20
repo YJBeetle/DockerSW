@@ -81,6 +81,14 @@ class ImageLayeringTests(unittest.TestCase):
             "SW_EXECUTABLE_BASE_IMAGE",
             "SW_EXECUTABLE_IMAGE",
         ):
+            self.assertIn(f'${{{image}}}', workflow)
+
+        for image in (
+            "SW_RUNTIME_BASE_IMAGE",
+            "SW_RUNTIME_IMAGE",
+            "SW_PREINSTALLED_IMAGE",
+            "SW_EXECUTABLE_IMAGE",
+        ):
             self.assertIn(f'push "${{{image}}}"', workflow)
 
     def test_only_delivery_tags_are_mutable(self) -> None:
@@ -194,6 +202,21 @@ class ImageLayeringTests(unittest.TestCase):
             ],
             rows,
         )
+
+    def test_cached_base_images_stay_in_the_registry(self) -> None:
+        workflow = self.read(".github/workflows/build.yml")
+
+        self.assertIn(
+            'docker buildx imagetools inspect "${SW_RUNTIME_BASE_IMAGE}"', workflow
+        )
+        self.assertNotIn('docker pull "${SW_RUNTIME_BASE_IMAGE}"', workflow)
+        self.assertNotIn('docker pull "${SW_PREINSTALLED_REUSABLE_IMAGE}"', workflow)
+        self.assertNotIn('docker pull "${language_reusable_image}"', workflow)
+        self.assertIn('--tag "${SW_PREINSTALLED_BASE_IMAGE}"', workflow)
+        self.assertIn('"${SW_PREINSTALLED_REUSABLE_IMAGE}"', workflow)
+        self.assertIn('--tag "${preinstalled_language_base}"', workflow)
+        self.assertIn('"${language_reusable_image}"', workflow)
+        self.assertIn("docker buildx build --push", workflow)
 
 
 if __name__ == "__main__":
