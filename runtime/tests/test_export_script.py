@@ -8,7 +8,6 @@ from pathlib import Path
 RUNTIME_ROOT = Path(__file__).resolve().parents[1]
 SWCLI_SCRIPT = RUNTIME_ROOT / "bin" / "sw-cli"
 DAEMON_SCRIPT = RUNTIME_ROOT / "bin" / "swclid"
-DAEMON_HELPER = RUNTIME_ROOT / "scripts" / "lib" / "swclid.sh"
 
 
 class RuntimeWrapperTests(unittest.TestCase):
@@ -19,11 +18,6 @@ class RuntimeWrapperTests(unittest.TestCase):
                 ["bash", "-n", str(script)], capture_output=True, text=True
             )
             self.assertEqual(result.returncode, 0, result.stderr)
-        helper_result = subprocess.run(
-            ["bash", "-n", str(DAEMON_HELPER)], capture_output=True, text=True
-        )
-        self.assertEqual(helper_result.returncode, 0, helper_result.stderr)
-
     def test_sw_cli_translates_typed_path_argument(self):
         invocation = self._run_with_fake_wine(
             SWCLI_SCRIPT, ["document", "open", "/workspace/model.SLDPRT", "--json"]
@@ -44,11 +38,10 @@ class RuntimeWrapperTests(unittest.TestCase):
 
     def test_typed_cli_uses_resident_daemon(self):
         script = SWCLI_SCRIPT.read_text(encoding="utf-8")
-        helper = DAEMON_HELPER.read_text(encoding="utf-8")
         self.assertIn("swclid_ensure", script)
-        self.assertIn("python3 -m swcli.daemon status", helper)
-        self.assertIn("-m swcli.daemon serve", helper)
-        self.assertIn("SWCLI_ENDPOINT", helper)
+        self.assertIn("python3 -m swcli.daemon status", script)
+        self.assertIn("-m swcli.daemon serve", script)
+        self.assertIn("SWCLI_ENDPOINT", script)
 
     def test_swclid_marks_docker_host_as_linux_wine(self):
         invocation = self._run_with_fake_wine(
