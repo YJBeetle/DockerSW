@@ -228,6 +228,18 @@ class InstallScriptValidationTests(unittest.TestCase):
         )
         self.assertIn('WINE_VERSION="11.16"', config)
         self.assertIn('WINE_MONO_VERSION="11.3.0"', config)
+        self.assertIn(
+            'MONO_PATCH_RELEASE="wine-mono-11.3.0-X86StdcallFix-ComRegistration-v3"',
+            config,
+        )
+        self.assertIn(
+            'MONO_PATCH_SHA256="950509a51c72ab9347ad49548f297d7dc81c98a56609f102b26fb30fa3e9f7ea"',
+            config,
+        )
+        self.assertIn(
+            'MONO_MSCORLIB_SHA256="dbf8fe45f524f5ac0ca87af8d70d08bcbb0fa46e2048a8780d577fb246542eba"',
+            config,
+        )
         # Pin every package in the WineHQ dependency chain. Otherwise apt picks
         # the newest wine-devel candidate and rejects the older meta-package.
         self.assertIn('"wine-devel-amd64=${WINE_PACKAGE_VERSION}"', dockerfile)
