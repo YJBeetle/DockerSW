@@ -454,7 +454,9 @@ jobs:
             echo "[CI build] Building installation base from the immutable ISO..."
             docker buildx build --load \
               --target sw-preinstalled-base \
-              --build-context "sw-media=preinstall/media" \
+              --build-context "sw-data=preinstall/media/swwi/data" \
+              --build-context "sw-login=preinstall/media/swloginmgr" \
+              --build-context "sw-vcredist=preinstall/media/PreReqs/VCRedist17" \
               --build-arg "BASE_IMAGE=${SW_RUNTIME_BASE_IMAGE}" \
               --build-arg "SW_SERIAL_SOLIDWORKS=${SW_SERIAL_SOLIDWORKS}" \
               --build-arg "SW_SERIAL_SIMULATION=${SW_SERIAL_SIMULATION}" \

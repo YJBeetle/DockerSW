@@ -13,8 +13,11 @@ ARG SW_SERIAL_MOTION=""
 ARG SW_SERIAL_MBD=""
 ARG SW_LICENSE_SERVER=""
 
-# 挂载官方安装介质并执行无人值守静默安装（纯参数传递，零注册表侵入）
-RUN --mount=type=bind,from=sw-media,target=/mnt/sw-media \
+# 只向 BuildKit 传入当前安装流程需要的完整官方组件目录：
+# 核心 MSI 及全部配套 CAB、Login Manager，以及 VC++ x64 前置组件。
+RUN --mount=type=bind,from=sw-data,target=/mnt/sw-media/swwi/data \
+    --mount=type=bind,from=sw-login,target=/mnt/sw-media/swloginmgr \
+    --mount=type=bind,from=sw-vcredist,target=/mnt/sw-media/PreReqs/VCRedist17 \
     SW_SERIAL_SOLIDWORKS="${SW_SERIAL_SOLIDWORKS}" \
     SW_SERIAL_SIMULATION="${SW_SERIAL_SIMULATION}" \
     SW_SERIAL_MOTION="${SW_SERIAL_MOTION}" \

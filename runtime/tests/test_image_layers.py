@@ -110,8 +110,16 @@ class ImageLayeringTests(unittest.TestCase):
         installer = self.read("preinstall/Dockerfile.base")
 
         self.assertIn("preinstall/media", dockerignore)
-        self.assertIn("from=sw-media", installer)
-        self.assertIn('--build-context "sw-media=preinstall/media"', workflow)
+        for context_name, relative_path in (
+            ("sw-data", "preinstall/media/swwi/data"),
+            ("sw-login", "preinstall/media/swloginmgr"),
+            ("sw-vcredist", "preinstall/media/PreReqs/VCRedist17"),
+        ):
+            self.assertIn(f"from={context_name}", installer)
+            self.assertIn(
+                f'--build-context "{context_name}={relative_path}"', workflow
+            )
+        self.assertNotIn("sw-media=preinstall/media", workflow)
         self.assertIn("SW_PREINSTALLED_REUSABLE_IMAGE", workflow)
         self.assertIn("steps.check-installed-base.outputs.exists != 'true'", workflow)
         self.assertIn("-f preinstall/Dockerfile.base", workflow)
