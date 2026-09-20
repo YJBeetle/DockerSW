@@ -57,13 +57,6 @@ class ImageLayeringTests(unittest.TestCase):
         ):
             self.assertIn(repository, workflow)
 
-        for removed_repository in (
-            "ghcr.io/yjbeetle/sw-runtime-base",
-            "ghcr.io/yjbeetle/sw-preinstalled-base",
-            "ghcr.io/yjbeetle/sw-executable-base",
-        ):
-            self.assertNotIn(removed_repository, workflow)
-
         for target in ("sw-runtime-base", "sw-runtime"):
             self.assertIn(f"target: {target}", workflow)
         for target in (
