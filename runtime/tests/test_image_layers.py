@@ -81,6 +81,14 @@ class ImageLayeringTests(unittest.TestCase):
         ):
             self.assertNotIn(f'${{{base_repository_variable}}}:latest', workflow)
 
+    def test_disk_cleanup_only_runs_below_the_required_capacity(self) -> None:
+        workflow = self.read(".github/workflows/build.yml")
+        self.assertIn("Inspect runner disk capacity", workflow)
+        self.assertIn("Verify runner disk capacity", workflow)
+        self.assertIn("required_kib=$((40 * 1024 * 1024))", workflow)
+        self.assertIn("steps.runner-disk.outputs.cleanup_required == 'true'", workflow)
+        self.assertIn("jlumbroso/free-disk-space", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()

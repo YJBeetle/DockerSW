@@ -260,12 +260,43 @@ jobs:
             echo "already_verified=false" >> "${GITHUB_OUTPUT}"
           fi
 
-      - name: Free runner disk space
+      - name: Inspect runner disk capacity
+        id: runner-disk
         if: steps.check-images.outputs.already_verified != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          required_kib=$((40 * 1024 * 1024))
+          available_kib="$(df --output=avail -k / | tail -n 1 | tr -d ' ')"
+          df -h /
+          if [ "${available_kib}" -lt "${required_kib}" ]; then
+            echo "cleanup_required=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "cleanup_required=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Reclaim runner disk space when required
+        if: >-
+          steps.check-images.outputs.already_verified != 'true' &&
+          steps.runner-disk.outputs.cleanup_required == 'true'
         uses: jlumbroso/free-disk-space@main
         with:
           tool-cache: false
           swap-storage: true
+
+      - name: Verify runner disk capacity
+        if: steps.check-images.outputs.already_verified != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          required_kib=$((40 * 1024 * 1024))
+          available_kib="$(df --output=avail -k / | tail -n 1 | tr -d ' ')"
+          df -h /
+          if [ "${available_kib}" -lt "${required_kib}" ]; then
+            available_gib="$((available_kib / 1024 / 1024))"
+            echo "Runner disk is too small after cleanup: ${available_gib} GiB available; at least 40 GiB is required." >&2
+            exit 1
+          fi
 
       - name: Install rclone and FUSE
         if: steps.check-images.outputs.already_verified != 'true'
