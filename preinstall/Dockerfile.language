@@ -1,0 +1,46 @@
+# DockerSW: 在纯净 SOLIDWORKS 安装基础上增加一种官方语言资源
+ARG BASE_IMAGE=sw-preinstalled-base:local
+FROM ${BASE_IMAGE} AS sw-language-base
+
+ARG SW_LANGUAGE_TAG
+ARG SW_LANGUAGE_DIRECTORY
+ARG SW_LANGUAGE_MSI
+ARG SW_LANGUAGE_ID
+ARG SW_POSIX_LOCALE
+ARG SW_SOLIDWORKS_LANGUAGE
+
+RUN --mount=type=bind,from=sw-language,target=/mnt/sw-language \
+    set -Eeux; \
+    test -n "${SW_LANGUAGE_TAG}"; \
+    test -n "${SW_LANGUAGE_DIRECTORY}"; \
+    test -n "${SW_LANGUAGE_MSI}"; \
+    test -n "${SW_LANGUAGE_ID}"; \
+    test -n "${SW_POSIX_LOCALE}"; \
+    test -n "${SW_SOLIDWORKS_LANGUAGE}"; \
+    localedef -i "${SW_POSIX_LOCALE}" -f UTF-8 "${SW_POSIX_LOCALE}.UTF-8"; \
+    language_msi="/mnt/sw-language/${SW_LANGUAGE_MSI}"; \
+    test -s "${language_msi}"; \
+    mkdir -p /var/log/sw-install; \
+    chmod 0700 /var/log/sw-install; \
+    language_log="/var/log/sw-install/language-${SW_LANGUAGE_TAG}.log"; \
+    language_log_windows="$(winepath -w "/var/log/sw-install/language-${SW_LANGUAGE_TAG}.log")"; \
+    if ! timeout --foreground 3600 \
+        wine msiexec /i "${language_msi}" /qb \
+        /l*v "${language_log_windows}"; then \
+        tail -n 120 "${language_log}" >&2 || true; \
+        exit 1; \
+    fi; \
+    if ! timeout --foreground 30 wineserver -w; then \
+        wineserver -k || true; \
+        timeout --foreground 60 wineserver -w; \
+    fi; \
+    test -d "/root/.wine/drive_c/Program Files/SOLIDWORKS/lang/${SW_LANGUAGE_DIRECTORY}"; \
+    rm -rf /var/log/sw-install
+
+ENV SW_LANGUAGE=${SW_LANGUAGE_TAG} \
+    SW_LANGUAGE_ID=${SW_LANGUAGE_ID} \
+    SW_SOLIDWORKS_LANGUAGE=${SW_SOLIDWORKS_LANGUAGE} \
+    LANG=${SW_POSIX_LOCALE}.UTF-8 \
+    LC_ALL=${SW_POSIX_LOCALE}.UTF-8
+
+LABEL org.opencontainers.image.description="SOLIDWORKS official language resources"

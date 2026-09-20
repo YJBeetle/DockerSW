@@ -153,6 +153,48 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn("-f smoke-test/Dockerfile.base", workflow)
         self.assertIn("-f smoke-test/Dockerfile", workflow)
 
+    def test_localized_images_are_layered_on_the_installed_base(self) -> None:
+        workflow = self.read(".github/workflows/build.yml")
+        language_dockerfile = self.read("preinstall/Dockerfile.language")
+
+        self.assertIn("FROM ${BASE_IMAGE} AS sw-language-base", language_dockerfile)
+        self.assertIn("from=sw-language", language_dockerfile)
+        self.assertIn("wine msiexec /i", language_dockerfile)
+        self.assertIn("/qb", language_dockerfile)
+        self.assertIn("localedef -i", language_dockerfile)
+        self.assertIn("LANG=${SW_POSIX_LOCALE}.UTF-8", language_dockerfile)
+        self.assertNotIn("ADDLOCAL", language_dockerfile)
+        self.assertIn(
+            '--build-context "sw-language=preinstall/media/swwi/lang/${media_directory}"',
+            workflow,
+        )
+        self.assertIn("${SW_IMAGE_SHA_TAG}-${language_tag}-base", workflow)
+        self.assertIn("${SW_IMAGE_SHA_TAG}-${language_tag}", workflow)
+        self.assertIn(":latest-${language_tag}", workflow)
+
+    def test_supported_language_tags_are_unique(self) -> None:
+        rows = []
+        for line in self.read("preinstall/languages.tsv").splitlines():
+            if line and not line.startswith("#"):
+                rows.append(line.split("\t"))
+
+        self.assertEqual(13, len(rows))
+        self.assertTrue(all(len(row) == 6 for row in rows))
+        for column in range(6):
+            values = [row[column] for row in rows]
+            self.assertEqual(len(values), len(set(values)))
+        self.assertIn(
+            [
+                "zh-cn",
+                "chinese-simplified",
+                "chinese-simplified.msi",
+                "2052",
+                "zh_CN",
+                "chinese-simplified",
+            ],
+            rows,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

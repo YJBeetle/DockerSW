@@ -1,0 +1,14 @@
+# tag	media-directory	msi	windows-language-id	posix-locale	solidworks-language
+zh-tw	chinese	chinese.msi	1028	zh_TW	chinese
+zh-cn	chinese-simplified	chinese-simplified.msi	2052	zh_CN	chinese-simplified
+cs	czech	czech.msi	1029	cs_CZ	czech
+fr	french	french.msi	1036	fr_FR	french
+de	german	german.msi	1031	de_DE	german
+it	italian	italian.msi	1040	it_IT	italian
+ja	japanese	japanese.msi	1041	ja_JP	japanese
+ko	korean	korean.msi	1042	ko_KR	korean
+pl	polish	polish.msi	1045	pl_PL	polish
+pt-br	portuguese-brazilian	portuguese-brazilian.msi	1046	pt_BR	portuguese-brazilian
+ru	russian	russian.msi	1049	ru_RU	russian
+es	spanish	spanish.msi	3082	es_ES	spanish
+tr	turkish	turkish.msi	1055	tr_TR	turkish

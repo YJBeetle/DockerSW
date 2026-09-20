@@ -46,9 +46,15 @@ sw-runtime-base                 低频：Wine + Mono + Python + sw-install
                                       高频：最后加入当前 SWCLI 与 DockerSW 运行脚本
                                       │
                                       └── 真实导出 6 个产物通过后晋升
+                    │
+                    └── sw-language-base
+                          低频：增加一种官方语言资源，不重复核心安装
+                                │
+                                ├── sw-preinstalled:<版本>-<语言>
+                                └── sw-executable:<版本>-<语言>
 ```
 
-GHCR 只保留 `sw-runtime`、`sw-preinstalled`、`sw-executable` 三个 package。每个交付镜像使用不可变的 `sha-xxxxxxx` 标签，对应的内部构建基础使用 `sha-xxxxxxx-base`；base 不晋升 `main` 或 `latest`。作为下游输入的 base 与 `sw-runtime` SHA 候选可提前发布；包含 SOLIDWORKS 的 `sw-preinstalled`、`sw-executable` SHA 候选，以及三个最终镜像的分支标签和 `latest`，仍须等待同一份 `sw-executable` 完成真实导出。base 与交付层的 registry 缓存分别使用 `buildcache-base` 和 `buildcache-delivery`。
+GHCR 只保留 `sw-runtime`、`sw-preinstalled`、`sw-executable` 三个 package。每个交付镜像使用不可变的 `sha-xxxxxxx` 标签，对应的内部构建基础使用 `sha-xxxxxxx-base`；base 不晋升 `main` 或 `latest`。本地化交付镜像在版本身份后追加标准语言 tag，例如 `sha-xxxxxxx-zh-cn`、`main-zh-cn` 和 `latest-zh-cn`，其内部基础为 `sha-xxxxxxx-zh-cn-base`。作为下游输入的 base 与 `sw-runtime` SHA 候选可提前发布；包含 SOLIDWORKS 的 `sw-preinstalled`、`sw-executable` SHA 候选，以及三个最终镜像的分支标签和 `latest`，仍须等待同一份 `sw-executable` 完成真实导出。base 与交付层的 registry 缓存分别使用独立 tag。
 
 ## 安装 SOLIDWORKS
 
@@ -125,6 +131,27 @@ docker build \
 
 运行 `sw-install --help` 可查看当前命令行说明。
 
+## 本地化镜像
+
+英文仍是无语言后缀的默认镜像。CI 默认额外安装并验证简体中文资源，发布：
+
+- `ghcr.io/yjbeetle/sw-preinstalled:latest-zh-cn`
+- `ghcr.io/yjbeetle/sw-executable:latest-zh-cn`
+
+语言资源在核心 SOLIDWORKS 安装完成后，以独立 MSI 层加入；该层同时生成对应 UTF-8 locale，并通过 `LANG`/`LC_ALL` 让 Wine 中的 SOLIDWORKS 选择该语言。同一语言基础同时供 `sw-preinstalled` 和 `sw-executable` 使用，不会为每个交付镜像重新安装 SOLIDWORKS。语言 MSI 只在对应缓存缺失时从 ISO 读取。每个本地化 `sw-executable` 会通过 COM 核对实际界面语言，并导出一个 STEP 文件后才晋升可变 tag。
+
+手动运行工作流时，`languages` 接受逗号分隔的语言 tag，或使用 `all` 构建全部官方语言：
+
+| Tag | 官方介质目录 | Tag | 官方介质目录 |
+|---|---|---|---|
+| `zh-cn` | `chinese-simplified` | `zh-tw` | `chinese` |
+| `cs` | `czech` | `fr` | `french` |
+| `de` | `german` | `it` | `italian` |
+| `ja` | `japanese` | `ko` | `korean` |
+| `pl` | `polish` | `pt-br` | `portuguese-brazilian` |
+| `ru` | `russian` | `es` | `spanish` |
+| `tr` | `turkish` |  |  |
+
 ## 自动化构建与验证流水线 (`build.yml`)
 
 本项目提供完整的 GitHub Actions 单一持续集成流水线配置 [`.github/workflows/build.yml`](.github/workflows/build.yml)，实现原生 DAG 依赖与零多余网络开销的自动化交付：
@@ -135,7 +162,7 @@ docker build \
    - 挂载 Google Drive，通过 `rclone` 开启 VFS 缓存稀疏读取官方 ISO；
    - 执行无人值守安装生成 `sw-preinstalled-base`，再加入当前应用层生成 `sw-preinstalled`；
    - 就地构建 `sw-executable-base` 与最终 `sw-executable`，后者执行真实 CAD 导出冒烟测试（验证 6 个 STEP、PDF、DWG 输出）；
-   - 六个仓库分别使用 GHCR registry cache；仅修改 SWCLI 时会复用 Wine、SOLIDWORKS 安装与测试运行时层；
+   - 六个英文镜像及本地化变体分别使用 GHCR registry cache；仅修改 SWCLI 时会复用 Wine、SOLIDWORKS 安装、语言资源与测试运行时层；
    - Base 与 `sw-runtime` SHA 候选按后续 `FROM` 依赖顺序发布；**原子晋升发布**仍只在冒烟测试通过后推送包含 SOLIDWORKS 的 Delivery SHA 候选，并为三个最终镜像晋升 `:latest` 与分支标签。
 
 ### Google Drive Secret 配置

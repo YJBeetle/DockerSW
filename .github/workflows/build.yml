@@ -24,6 +24,10 @@ on:
         description: 'Path to activation crack assets inside the Google Drive remote'
         type: string
         default: 'Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/crack'
+      languages:
+        description: 'Localized image tags to build (comma-separated or all)'
+        type: string
+        default: 'zh-cn'
 
 permissions:
   contents: read
@@ -58,6 +62,7 @@ jobs:
           bash -n runtime/prepare_managed_com.sh
           bash -n runtime/bin/*
           bash -n smoke-test/export.sh
+          bash -n smoke-test/export-localized.sh
           perl -c runtime/patch_win32u.pl
           perl -c runtime/patch_wine_mono.pl
 
@@ -193,6 +198,7 @@ jobs:
       SW_RUNTIME_REPO: ghcr.io/yjbeetle/sw-runtime
       SW_PREINSTALLED_REPO: ghcr.io/yjbeetle/sw-preinstalled
       SW_EXECUTABLE_REPO: ghcr.io/yjbeetle/sw-executable
+      SW_LANGUAGES: ${{ inputs.languages || 'zh-cn' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -212,6 +218,34 @@ jobs:
           echo "SW_EXECUTABLE_BASE_IMAGE=${SW_EXECUTABLE_REPO}:sha-${commit_sha}-base" >> "${GITHUB_ENV}"
           echo "SW_EXECUTABLE_IMAGE=${SW_EXECUTABLE_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
 
+          language_plan="${RUNNER_TEMP}/solidworks-languages.tsv"
+          : > "${language_plan}"
+          if [ "${SW_LANGUAGES}" = "all" ]; then
+            grep -v '^#' preinstall/languages.tsv > "${language_plan}"
+          else
+            printf '%s\n' "${SW_LANGUAGES}" \
+              | tr ',' '\n' \
+              | while IFS= read -r requested_language; do
+                  requested_language="$(printf '%s' "${requested_language}" | xargs)"
+                  [ -n "${requested_language}" ] || continue
+                  language_row="$(awk -F '\t' -v tag="${requested_language}" \
+                    '$1 == tag { print; exit }' preinstall/languages.tsv)"
+                  [ -n "${language_row}" ] || {
+                    echo "Unsupported SOLIDWORKS language tag: ${requested_language}" >&2
+                    echo "Supported tags: $(grep -v '^#' preinstall/languages.tsv | cut -f1 | paste -sd, -)" >&2
+                    exit 1
+                  }
+                  printf '%s\n' "${language_row}"
+                done \
+              | awk -F '\t' '!seen[$1]++' > "${language_plan}"
+          fi
+          test -s "${language_plan}" || {
+            echo "At least one SOLIDWORKS language must be selected." >&2
+            exit 1
+          }
+          echo "SW_LANGUAGE_PLAN=${language_plan}" >> "${GITHUB_ENV}"
+          echo "[CI language] Requested localized images: $(cut -f1 "${language_plan}" | paste -sd, -)"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -230,12 +264,26 @@ jobs:
           force="${{ inputs.force_rebuild || 'false' }}"
           target_tag="${{ github.ref_name }}"
 
-          if [ "${force}" != "true" ] && \
-             docker manifest inspect "${SW_PREINSTALLED_BASE_IMAGE}" >/dev/null 2>&1 && \
-             docker manifest inspect "${SW_PREINSTALLED_IMAGE}" >/dev/null 2>&1 && \
-             docker manifest inspect "${SW_EXECUTABLE_BASE_IMAGE}" >/dev/null 2>&1 && \
-             docker manifest inspect "${SW_EXECUTABLE_IMAGE}" >/dev/null 2>&1; then
-            echo "[CI fast-path] 检测到当前提交 (${SW_IMAGE_SHA_TAG}) 的四个下游镜像均已完成验证！"
+          all_images_exist=true
+          for image in \
+            "${SW_PREINSTALLED_BASE_IMAGE}" \
+            "${SW_PREINSTALLED_IMAGE}" \
+            "${SW_EXECUTABLE_BASE_IMAGE}" \
+            "${SW_EXECUTABLE_IMAGE}"; do
+            docker manifest inspect "${image}" >/dev/null 2>&1 \
+              || all_images_exist=false
+          done
+          while IFS=$'\t' read -r language_tag _; do
+            for repository in "${SW_PREINSTALLED_REPO}" "${SW_EXECUTABLE_REPO}"; do
+              docker manifest inspect "${repository}:${SW_IMAGE_SHA_TAG}-${language_tag}-base" >/dev/null 2>&1 \
+                || all_images_exist=false
+              docker manifest inspect "${repository}:${SW_IMAGE_SHA_TAG}-${language_tag}" >/dev/null 2>&1 \
+                || all_images_exist=false
+            done
+          done < "${SW_LANGUAGE_PLAN}"
+
+          if [ "${force}" != "true" ] && [ "${all_images_exist}" = "true" ]; then
+            echo "[CI fast-path] 检测到当前提交 (${SW_IMAGE_SHA_TAG}) 的英文及本地化镜像均已完成验证！"
             echo "[CI fast-path] 跳过 30+ 分钟的 ISO 挂载、预安装与冒烟测试，秒级晋升标签..."
 
             if [ -n "${target_tag}" ]; then
@@ -243,6 +291,14 @@ jobs:
               docker buildx imagetools create --tag "${SW_RUNTIME_REPO}:${target_tag}" "${SW_RUNTIME_IMAGE}" || true
               docker buildx imagetools create --tag "${SW_PREINSTALLED_REPO}:${target_tag}" "${SW_PREINSTALLED_IMAGE}"
               docker buildx imagetools create --tag "${SW_EXECUTABLE_REPO}:${target_tag}" "${SW_EXECUTABLE_IMAGE}"
+              while IFS=$'\t' read -r language_tag _; do
+                docker buildx imagetools create \
+                  --tag "${SW_PREINSTALLED_REPO}:${target_tag}-${language_tag}" \
+                  "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
+                docker buildx imagetools create \
+                  --tag "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}" \
+                  "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
+              done < "${SW_LANGUAGE_PLAN}"
             fi
 
             if [ "${target_tag}" = "main" ]; then
@@ -250,6 +306,14 @@ jobs:
               docker buildx imagetools create --tag "${SW_RUNTIME_REPO}:latest" "${SW_RUNTIME_IMAGE}" || true
               docker buildx imagetools create --tag "${SW_PREINSTALLED_REPO}:latest" "${SW_PREINSTALLED_IMAGE}"
               docker buildx imagetools create --tag "${SW_EXECUTABLE_REPO}:latest" "${SW_EXECUTABLE_IMAGE}"
+              while IFS=$'\t' read -r language_tag _; do
+                docker buildx imagetools create \
+                  --tag "${SW_PREINSTALLED_REPO}:latest-${language_tag}" \
+                  "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
+                docker buildx imagetools create \
+                  --tag "${SW_EXECUTABLE_REPO}:latest-${language_tag}" \
+                  "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
+              done < "${SW_LANGUAGE_PLAN}"
             fi
 
             echo "already_verified=true" >> "${GITHUB_OUTPUT}"
@@ -295,6 +359,47 @@ jobs:
             echo "[CI cache] Installed base is missing or rebuild was forced; ISO access is required."
             echo "exists=false" >> "${GITHUB_OUTPUT}"
           fi
+
+          language_recipe_digest="$(sha256sum preinstall/Dockerfile.language | cut -d' ' -f1)"
+          language_build_plan="${RUNNER_TEMP}/solidworks-language-builds.tsv"
+          : > "${language_build_plan}"
+          language_media_required=false
+          while IFS=$'\t' read -r \
+            language_tag media_directory language_msi language_id \
+            posix_locale solidworks_language; do
+            language_key="$(
+              printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' \
+                "${install_key}" \
+                "${language_recipe_digest}" \
+                "${SW_MEDIA_PATH}" \
+                "${language_tag}" \
+                "${media_directory}" \
+                "${language_msi}" \
+                "${posix_locale}" \
+                "${solidworks_language}" | sha256sum | cut -d' ' -f1
+            )"
+            language_reusable_image="${SW_PREINSTALLED_REPO}:install-${language_key:0:32}-${language_tag}-base"
+            language_cached=false
+            if [ "${force}" != "true" ] && \
+               docker manifest inspect "${language_reusable_image}" >/dev/null 2>&1; then
+              language_cached=true
+              echo "[CI cache] Reusing ${language_tag} SOLIDWORKS language base."
+            else
+              language_media_required=true
+              echo "[CI cache] ${language_tag} language base is missing or rebuild was forced."
+            fi
+            printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+              "${language_tag}" \
+              "${media_directory}" \
+              "${language_msi}" \
+              "${language_id}" \
+              "${posix_locale}" \
+              "${solidworks_language}" \
+              "${language_reusable_image}" \
+              "${language_cached}" >> "${language_build_plan}"
+          done < "${SW_LANGUAGE_PLAN}"
+          echo "SW_LANGUAGE_BUILD_PLAN=${language_build_plan}" >> "${GITHUB_ENV}"
+          echo "language_media_required=${language_media_required}" >> "${GITHUB_OUTPUT}"
 
       - name: Inspect runner disk capacity
         id: runner-disk
@@ -367,7 +472,8 @@ jobs:
       - name: Mount Google Drive and the SOLIDWORKS ISO
         if: >-
           steps.check-images.outputs.already_verified != 'true' &&
-          steps.check-installed-base.outputs.exists != 'true'
+          (steps.check-installed-base.outputs.exists != 'true' ||
+           steps.check-installed-base.outputs.language_media_required == 'true')
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -515,6 +621,77 @@ jobs:
             -t "${SW_EXECUTABLE_IMAGE}" \
             .
 
+      - name: Build localized SOLIDWORKS images
+        if: steps.check-images.outputs.already_verified != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          while IFS=$'\t' read -r \
+            language_tag media_directory language_msi language_id \
+            posix_locale solidworks_language \
+            language_reusable_image language_cached; do
+            preinstalled_language_base="${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-base"
+            preinstalled_language_image="${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
+            executable_language_base="${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-base"
+            executable_language_image="${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
+
+            if [ "${language_cached}" = "true" ]; then
+              docker pull "${language_reusable_image}"
+              docker tag "${language_reusable_image}" "${preinstalled_language_base}"
+            else
+              echo "[CI language] Installing ${language_tag} resources from ${media_directory}/${language_msi}..."
+              docker buildx build --load \
+                --target sw-language-base \
+                --build-context "sw-language=preinstall/media/swwi/lang/${media_directory}" \
+                --build-arg "BASE_IMAGE=${SW_PREINSTALLED_BASE_IMAGE}" \
+                --build-arg "SW_LANGUAGE_TAG=${language_tag}" \
+                --build-arg "SW_LANGUAGE_DIRECTORY=${media_directory}" \
+                --build-arg "SW_LANGUAGE_MSI=${language_msi}" \
+                --build-arg "SW_LANGUAGE_ID=${language_id}" \
+                --build-arg "SW_POSIX_LOCALE=${posix_locale}" \
+                --build-arg "SW_SOLIDWORKS_LANGUAGE=${solidworks_language}" \
+                --cache-from "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-${language_tag}-language" \
+                --cache-to "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-${language_tag}-language,mode=max,ignore-error=true" \
+                -f preinstall/Dockerfile.language \
+                -t "${language_reusable_image}" \
+                -t "${preinstalled_language_base}" \
+                .
+              docker push "${language_reusable_image}"
+            fi
+            docker push "${preinstalled_language_base}"
+
+            docker buildx build --load \
+              --target sw-preinstalled \
+              --build-arg "BASE_IMAGE=${preinstalled_language_base}" \
+              --build-arg "APP_IMAGE=${SW_RUNTIME_IMAGE}" \
+              --cache-from "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-${language_tag}-delivery" \
+              --cache-to "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-${language_tag}-delivery,mode=max,ignore-error=true" \
+              -f preinstall/Dockerfile \
+              -t "${preinstalled_language_image}" \
+              .
+
+            docker buildx build --load \
+              --target sw-executable-base \
+              --build-context "smoke-assets=smoke-test/assets" \
+              --build-arg "BASE_IMAGE=${preinstalled_language_base}" \
+              --cache-from "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-${language_tag}-base" \
+              --cache-to "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-${language_tag}-base,mode=max,ignore-error=true" \
+              -f smoke-test/Dockerfile.base \
+              -t "${executable_language_base}" \
+              .
+            docker push "${executable_language_base}"
+
+            docker buildx build --load \
+              --target sw-executable \
+              --build-arg "BASE_IMAGE=${executable_language_base}" \
+              --build-arg "APP_IMAGE=${SW_RUNTIME_IMAGE}" \
+              --cache-from "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-${language_tag}-delivery" \
+              --cache-to "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-${language_tag}-delivery,mode=max,ignore-error=true" \
+              -f smoke-test/Dockerfile \
+              -t "${executable_language_image}" \
+              .
+          done < "${SW_LANGUAGE_BUILD_PLAN}"
+
       - name: Smoke test real SOLIDWORKS exports
         if: steps.check-images.outputs.already_verified != 'true'
         shell: bash
@@ -558,6 +735,38 @@ jobs:
           done
           echo "SOLIDWORKS export smoke test passed: ${#expected_outputs[@]} files verified."
 
+      - name: Smoke test localized SOLIDWORKS images
+        if: steps.check-images.outputs.already_verified != 'true'
+        shell: bash
+        timeout-minutes: 30
+        run: |
+          set -Eeuo pipefail
+          while IFS=$'\t' read -r \
+            language_tag media_directory _language_msi _language_id \
+            _posix_locale solidworks_language \
+            _language_reusable_image _language_cached; do
+            smoke_container="sw-language-smoke-${GITHUB_RUN_ID}-${language_tag}"
+            smoke_root="${RUNNER_TEMP}/sw-language-smoke/${language_tag}"
+            output_dir="${smoke_root}/output"
+            log_file="${smoke_root}/sw-cli-export.log"
+            executable_language_image="${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
+
+            rm -rf "${smoke_root}"
+            mkdir -p "${output_dir}"
+            docker rm -f "${smoke_container}" >/dev/null 2>&1 || true
+            docker run --rm \
+              --name "${smoke_container}" \
+              --env "SW_LANGUAGE_RESOURCE_DIR=${media_directory}" \
+              --env "SW_SOLIDWORKS_LANGUAGE=${solidworks_language}" \
+              --mount "type=bind,source=${smoke_root},target=/ci-smoke" \
+              --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/export-localized.sh,target=/opt/dockersw-smoke/export-localized.sh,readonly" \
+              "${executable_language_image}" \
+              bash /opt/dockersw-smoke/export-localized.sh 2>&1 \
+              | tee "${log_file}"
+            test -s "${output_dir}/Paper Airplane.STEP"
+            echo "[CI language] ${language_tag} UI language and real STEP export verified."
+          done < "${SW_LANGUAGE_BUILD_PLAN}"
+
       - name: Publish verified images & promote atomically
         if: steps.check-images.outputs.already_verified != 'true'
         shell: bash
@@ -567,6 +776,10 @@ jobs:
           docker push "${SW_PREINSTALLED_IMAGE}"
           docker push "${SW_EXECUTABLE_BASE_IMAGE}"
           docker push "${SW_EXECUTABLE_IMAGE}"
+          while IFS=$'\t' read -r language_tag _; do
+            docker push "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
+            docker push "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
+          done < "${SW_LANGUAGE_BUILD_PLAN}"
 
           target_tag="${{ github.ref_name }}"
           if [ -n "${target_tag}" ]; then
@@ -579,6 +792,18 @@ jobs:
 
             docker tag "${SW_EXECUTABLE_IMAGE}" "${SW_EXECUTABLE_REPO}:${target_tag}"
             docker push "${SW_EXECUTABLE_REPO}:${target_tag}"
+
+            while IFS=$'\t' read -r language_tag _; do
+              docker tag \
+                "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}" \
+                "${SW_PREINSTALLED_REPO}:${target_tag}-${language_tag}"
+              docker push "${SW_PREINSTALLED_REPO}:${target_tag}-${language_tag}"
+
+              docker tag \
+                "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}" \
+                "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}"
+              docker push "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}"
+            done < "${SW_LANGUAGE_BUILD_PLAN}"
           fi
 
           if [ "${target_tag}" = "main" ]; then
@@ -591,6 +816,18 @@ jobs:
 
             docker tag "${SW_EXECUTABLE_IMAGE}" "${SW_EXECUTABLE_REPO}:latest"
             docker push "${SW_EXECUTABLE_REPO}:latest"
+
+            while IFS=$'\t' read -r language_tag _; do
+              docker tag \
+                "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}" \
+                "${SW_PREINSTALLED_REPO}:latest-${language_tag}"
+              docker push "${SW_PREINSTALLED_REPO}:latest-${language_tag}"
+
+              docker tag \
+                "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}" \
+                "${SW_EXECUTABLE_REPO}:latest-${language_tag}"
+              docker push "${SW_EXECUTABLE_REPO}:latest-${language_tag}"
+            done < "${SW_LANGUAGE_BUILD_PLAN}"
           fi
 
       - name: Show storage usage
@@ -605,6 +842,9 @@ jobs:
         shell: bash
         run: |
           docker rm -f "sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true
+          while IFS=$'\t' read -r language_tag _; do
+            docker rm -f "sw-language-smoke-${GITHUB_RUN_ID}-${language_tag}" >/dev/null 2>&1 || true
+          done < "${SW_LANGUAGE_PLAN}" 2>/dev/null || true
           rm -rf smoke-test/assets
           sudo umount "${SW_MEDIA_MOUNT}" 2>/dev/null || true
           fusermount3 -u "${GDRIVE_MOUNT}" 2>/dev/null || \
@@ -627,5 +867,14 @@ jobs:
         with:
           name: sw-cli-export-smoke-${{ github.run_id }}
           path: ${{ runner.temp }}/sw-cli-export-smoke
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload localized export smoke-test artifacts
+        if: always() && steps.check-images.outputs.already_verified != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: sw-language-smoke-${{ github.run_id }}
+          path: ${{ runner.temp }}/sw-language-smoke
           if-no-files-found: ignore
           retention-days: 14
