@@ -33,6 +33,14 @@ class ImageLayeringTests(unittest.TestCase):
             self.assertIn("/opt/swcli/", delivery)
             self.assertIn("install_swcli.sh /opt/swcli", delivery)
 
+    def test_delivery_images_do_not_copy_removed_swclid_wrapper(self) -> None:
+        for relative_path in ("preinstall/Dockerfile", "smoke-test/Dockerfile"):
+            self.assertNotIn("/usr/local/bin/swclid", self.read(relative_path))
+
+        export_script = self.read("smoke-test/export.sh")
+        self.assertIn("sw-cli daemon stop --json", export_script)
+        self.assertNotIn("\nswclid ", export_script)
+
     def test_ci_builds_and_publishes_all_six_sha_images(self) -> None:
         workflow = self.read(".github/workflows/build.yml")
         for repository in (

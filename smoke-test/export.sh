@@ -33,4 +33,4 @@ sw-cli document open \
 sw-cli document export "${outdir}/Paper Airplane.STEP" --json
 sw-cli document close --discard --json
 
-swclid stop --json
+sw-cli daemon stop --json
