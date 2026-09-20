@@ -53,6 +53,7 @@ jobs:
           bash -n runtime/entrypoint.sh
           bash -n runtime/fetch_managed_com.sh
           bash -n runtime/prepare_managed_com.sh
+          bash -n runtime/install_swcli.sh
           bash -n runtime/bin/*
           bash -n smoke-test/export.sh
           perl -c runtime/patch_win32u.pl
@@ -67,6 +68,9 @@ jobs:
     name: Build sw-runtime Image
     needs: unit-tests
     runs-on: ubuntu-latest
+    env:
+      SW_RUNTIME_BASE_REPO: ghcr.io/yjbeetle/sw-runtime-base
+      SW_RUNTIME_REPO: ghcr.io/yjbeetle/sw-runtime
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
@@ -83,40 +87,44 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check if sw-runtime already exists on GHCR
+      - name: Resolve runtime image names
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          commit_sha="$(git rev-parse --short=7 HEAD)"
+          echo "SW_RUNTIME_BASE_IMAGE=${SW_RUNTIME_BASE_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+          echo "SW_RUNTIME_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+
+      - name: Check if runtime images already exist on GHCR
         id: check-runtime
         shell: bash
         run: |
           set -Eeuo pipefail
           force="${{ inputs.force_rebuild || 'false' }}"
-          commit_sha="$(git rev-parse --short=7 HEAD)"
-          runtime_image="ghcr.io/yjbeetle/sw-runtime:sha-${commit_sha}"
-          target_tag="${{ github.ref_name }}"
 
-          if [ "${force}" != "true" ] && docker manifest inspect "${runtime_image}" >/dev/null 2>&1; then
-            echo "[CI fast-path] 镜像 ${runtime_image} 已存在于 GHCR，跳过重复构建，直接晋升标签..."
-            if [ -n "${target_tag}" ]; then
-              echo "[CI fast-path] 晋升分支标签: ${target_tag}..."
-              docker buildx imagetools create --tag "ghcr.io/yjbeetle/sw-runtime:${target_tag}" "${runtime_image}"
-            fi
-            if [ "${target_tag}" = "main" ]; then
-              echo "[CI fast-path] 晋升 :latest 标签..."
-              docker buildx imagetools create --tag "ghcr.io/yjbeetle/sw-runtime:latest" "${runtime_image}"
-            fi
+          if [ "${force}" != "true" ] && \
+             docker manifest inspect "${SW_RUNTIME_BASE_IMAGE}" >/dev/null 2>&1 && \
+             docker manifest inspect "${SW_RUNTIME_IMAGE}" >/dev/null 2>&1; then
+            echo "[CI fast-path] runtime base 与正式镜像均已存在，跳过重复构建。"
             echo "exists=true" >> "${GITHUB_OUTPUT}"
           else
             echo "[CI] 镜像不存在或要求强制重构，继续执行构建流程..."
             echo "exists=false" >> "${GITHUB_OUTPUT}"
           fi
 
-      - name: Extract Docker Metadata
+      - name: Build and load sw-runtime-base image
         if: steps.check-runtime.outputs.exists != 'true'
-        id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/build-push-action@v7
         with:
-          images: ghcr.io/yjbeetle/sw-runtime
+          context: .
+          file: runtime/Dockerfile
+          target: sw-runtime-base
+          load: true
           tags: |
-            type=sha,format=short,prefix=sha-
+            sw-runtime-base:local-test
+            ${{ env.SW_RUNTIME_BASE_IMAGE }}
+          cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime-base:buildcache
+          cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime-base:buildcache,mode=max,ignore-error=true
 
       - name: Build and Load sw-runtime Image
         if: steps.check-runtime.outputs.exists != 'true'
@@ -124,11 +132,11 @@ jobs:
         with:
           context: .
           file: runtime/Dockerfile
+          target: sw-runtime
           load: true
           tags: |
             sw-runtime:local-test
-            ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+            ${{ env.SW_RUNTIME_IMAGE }}
           # 用 GHCR 上的专用 buildcache 标签替代 GHA 缓存：镜像本就推送到同一仓库，
           # registry 缓存可与已存在的 blob 去重，避免 GHA 缓存每次上传数 GB（约 195s）。
           cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache
@@ -137,6 +145,10 @@ jobs:
       - name: Smoke Test (Wine, Mono COM, Python, pywin32 & CLI)
         if: steps.check-runtime.outputs.exists != 'true'
         run: |
+          echo "[CI] 验证 0: base 镜像不包含 SWCLI，且安装器可用..."
+          docker run --rm --entrypoint bash sw-runtime-base:local-test -lc \
+            'test ! -e /opt/swcli && sw-install --help >/dev/null'
+
           echo "[CI] 验证 1: 测试固定 Wine 版本与 Windows 虚拟版本..."
           test "$(docker run --rm --entrypoint wine sw-runtime:local-test --version)" = "wine-11.16"
           docker run --rm sw-runtime:local-test wine cmd /c ver
@@ -162,11 +174,9 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          echo "[CI] 验证通过，推送已验证的 sw-runtime 镜像至 GHCR..."
-          for tag in ${{ steps.meta.outputs.tags }}; do
-            echo "[CI push] 推送 ${tag}..."
-            docker push "${tag}"
-          done
+          echo "[CI] 验证通过，推送 runtime base 与正式镜像至 GHCR..."
+          docker push "${SW_RUNTIME_BASE_IMAGE}"
+          docker push "${SW_RUNTIME_IMAGE}"
 
   build-and-smoke-test:
     name: Build & Smoke Test SolidWorks
@@ -179,9 +189,12 @@ jobs:
       SW_MEDIA_MOUNT: preinstall/media
       SW_MEDIA_PATH: ${{ inputs.media_path || 'Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/SolidWorks.2025.SP5.0.Premium.DVD.iso' }}
       SW_ASSETS_PATH: ${{ inputs.assets_path || 'Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/crack' }}
-      SW_RUNTIME_BASE: ghcr.io/yjbeetle/sw-runtime
-      SW_PREINSTALLED_BASE: ghcr.io/yjbeetle/sw-preinstalled
-      SW_EXECUTABLE_BASE: ghcr.io/yjbeetle/sw-executable
+      SW_RUNTIME_BASE_REPO: ghcr.io/yjbeetle/sw-runtime-base
+      SW_RUNTIME_REPO: ghcr.io/yjbeetle/sw-runtime
+      SW_PREINSTALLED_BASE_REPO: ghcr.io/yjbeetle/sw-preinstalled-base
+      SW_PREINSTALLED_REPO: ghcr.io/yjbeetle/sw-preinstalled
+      SW_EXECUTABLE_BASE_REPO: ghcr.io/yjbeetle/sw-executable-base
+      SW_EXECUTABLE_REPO: ghcr.io/yjbeetle/sw-executable
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -194,9 +207,12 @@ jobs:
           set -Eeuo pipefail
           commit_sha="$(git rev-parse --short=7 HEAD)"
           echo "SW_IMAGE_SHA_TAG=sha-${commit_sha}" >> "${GITHUB_ENV}"
-          echo "SW_RUNTIME_IMAGE=${SW_RUNTIME_BASE}:sha-${commit_sha}" >> "${GITHUB_ENV}"
-          echo "SW_PREINSTALLED_IMAGE=${SW_PREINSTALLED_BASE}:sha-${commit_sha}" >> "${GITHUB_ENV}"
-          echo "SW_EXECUTABLE_IMAGE=${SW_EXECUTABLE_BASE}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+          echo "SW_RUNTIME_BASE_IMAGE=${SW_RUNTIME_BASE_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+          echo "SW_RUNTIME_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+          echo "SW_PREINSTALLED_BASE_IMAGE=${SW_PREINSTALLED_BASE_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+          echo "SW_PREINSTALLED_IMAGE=${SW_PREINSTALLED_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+          echo "SW_EXECUTABLE_BASE_IMAGE=${SW_EXECUTABLE_BASE_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+          echo "SW_EXECUTABLE_IMAGE=${SW_EXECUTABLE_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -216,22 +232,26 @@ jobs:
           force="${{ inputs.force_rebuild || 'false' }}"
           target_tag="${{ github.ref_name }}"
 
-          if [ "${force}" != "true" ] && docker manifest inspect "${SW_EXECUTABLE_IMAGE}" >/dev/null 2>&1; then
-            echo "[CI fast-path] 检测到当前提交 (${SW_IMAGE_SHA_TAG}) 的镜像已在 GHCR 完成构建并通过冒烟测试！"
+          if [ "${force}" != "true" ] && \
+             docker manifest inspect "${SW_PREINSTALLED_BASE_IMAGE}" >/dev/null 2>&1 && \
+             docker manifest inspect "${SW_PREINSTALLED_IMAGE}" >/dev/null 2>&1 && \
+             docker manifest inspect "${SW_EXECUTABLE_BASE_IMAGE}" >/dev/null 2>&1 && \
+             docker manifest inspect "${SW_EXECUTABLE_IMAGE}" >/dev/null 2>&1; then
+            echo "[CI fast-path] 检测到当前提交 (${SW_IMAGE_SHA_TAG}) 的四个下游镜像均已完成验证！"
             echo "[CI fast-path] 跳过 30+ 分钟的 ISO 挂载、预安装与冒烟测试，秒级晋升标签..."
 
             if [ -n "${target_tag}" ]; then
               echo "[CI fast-path] 晋升分支标签: ${target_tag}..."
-              docker buildx imagetools create --tag "${SW_RUNTIME_BASE}:${target_tag}" "${SW_RUNTIME_IMAGE}" || true
-              docker buildx imagetools create --tag "${SW_PREINSTALLED_BASE}:${target_tag}" "${SW_PREINSTALLED_IMAGE}"
-              docker buildx imagetools create --tag "${SW_EXECUTABLE_BASE}:${target_tag}" "${SW_EXECUTABLE_IMAGE}"
+              docker buildx imagetools create --tag "${SW_RUNTIME_REPO}:${target_tag}" "${SW_RUNTIME_IMAGE}" || true
+              docker buildx imagetools create --tag "${SW_PREINSTALLED_REPO}:${target_tag}" "${SW_PREINSTALLED_IMAGE}"
+              docker buildx imagetools create --tag "${SW_EXECUTABLE_REPO}:${target_tag}" "${SW_EXECUTABLE_IMAGE}"
             fi
 
             if [ "${target_tag}" = "main" ]; then
               echo "[CI fast-path] 晋升 :latest 标签..."
-              docker buildx imagetools create --tag "${SW_RUNTIME_BASE}:latest" "${SW_RUNTIME_IMAGE}" || true
-              docker buildx imagetools create --tag "${SW_PREINSTALLED_BASE}:latest" "${SW_PREINSTALLED_IMAGE}"
-              docker buildx imagetools create --tag "${SW_EXECUTABLE_BASE}:latest" "${SW_EXECUTABLE_IMAGE}"
+              docker buildx imagetools create --tag "${SW_RUNTIME_REPO}:latest" "${SW_RUNTIME_IMAGE}" || true
+              docker buildx imagetools create --tag "${SW_PREINSTALLED_REPO}:latest" "${SW_PREINSTALLED_IMAGE}"
+              docker buildx imagetools create --tag "${SW_EXECUTABLE_REPO}:latest" "${SW_EXECUTABLE_IMAGE}"
             fi
 
             echo "already_verified=true" >> "${GITHUB_OUTPUT}"
@@ -351,16 +371,37 @@ jobs:
           SW_SERIAL_MBD: ${{ secrets.SW_SERIAL_MBD }}
         run: |
           set -Eeuo pipefail
+          docker pull "${SW_RUNTIME_BASE_IMAGE}"
           docker pull "${SW_RUNTIME_IMAGE}"
-          docker build \
-            --build-arg "BASE_IMAGE=${SW_RUNTIME_IMAGE}" \
+
+          docker buildx build --load \
+            --target sw-preinstalled-base \
+            --build-arg "BASE_IMAGE=${SW_RUNTIME_BASE_IMAGE}" \
+            --build-arg "APP_IMAGE=${SW_RUNTIME_IMAGE}" \
             --build-arg "SW_SERIAL_SOLIDWORKS=${SW_SERIAL_SOLIDWORKS}" \
             --build-arg "SW_SERIAL_SIMULATION=${SW_SERIAL_SIMULATION}" \
             --build-arg "SW_SERIAL_MOTION=${SW_SERIAL_MOTION}" \
             --build-arg "SW_SERIAL_MBD=${SW_SERIAL_MBD}" \
+            --cache-from "type=registry,ref=${SW_PREINSTALLED_BASE_REPO}:buildcache" \
+            --cache-to "type=registry,ref=${SW_PREINSTALLED_BASE_REPO}:buildcache,mode=max,ignore-error=true" \
+            -f preinstall/Dockerfile \
+            -t "${SW_PREINSTALLED_BASE_IMAGE}" \
+            .
+
+          docker buildx build --load \
+            --target sw-preinstalled \
+            --build-arg "BASE_IMAGE=${SW_RUNTIME_BASE_IMAGE}" \
+            --build-arg "APP_IMAGE=${SW_RUNTIME_IMAGE}" \
+            --build-arg "SW_SERIAL_SOLIDWORKS=${SW_SERIAL_SOLIDWORKS}" \
+            --build-arg "SW_SERIAL_SIMULATION=${SW_SERIAL_SIMULATION}" \
+            --build-arg "SW_SERIAL_MOTION=${SW_SERIAL_MOTION}" \
+            --build-arg "SW_SERIAL_MBD=${SW_SERIAL_MBD}" \
+            --cache-from "type=registry,ref=${SW_PREINSTALLED_BASE_REPO}:buildcache" \
+            --cache-from "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache" \
+            --cache-to "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache,mode=max,ignore-error=true" \
             -f preinstall/Dockerfile \
             -t "${SW_PREINSTALLED_IMAGE}" \
-            preinstall
+            .
 
       - name: Build sw-executable image (from local sw-preinstalled, zero pull overhead)
         if: steps.check-images.outputs.already_verified != 'true'
@@ -368,11 +409,26 @@ jobs:
         run: |
           set -Eeuo pipefail
           echo "[CI build] Building sw-executable locally from ${SW_PREINSTALLED_IMAGE}..."
-          docker build \
-            --build-arg "BASE_IMAGE=${SW_PREINSTALLED_IMAGE}" \
+          docker buildx build --load \
+            --target sw-executable-base \
+            --build-arg "BASE_IMAGE=${SW_PREINSTALLED_BASE_IMAGE}" \
+            --build-arg "APP_IMAGE=${SW_RUNTIME_IMAGE}" \
+            --cache-from "type=registry,ref=${SW_EXECUTABLE_BASE_REPO}:buildcache" \
+            --cache-to "type=registry,ref=${SW_EXECUTABLE_BASE_REPO}:buildcache,mode=max,ignore-error=true" \
+            -f smoke-test/Dockerfile \
+            -t "${SW_EXECUTABLE_BASE_IMAGE}" \
+            .
+
+          docker buildx build --load \
+            --target sw-executable \
+            --build-arg "BASE_IMAGE=${SW_PREINSTALLED_BASE_IMAGE}" \
+            --build-arg "APP_IMAGE=${SW_RUNTIME_IMAGE}" \
+            --cache-from "type=registry,ref=${SW_EXECUTABLE_BASE_REPO}:buildcache" \
+            --cache-from "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache" \
+            --cache-to "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache,mode=max,ignore-error=true" \
             -f smoke-test/Dockerfile \
             -t "${SW_EXECUTABLE_IMAGE}" \
-            smoke-test
+            .
 
       - name: Smoke test real SOLIDWORKS exports
         if: steps.check-images.outputs.already_verified != 'true'
@@ -423,32 +479,34 @@ jobs:
         run: |
           set -Eeuo pipefail
           echo "[CI push] Smoke test PASSED! Publishing verified candidates to GHCR..."
+          docker push "${SW_PREINSTALLED_BASE_IMAGE}"
           docker push "${SW_PREINSTALLED_IMAGE}"
+          docker push "${SW_EXECUTABLE_BASE_IMAGE}"
           docker push "${SW_EXECUTABLE_IMAGE}"
 
           target_tag="${{ github.ref_name }}"
           if [ -n "${target_tag}" ]; then
             echo "[CI promote] Promoting verified tags for ${target_tag}..."
-            docker tag "${SW_RUNTIME_IMAGE}" "${SW_RUNTIME_BASE}:${target_tag}"
-            docker push "${SW_RUNTIME_BASE}:${target_tag}"
+            docker tag "${SW_RUNTIME_IMAGE}" "${SW_RUNTIME_REPO}:${target_tag}"
+            docker push "${SW_RUNTIME_REPO}:${target_tag}"
 
-            docker tag "${SW_PREINSTALLED_IMAGE}" "${SW_PREINSTALLED_BASE}:${target_tag}"
-            docker push "${SW_PREINSTALLED_BASE}:${target_tag}"
+            docker tag "${SW_PREINSTALLED_IMAGE}" "${SW_PREINSTALLED_REPO}:${target_tag}"
+            docker push "${SW_PREINSTALLED_REPO}:${target_tag}"
 
-            docker tag "${SW_EXECUTABLE_IMAGE}" "${SW_EXECUTABLE_BASE}:${target_tag}"
-            docker push "${SW_EXECUTABLE_BASE}:${target_tag}"
+            docker tag "${SW_EXECUTABLE_IMAGE}" "${SW_EXECUTABLE_REPO}:${target_tag}"
+            docker push "${SW_EXECUTABLE_REPO}:${target_tag}"
           fi
 
           if [ "${target_tag}" = "main" ]; then
             echo "[CI promote] Promoting verified :latest tags..."
-            docker tag "${SW_RUNTIME_IMAGE}" "${SW_RUNTIME_BASE}:latest"
-            docker push "${SW_RUNTIME_BASE}:latest"
+            docker tag "${SW_RUNTIME_IMAGE}" "${SW_RUNTIME_REPO}:latest"
+            docker push "${SW_RUNTIME_REPO}:latest"
 
-            docker tag "${SW_PREINSTALLED_IMAGE}" "${SW_PREINSTALLED_BASE}:latest"
-            docker push "${SW_PREINSTALLED_BASE}:latest"
+            docker tag "${SW_PREINSTALLED_IMAGE}" "${SW_PREINSTALLED_REPO}:latest"
+            docker push "${SW_PREINSTALLED_REPO}:latest"
 
-            docker tag "${SW_EXECUTABLE_IMAGE}" "${SW_EXECUTABLE_BASE}:latest"
-            docker push "${SW_EXECUTABLE_BASE}:latest"
+            docker tag "${SW_EXECUTABLE_IMAGE}" "${SW_EXECUTABLE_REPO}:latest"
+            docker push "${SW_EXECUTABLE_REPO}:latest"
           fi
 
       - name: Show storage usage

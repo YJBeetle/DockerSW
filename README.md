@@ -26,31 +26,29 @@ DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、�
 - **两种许可接入方式**：优先使用局域网浮动许可服务器，也可按需挂载 `lmgrd.exe` 与许可文件并在容器内启动。
 - **固定 SWCLI 版本**：DockerSW 以 Git submodule 固定并安装经过真实 Wine/SOLIDWORKS 冒烟验证的 SWCLI 提交；容器只负责路径、进程、许可与显示环境适配。
 
-## 三阶段对称架构流水线
+## 三组 Base / Delivery 镜像流水线
 
 ```text
-[Stage 1: runtime/] 基础运行环境
-ghcr.io/yjbeetle/sw-runtime:sha-xxxxxxx
-  Ubuntu 22.04 + Wine 11.16 + Wine-Mono 11.3.0 + Python 3.11 + sw-install + SWCLI
-          │
-          │ 挂载官方 ISO 介质执行无人值守安装 (build.yml 连续流水线)
-          ▼
-[Stage 2: preinstall/] 纯净原版预装
-ghcr.io/yjbeetle/sw-preinstalled:sha-xxxxxxx
-  100% 纯净官方 SOLIDWORKS 原版已安装镜像（无激活补丁、无许可文件）
-          │
-          │ 本地零网络耗时构建测试镜像并注入 FlexNet 服务
-          ▼
-[Stage 3: smoke-test/] 交叉验证与冒烟测试
-ghcr.io/yjbeetle/sw-executable:sha-xxxxxxx
-  可离线运行测试镜像 -> 执行真实 CAD 模型批量导出 (STEP / PDF / DWG)
-          │
-          │ 真实 CAD 导出冒烟测试全通后，触发三镜像原子晋升
-          ▼
-   :latest & :${branch_or_tag} 三镜像同步推送到 GHCR
+sw-runtime-base                 低频：Wine + Mono + Python + sw-install
+        │
+        ├── sw-runtime          高频：最后加入当前 SWCLI 与 DockerSW 运行脚本
+        │
+        └── sw-preinstalled-base
+              低频：从官方介质安装纯净 SOLIDWORKS，不包含 SWCLI
+                    │
+                    ├── sw-preinstalled
+                    │     高频：最后加入当前 SWCLI 与 DockerSW 运行脚本
+                    │
+                    └── sw-executable-base
+                          低频：加入测试补丁、FlexNet 与授权状态，不包含 SWCLI
+                                │
+                                └── sw-executable
+                                      高频：最后加入当前 SWCLI 与 DockerSW 运行脚本
+                                      │
+                                      └── 真实导出 6 个产物通过后晋升
 ```
 
-公开 CI 仅发布基础环境 `sw-runtime`；私有 CI 挂载官方介质完成 `sw-preinstalled` 安装，并通过 `smoke-test` 真实测试后完成镜像发布。
+六个镜像均使用不可变的 `sha-xxxxxxx` 标签推送到 GHCR；三个 `*-base` 仓库只保存构建基础与 `buildcache`，不晋升 `main` 或 `latest`。只有包含当前 SWCLI 的 `sw-runtime`、`sw-preinstalled`、`sw-executable` 在同一份 `sw-executable` 完成真实导出后才晋升分支标签和 `latest`。
 
 ## 安装 SOLIDWORKS
 
@@ -95,8 +93,14 @@ sw-install \
 本项目提供了生产级预安装配置 [`preinstall/Dockerfile`](preinstall/Dockerfile)，利用 BuildKit 在构建期以只读 bind mount 挂载官方安装介质，安装结束后介质不会被 `COPY` 到最终层：
 
 ```bash
-# 将官方介质放置或挂载于 preinstall/media 后执行构建
-docker build -t sw-preinstalled preinstall
+# 将官方介质放置或挂载于 preinstall/media，并从仓库根目录执行构建
+docker build \
+  --build-arg BASE_IMAGE=ghcr.io/yjbeetle/sw-runtime-base:sha-xxxxxxx \
+  --build-arg APP_IMAGE=ghcr.io/yjbeetle/sw-runtime:sha-xxxxxxx \
+  --target sw-preinstalled \
+  -f preinstall/Dockerfile \
+  -t sw-preinstalled \
+  .
 ```
 
 构建上下文需将官方介质放置于 `preinstall/media`。不要把介质、序列号属性文件、许可文件或生成的安装日志提交到公开仓库。即使使用 BuildKit 临时挂载，也应只在可信私有 Builder 上构建，并按组织策略保护或清理构建缓存。
@@ -126,12 +130,13 @@ docker build -t sw-preinstalled preinstall
 本项目提供完整的 GitHub Actions 单一持续集成流水线配置 [`.github/workflows/build.yml`](.github/workflows/build.yml)，实现原生 DAG 依赖与零多余网络开销的自动化交付：
 
 1. **`unit-tests`**：递归检出固定 SWCLI submodule，校验 Docker 适配器与安装脚本；
-2. **`build-runtime`**：构建公开通用基础运行时 `ghcr.io/yjbeetle/sw-runtime`，让 Linux Python 运行 SWCLI 客户端、Wine Windows Python 运行 `swclid`/COM worker，并验证两侧入口；
+2. **`build-runtime`**：构建不含 SWCLI 的 `sw-runtime-base`，再以最后一层加入当前 SWCLI 生成 `sw-runtime`，并验证 base 边界与两侧 CLI 入口；
 3. **`build-and-smoke-test`**：
    - 挂载 Google Drive，通过 `rclone` 开启 VFS 缓存稀疏读取官方 ISO；
-   - 执行无人值守安装生成 `sw-preinstalled`；
-   - **零网络拉取**：直接就地构建 `sw-executable`，启动无头环境并执行真实 CAD 导出冒烟测试（验证 STEP、PDF、DWG 输出）；
-   - **原子晋升发布**：所有 CAD 导出验证 100% 通过后，原子并发推送到 GHCR 并打上 `:latest` 与分支标签。
+   - 执行无人值守安装生成 `sw-preinstalled-base`，再加入当前应用层生成 `sw-preinstalled`；
+   - 就地构建 `sw-executable-base` 与最终 `sw-executable`，后者执行真实 CAD 导出冒烟测试（验证 6 个 STEP、PDF、DWG 输出）；
+   - 六个仓库分别使用 GHCR registry cache；仅修改 SWCLI 时会复用 Wine、SOLIDWORKS 安装与测试运行时层；
+   - **原子晋升发布**：冒烟测试通过后推送六个不可变 SHA 镜像，并只为三个最终镜像晋升 `:latest` 与分支标签。
 
 ### Google Drive Secret 配置
 

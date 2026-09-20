@@ -6,59 +6,37 @@
 
 1. **轻量纯粹**：专注提供无头执行与 COM 消息循环保障，确保高可靠、无弹窗阻塞的 CAD 文件批量自动化导出；
 2. **安全合规的分层解耦架构**：
-   - **公开基础运行时（`ghcr.io/yjbeetle/sw-runtime`）**：不包含任何 SOLIDWORKS 专有商业二进制文件、安装介质、序列号或许可服务器，也不预置 EULA 接受状态。仅提供固定版本验证的 Wine 64-bit、Wine-Mono、托管 COM 补丁、OpenGL 24-bit DIB 离屏渲染修复、Xvfb 无头虚拟显示、Linux/Windows Python 环境以及 `sw-install`、`sw-cli` 和 `swclid` 工具链；
+   - **公开运行时（`ghcr.io/yjbeetle/sw-runtime`）**：不包含任何 SOLIDWORKS 专有商业二进制文件、安装介质、序列号或许可服务器，也不预置 EULA 接受状态。仅提供固定版本验证的 Wine 64-bit、Wine-Mono、托管 COM 补丁、OpenGL 24-bit DIB 离屏渲染修复、Xvfb 无头虚拟显示、Linux/Windows Python 环境以及 `sw-install`、`sw-cli` 和 `swclid` 工具链；
    - **私有企业环境（下游构建与执行）**：使用者在自身可信基础设施中，通过合法取得的安装介质，使用 `sw-install` 执行官方静默安装并构建企业私有预安装镜像（`sw-preinstalled`），接入局域网浮动许可进行生产导出；
+   - **Base / Delivery 成对交付**：`sw-runtime-base`、`sw-preinstalled-base`、`sw-executable-base` 固化低频变化的环境、安装与测试状态且不含 SWCLI；对应的 `sw-runtime`、`sw-preinstalled`、`sw-executable` 只在最后一层加入当前 SWCLI 与 DockerSW 运行脚本；
 3. **开箱即用的自动化导出**：由 GitLab CI / GitHub Actions 直接组合 SWCLI 的 typed `document open/export/close` 原子操作，支持 `.SLDPRT`/`.SLDASM` 导出 `.STEP`、`.SLDDRW` 导出 `.PDF` 和 `.DWG`、渲染装配体导出 `.GLB`；文件选择和命名规则归属具体 CI，不进入通用 CLI。
 
 ---
 
 ## 2. 系统架构与分层关系
 
+```text
+sw-runtime-base
+  Wine + Mono + Python + pywin32 + sw-install；不含 SWCLI
+  │
+  ├── sw-runtime
+  │     加入当前 SWCLI 与 DockerSW 运行脚本
+  │
+  └── sw-preinstalled-base
+        从官方介质安装纯净 SOLIDWORKS；不含 SWCLI
+        │
+        ├── sw-preinstalled
+        │     加入当前 SWCLI 与 DockerSW 运行脚本，用于生产导出
+        │
+        └── sw-executable-base
+              加入测试补丁、FlexNet 与授权状态；不含 SWCLI
+              │
+              └── sw-executable
+                    加入当前 SWCLI 与 DockerSW 运行脚本
+                    └── 执行真实 CAD 导出门禁
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        公开开源环境 (GitHub Actions)                    │
-│                                                                        │
-│               [ 公开 Base 镜像: ghcr.io/yjbeetle/sw-runtime:latest ]    │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ Ubuntu 22.04 LTS x86_64                                          │  │
-│  │  ├─ Xvfb (:99 虚拟屏幕, 1024x768x24, 提供 COM 消息循环保障)         │  │
-│  │  ├─ Wine 11.16 运行时 (集成 win32u 24-bit DIB OpenGL 离屏修复补丁) │  │
-│  │  ├─ Wine-Mono 11.3.0 (集成托管 COM、stdcall 与 CCW 断言修复补丁)   │  │
-│  │  ├─ Linux Python client + Windows Python 3.11/pywin32 host       │  │
-│  │  ├─ sw-install：官方介质校验、静默安装与 MSI COM 注册验证工具       │  │
-│  │  ├─ SWCLI：固定 submodule，Linux client + Wine Windows host     │  │
-│  │  ├─ sw-cli：Linux Python 协议客户端与路径/daemon 薄适配          │  │
-│  │  └─ swclid：Wine Windows Python 中的常驻协议与 COM worker         │  │
-│  │  ※ 纯净底座：不含商业软件实体、不预设许可、不预设 EULA              │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ 作为 Base 镜像拉取
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                   企业私有构建环境 (Private CI Builder)                 │
-│                                                                        │
-│  合法商业安装介质 (ISO/目录)                                           │
-│         │                                                              │
-│         ├─► sw-install --media <ISO> --accept-eula                     │
-│         │   (完成 VC++、Login Manager、主 MSI 安装与真实 COM 注册)     │
-│         ▼                                                              │
-│  [ 企业私有预安装镜像: sw-preinstalled:latest ]                        │
-│                                                                        │
-│  ※ 许可配置全部可在构建期就绪（生成开箱即用的自包含镜像）：            │
-│     ├─ 方案 1（网络许可）：Dockerfile 指定 ENV SW_LICENSE_SERVER=...   │
-│     └─ 方案 2（本地许可）：COPY lmgrd+lic 到 SW_FLEXNET_DIR 自动就绪     │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ 运行 (docker run / CI Runner)
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│               生产导出流水线 (GitLab CI / 内部批处理 Runner)            │
-│                                                                        │
-│  ※ 镜像内已预置许可与程序；CI 用 sw-cli document open/export/close    │
-│     明确组合当前项目所需的文件选择、输出命名与格式策略                   │
-│                                                                        │
-│  （可选覆盖）：多环境切换时仍支持私有 CI 变量覆盖 SW_LICENSE_SERVER    │
-└────────────────────────────────────────────────────────────────────────┘
-```
+
+每个仓库均发布不可变的 `sha-xxxxxxx` 镜像并维护独立 registry build cache。三个 `*-base` 镜像不带 `main`/`latest`；真实导出通过后，仅将三个包含当前 SWCLI 的 Delivery 镜像晋升为分支标签和 `latest`。因此 CLI 高频变化不会触发 Wine、SOLIDWORKS 安装和测试授权层重建，同时 E2E 仍验证最终交付镜像，而不是缓存本身。
 
 ---
 

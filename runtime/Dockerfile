@@ -1,5 +1,5 @@
 # DockerSW: 无头 SolidWorks Wine 运行与 CI 导出基础镜像
-FROM ubuntu:22.04
+FROM ubuntu:22.04 AS sw-runtime-base
 
 LABEL maintainer="YJBeetle"
 LABEL description="Headless Wine container for SolidWorks automated CI export (STEP/PDF/DWG/GLB) & VNC GUI"
@@ -71,13 +71,21 @@ RUN --mount=type=bind,source=runtime/fetch_managed_com.sh,target=/mnt/runtime/fe
     bash /mnt/runtime/init_wineprefix.sh && \
     rm -rf /tmp/* /root/.cache/*
 
-# 5. 复制仓库固定的 SWCLI submodule：Linux Python 直接从 src 运行纯客户端，
+# 4. 仅加入执行 SOLIDWORKS 官方安装所需的稳定工具。频繁变化的 SWCLI、
+# DockerSW 运行脚本与入口点留到各正式镜像的最后一层。
+COPY --chmod=755 runtime/bin/sw-install /usr/local/bin/sw-install
+COPY --chmod=755 runtime/scripts/lib/solidworks_version.sh /opt/sw-runtime/scripts/lib/solidworks_version.sh
+
+WORKDIR /workspace
+
+
+FROM sw-runtime-base AS sw-runtime
+
+# 5. 三个正式镜像共享的当前应用层。Linux Python 直接从 src 运行客户端，
 # Wine Windows Python 安装同一份源码以运行 swclid/COM worker。
 COPY SWCLI/ /opt/swcli/
-RUN wine "C:\\Python311\\python.exe" -m pip install \
-        --no-cache-dir --no-deps --no-build-isolation "Z:\\opt\\swcli" && \
-    wine "C:\\Python311\\python.exe" -m swcli version --json && \
-    wineserver -w
+COPY --chmod=755 runtime/install_swcli.sh /usr/local/lib/sw-runtime/install_swcli.sh
+RUN /usr/local/lib/sw-runtime/install_swcli.sh /opt/swcli
 
 # 6. 安装 DockerSW 的进程/路径适配器与其余运行时脚本
 COPY runtime/scripts/ /opt/sw-runtime/scripts/
