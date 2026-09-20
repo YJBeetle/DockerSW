@@ -227,7 +227,9 @@ sw-cli host stop --json
 `sw-cli document export` 只根据显式输出扩展名工作，不解释源文件命名规则。
 `.REND.SLDASM -> GLB`、工程图同时导出 PDF/DWG 等策略由实际 CI 脚本组合
 `document open/export/close` 完成，不进入 SWCLI 协议，也不再提供额外的
-`sw-export` 包装层。
+`sw-export` 包装层。普通导出允许源文档存在未保存或待重建状态，并仅在发现
+这些问题时返回结构化 warnings；业务 CI 应使用 `--strict`，在生成正式产物前
+要求源文档已保存、已重建且导出过程不改变其状态。
 
 第一个 typed `sw-cli` 命令会按需启动 SWCLI 自己提供的 `swclid`。daemon 通过
 Wine 已验证的 `DispatchEx` 激活路径创建独占 SOLIDWORKS 实例，并在单一 COM
@@ -247,7 +249,7 @@ export_cad_assets:
   script:
     - mkdir -p ./dist
     - sw-cli document open "$CI_PROJECT_DIR/model.SLDPRT" --json
-    - sw-cli document export "$CI_PROJECT_DIR/dist/model.STEP" --json
+    - sw-cli document export "$CI_PROJECT_DIR/dist/model.STEP" --strict --json
     - sw-cli document close --discard --json
   artifacts:
     paths:
