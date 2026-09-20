@@ -279,7 +279,7 @@ jobs:
             docker image inspect "${SW_RUNTIME_BASE_IMAGE}" \
               --format '{{index .RepoDigests 0}}' | sed 's/.*@//'
           )"
-          recipe_digest="$(sha256sum preinstall/Dockerfile | cut -d' ' -f1)"
+          recipe_digest="$(sha256sum preinstall/Dockerfile.base | cut -d' ' -f1)"
           install_key="$(
             printf '%s\n%s\n%s\n' \
               "${runtime_base_digest}" \
@@ -462,7 +462,7 @@ jobs:
               --build-arg "SW_SERIAL_MBD=${SW_SERIAL_MBD}" \
               --cache-from "type=registry,ref=${SW_PREINSTALLED_BASE_REPO}:buildcache" \
               --cache-to "type=registry,ref=${SW_PREINSTALLED_BASE_REPO}:buildcache,mode=max,ignore-error=true" \
-              -f preinstall/Dockerfile \
+              -f preinstall/Dockerfile.base \
               -t "${SW_PREINSTALLED_REUSABLE_IMAGE}" \
               -t "${SW_PREINSTALLED_BASE_IMAGE}" \
               .
@@ -480,7 +480,7 @@ jobs:
             --build-arg "APP_IMAGE=${SW_RUNTIME_IMAGE}" \
             --cache-from "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache" \
             --cache-to "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache,mode=max,ignore-error=true" \
-            -f preinstall/Dockerfile.delivery \
+            -f preinstall/Dockerfile \
             -t "${SW_PREINSTALLED_IMAGE}" \
             .
 
@@ -492,19 +492,23 @@ jobs:
           echo "[CI build] Building sw-executable locally from ${SW_PREINSTALLED_IMAGE}..."
           docker buildx build --load \
             --target sw-executable-base \
+            --build-context "smoke-assets=smoke-test/assets" \
             --build-arg "BASE_IMAGE=${SW_PREINSTALLED_BASE_IMAGE}" \
-            --build-arg "APP_IMAGE=${SW_RUNTIME_IMAGE}" \
             --cache-from "type=registry,ref=${SW_EXECUTABLE_BASE_REPO}:buildcache" \
             --cache-to "type=registry,ref=${SW_EXECUTABLE_BASE_REPO}:buildcache,mode=max,ignore-error=true" \
-            -f smoke-test/Dockerfile \
+            -f smoke-test/Dockerfile.base \
             -t "${SW_EXECUTABLE_BASE_IMAGE}" \
             .
 
+          # The delivery Dockerfile consumes the base as an external image.
+          # Publish this immutable candidate so the docker-container builder can
+          # resolve it without rebuilding or reading the private test assets.
+          docker push "${SW_EXECUTABLE_BASE_IMAGE}"
+
           docker buildx build --load \
             --target sw-executable \
-            --build-arg "BASE_IMAGE=${SW_PREINSTALLED_BASE_IMAGE}" \
+            --build-arg "BASE_IMAGE=${SW_EXECUTABLE_BASE_IMAGE}" \
             --build-arg "APP_IMAGE=${SW_RUNTIME_IMAGE}" \
-            --cache-from "type=registry,ref=${SW_EXECUTABLE_BASE_REPO}:buildcache" \
             --cache-from "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache" \
             --cache-to "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache,mode=max,ignore-error=true" \
             -f smoke-test/Dockerfile \
