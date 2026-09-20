@@ -8,7 +8,6 @@ from pathlib import Path
 RUNTIME_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 INSTALLER = RUNTIME_ROOT / "bin" / "sw-install"
-VERSION_HELPER = RUNTIME_ROOT / "scripts" / "lib" / "solidworks_version.sh"
 
 
 class InstallScriptValidationTests(unittest.TestCase):
@@ -17,9 +16,14 @@ class InstallScriptValidationTests(unittest.TestCase):
             [
                 "bash",
                 "-c",
-                '. "$1"; solidworks_release_from_product_version "$2"',
+                """
+                function_source="$(sed -n \
+                    '/^solidworks_release_from_product_version()/,/^}/p' "$1")"
+                eval "${function_source}"
+                solidworks_release_from_product_version "$2"
+                """,
                 "bash",
-                str(VERSION_HELPER),
+                str(INSTALLER),
                 product_version,
             ],
             cwd=PROJECT_ROOT,
@@ -49,7 +53,6 @@ class InstallScriptValidationTests(unittest.TestCase):
         environment = {
             **os.environ,
             "LC_ALL": "C",
-            "SW_VERSION_HELPER": str(VERSION_HELPER),
         }
         if extra_env:
             environment.update(extra_env)

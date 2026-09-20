@@ -40,7 +40,6 @@ FROM sw-preinstalled-base AS sw-preinstalled
 # 从同一次构建的 sw-runtime 复制当前应用层，并在已经安装 SOLIDWORKS 的
 # Wine prefix 中安装完全相同的 SWCLI。基础安装层因此不随 CLI 改动失效。
 COPY --from=current-app /opt/swcli/ /opt/swcli/
-COPY --from=current-app /opt/sw-runtime/scripts/ /opt/sw-runtime/scripts/
 COPY --from=current-app /usr/local/lib/sw-runtime/install_swcli.sh /usr/local/lib/sw-runtime/install_swcli.sh
 COPY --from=current-app /usr/local/bin/sw-install /usr/local/bin/sw-install
 COPY --from=current-app /usr/local/bin/sw-cli /usr/local/bin/sw-cli

@@ -74,7 +74,6 @@ RUN --mount=type=bind,source=runtime/fetch_managed_com.sh,target=/mnt/runtime/fe
 # 4. 仅加入执行 SOLIDWORKS 官方安装所需的稳定工具。频繁变化的 SWCLI、
 # DockerSW 运行脚本与入口点留到各正式镜像的最后一层。
 COPY --chmod=755 runtime/bin/sw-install /usr/local/bin/sw-install
-COPY --chmod=755 runtime/scripts/lib/solidworks_version.sh /opt/sw-runtime/scripts/lib/solidworks_version.sh
 
 WORKDIR /workspace
 
@@ -87,8 +86,7 @@ COPY SWCLI/ /opt/swcli/
 COPY --chmod=755 runtime/install_swcli.sh /usr/local/lib/sw-runtime/install_swcli.sh
 RUN /usr/local/lib/sw-runtime/install_swcli.sh /opt/swcli
 
-# 6. 安装 DockerSW 的进程/路径适配器与其余运行时脚本
-COPY runtime/scripts/ /opt/sw-runtime/scripts/
+# 6. 安装 DockerSW 的进程/路径适配器
 COPY --chmod=755 runtime/bin/ /usr/local/bin/
 
 # 7. 配置容器 Entrypoint

@@ -27,7 +27,6 @@ ENV SW_LICENSE_SERVER=
 FROM sw-executable-base AS sw-executable
 
 COPY --from=current-app /opt/swcli/ /opt/swcli/
-COPY --from=current-app /opt/sw-runtime/scripts/ /opt/sw-runtime/scripts/
 COPY --from=current-app /usr/local/lib/sw-runtime/install_swcli.sh /usr/local/lib/sw-runtime/install_swcli.sh
 COPY --from=current-app /usr/local/bin/sw-install /usr/local/bin/sw-install
 COPY --from=current-app /usr/local/bin/sw-cli /usr/local/bin/sw-cli
