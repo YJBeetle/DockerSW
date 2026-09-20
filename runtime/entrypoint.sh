@@ -279,7 +279,7 @@ fi
 
 # 9. 执行传入命令或进入交互终端
 if [ "$#" -gt 0 ]; then
-    echo "[DockerSW] 执行指令: $@"
+    echo "[DockerSW] 容器初始化完成"
     exec "$@"
 else
     echo "[DockerSW] 容器就绪。使用 'sw-cli' 执行建模、检查与导出。"

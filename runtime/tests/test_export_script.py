@@ -173,6 +173,11 @@ class LinuxToWinePathTests(unittest.TestCase):
 
 
 class EntrypointTests(unittest.TestCase):
+    def test_entrypoint_does_not_echo_runner_command_payload(self):
+        entrypoint = ENTRYPOINT_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('echo "[DockerSW] 容器初始化完成"', entrypoint)
+        self.assertNotIn('echo "[DockerSW] 执行指令: $@"', entrypoint)
+
     def test_entrypoint_eagerly_starts_daemon_for_installed_solidworks(self):
         entrypoint = ENTRYPOINT_SCRIPT.read_text(encoding="utf-8")
         self.assertIn('[ "${SOLIDWORKS_INSTALLED}" != true ]', entrypoint)
