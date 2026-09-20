@@ -96,8 +96,10 @@ echo "[DockerSW] 正在校验 Wine-Mono stdcall 与托管 COM 注册组件..."
 # 4. 验证 SolidWorks 主程序目录
 C_SW_TARGET="${WINEPREFIX}/drive_c/Program Files/SOLIDWORKS"
 if [ -f "${C_SW_TARGET}/SLDWORKS.exe" ]; then
+    SOLIDWORKS_INSTALLED=true
     echo "[DockerSW] 验证主程序: SLDWORKS.exe 存在"
 else
+    SOLIDWORKS_INSTALLED=false
     echo "[DockerSW][WARN] 未检测到 SLDWORKS.exe"
 fi
 
@@ -216,7 +218,18 @@ else
     echo "[DockerSW][WARN] 未配置 SW_LICENSE_SERVER，且未检测到本地许可服务"
 fi
 
-# 8. 执行传入命令或进入交互终端
+# 8. 同时安装 SOLIDWORKS 与 SWCLI 的交付镜像在启动时直接预热常驻 daemon。
+# 缺少任一组件的 Base/运行时镜像自动跳过；sw-cli 仍保留幂等启动作为故障恢复。
+if [ "${SOLIDWORKS_INSTALLED}" != true ]; then
+    echo "[DockerSW] 当前镜像未安装 SOLIDWORKS，跳过 SWCLI daemon 预热"
+elif ! command -v swclid >/dev/null 2>&1; then
+    echo "[DockerSW][WARN] 当前镜像未安装 SWCLI，跳过 daemon 预热" >&2
+else
+    echo "[DockerSW] 正在启动并等待 SWCLI daemon 与 SOLIDWORKS 就绪..."
+    swclid start
+fi
+
+# 9. 执行传入命令或进入交互终端
 if [ "$#" -gt 0 ]; then
     echo "[DockerSW] 执行指令: $@"
     exec "$@"

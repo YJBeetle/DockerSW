@@ -8,6 +8,7 @@ from pathlib import Path
 RUNTIME_ROOT = Path(__file__).resolve().parents[1]
 SWCLI_SCRIPT = RUNTIME_ROOT / "bin" / "sw-cli"
 DAEMON_SCRIPT = RUNTIME_ROOT / "bin" / "swclid"
+ENTRYPOINT_SCRIPT = RUNTIME_ROOT / "entrypoint.sh"
 
 
 class RuntimeWrapperTests(unittest.TestCase):
@@ -38,10 +39,20 @@ class RuntimeWrapperTests(unittest.TestCase):
 
     def test_typed_cli_uses_resident_daemon(self):
         script = SWCLI_SCRIPT.read_text(encoding="utf-8")
-        self.assertIn("swclid_ensure", script)
-        self.assertIn("python3 -m swcli.daemon status", script)
-        self.assertIn("-m swcli.daemon serve", script)
+        daemon = DAEMON_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('"${SWCLID_COMMAND}" start', script)
+        self.assertIn("python3 -m swcli.daemon status", daemon)
+        self.assertIn("-m swcli.daemon serve", daemon)
         self.assertIn("SWCLI_ENDPOINT", script)
+
+    def test_entrypoint_eagerly_starts_daemon_for_installed_solidworks(self):
+        entrypoint = ENTRYPOINT_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('[ "${SOLIDWORKS_INSTALLED}" != true ]', entrypoint)
+        self.assertIn('command -v swclid', entrypoint)
+        self.assertIn('当前镜像未安装 SWCLI', entrypoint)
+        self.assertIn('swclid start', entrypoint)
+        self.assertIn('当前镜像未安装 SOLIDWORKS', entrypoint)
+        self.assertNotIn('SWCLID_AUTO_START', entrypoint)
 
     def test_swclid_marks_docker_host_as_linux_wine(self):
         invocation = self._run_with_fake_wine(

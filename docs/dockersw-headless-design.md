@@ -66,6 +66,7 @@ sw-runtime-base
    - **本地自启许可模式（按需）**：在私有构建期内置或运行时挂载到 `SW_FLEXNET_DIR`（默认 `/opt/SolidWorks_Flexnet_Server`），只要目录下存在 `lmgrd.exe` 与许可文件即自动在后台拉起守护并等待端口就绪；
 7. **命令生命周期与构建支持**：
    - 支持 `--init-only` 参数，在 Docker 构建期刷新并持久化 Wine 注册表后干净退出；
+   - 同时检测到 SOLIDWORKS 与 SWCLI 时，默认启动并等待 `swclid` 与 COM worker 就绪；任一组件缺失的 Base/运行时镜像自动跳过；
    - 支持透明传递任意执行命令（如 `sw-cli`、`sw-install` 或 `bash`）。
 
 ### 3.2 官方介质安装引擎 (`sw-install`)
@@ -96,13 +97,14 @@ sw-runtime-base
    - typed 建模、检查、重建、渲染与原子导出均由独立 SWCLI 项目维护；
    - `sw-cli document export` 只根据显式输出扩展名选择 STEP、GLB、PDF 或 DWG，不解释源文件名；
    - manifest、`.REND.SLDASM -> GLB` 及输出命名属于具体项目的 CI 配置，不进入 SWCLI；
-   - DockerSW 只转换 Linux/Wine 路径、按需拉起 daemon，并提供容器生命周期适配；
+   - DockerSW 只转换 Linux/Wine 路径、在交付镜像启动时预热 daemon，并提供容器生命周期适配；
 3. **常驻 `swclid` 与 Wine COM worker**：
-   - 第一次 typed `sw-cli` 调用按需启动 SWCLI 提供的 `swclid`，后续调用通过 `127.0.0.1` 回环端点复用同一个实例；
+   - `sw-preinstalled` 与 `sw-executable` 的 entrypoint 默认启动 SWCLI 提供的 `swclid` 并等待就绪，后续调用通过 `127.0.0.1` 回环端点复用同一个实例；
+   - typed `sw-cli` 保留幂等启动路径，在 daemon 意外退出后自动恢复；
    - daemon 使用 `win32com.client.DispatchEx("SldWorks.Application")` 获取独占实例，规避 Wine 下 `GetActiveObject` 对直接启动进程的不可靠行为；
    - 按官方 `StartupProcessCompleted` 状态等待启动加载完成，再开放协议端点，避免 COM 已返回但启动插件尚未就绪的竞态；
    - supervisor 与 COM worker 分进程，worker 在单一 COM apartment 中串行执行全部请求；调用超时后会连同未知状态的 SOLIDWORKS 进程树一起替换；
-   - DockerSW 仅负责 Linux/Wine 路径转换、按需拉起和容器生命周期，协议、worker 与 typed operations 均由 SWCLI 拥有；
+   - DockerSW 仅负责 Linux/Wine 路径转换、daemon 预热/恢复和容器生命周期，协议、worker 与 typed operations 均由 SWCLI 拥有；
 4. **CI 导出策略**：
    - CI 根据项目规则选择源文件，并显式指定每一个输出路径和扩展名；
    - 当前真实门禁将 `.SLDPRT` / `.SLDASM` 导出为 `.STEP`，将 `.SLDDRW` 导出为 `.PDF` 与 `.DWG`；

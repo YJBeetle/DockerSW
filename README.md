@@ -212,8 +212,9 @@ docker run --rm \
 ### 3. 使用 SWCLI 建模与检查
 
 DockerSW 镜像使用 Linux Python 运行 `sw-cli` 协议客户端，只在 Wine Windows
-Python 中运行 `swclid` 与 COM worker。Linux 薄入口负责路径转换和按需启动
-daemon；命令语义、COM 类型处理、验证和 JSON 结果均来自同一份 SWCLI 源码。
+Python 中运行 `swclid` 与 COM worker。容器入口会在检测到已安装的 SOLIDWORKS
+后直接启动并等待 daemon 就绪；Linux 薄入口负责路径转换，并在 daemon 意外退出
+后执行幂等恢复。命令语义、COM 类型处理、验证和 JSON 结果均来自同一份 SWCLI 源码。
 
 ```bash
 sw-cli version --json
@@ -236,9 +237,10 @@ sw-cli host stop --json
 这些问题时返回结构化 warnings；业务 CI 应使用 `--strict`，在生成正式产物前
 要求源文档已保存、已重建且导出过程不改变其状态。
 
-第一个 typed `sw-cli` 命令会按需启动 SWCLI 自己提供的 `swclid`。daemon 通过
-Wine 已验证的 `DispatchEx` 激活路径创建独占 SOLIDWORKS 实例，并在单一 COM
-worker 中串行执行请求；同一容器内的后续命令复用该实例，容器退出时统一清理。
+`sw-preinstalled` 与 `sw-executable` 启动时会直接启动 SWCLI 自己提供的
+`swclid`，并等待 SOLIDWORKS 完成初始化后才执行容器命令。daemon 通过 Wine
+已验证的 `DispatchEx` 激活路径创建独占实例，并在单一 COM worker 中串行执行
+请求；同一容器内的后续命令复用该实例，容器退出时统一清理。
 
 ### 4. CI/CD 流水线集成示例 (GitLab CI)
 
@@ -293,16 +295,19 @@ docker run --rm \
 ```
 
 `swclid` 通过 `DispatchEx` 创建独占 SOLIDWORKS 实例后，会等待官方
-`StartupProcessCompleted` 状态再开始接收请求。第一个 typed `sw-cli` 命令会按需
-启动 daemon，后续调用通过本地回环协议复用同一个实例。默认启动等待上限为 120 秒，
-可通过 `SWCLID_START_TIMEOUT` 调整；单次导出请求默认仍有独立的 600 秒超时。
+`StartupProcessCompleted` 状态再开始接收请求。已安装 SOLIDWORKS 的交付镜像会在
+entrypoint 中预热 daemon，后续调用通过本地回环协议复用同一个实例；若 daemon
+意外退出，typed `sw-cli` 命令会幂等恢复。默认启动等待上限为 120 秒，可通过
+`SWCLID_START_TIMEOUT` 调整；单次导出请求默认仍有独立的 600 秒超时。
+缺少 SOLIDWORKS 或 SWCLI 的 Base/运行时镜像只记录跳过原因，不会因预热条件
+不完整而启动失败。
 
 ### SWCLI daemon
 
 | 环境变量 | 默认值 | 说明 |
 |---|---|---|
 | `SWCLI_ENDPOINT` | `127.0.0.1:18495` | `swclid` 本地协议端点 |
-| `SWCLID_START_TIMEOUT` | `120` | 首次按需启动和 SOLIDWORKS 就绪等待秒数 |
+| `SWCLID_START_TIMEOUT` | `120` | daemon 与 SOLIDWORKS 就绪等待秒数 |
 | `SWCLID_LOG` | `/tmp/swclid.log` | daemon 启动与运行日志 |
 
 ### 许可服务配置 (License)
