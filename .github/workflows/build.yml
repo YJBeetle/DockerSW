@@ -9,6 +9,7 @@ on:
       - '**.md'
       - 'docs/**'
       - '.gitignore'
+      - 'LICENSE'
   workflow_dispatch:
     inputs:
       force_rebuild:
