@@ -29,7 +29,9 @@ permissions:
   packages: write
 
 concurrency:
-  group: sw-pipeline-${{ github.workflow }}-${{ github.sha }}
+  # 所有镜像构建共享同一组 GHCR buildcache 标签；串行执行可避免连续
+  # push 各自重跑安装链，并防止并发写入覆盖缓存索引。
+  group: dockersw-image-pipeline
   cancel-in-progress: false
 
 jobs:
