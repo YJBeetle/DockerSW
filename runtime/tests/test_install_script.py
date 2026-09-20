@@ -251,6 +251,10 @@ class InstallScriptValidationTests(unittest.TestCase):
         self.assertIn("regasm-x86.exe", prepare)
         self.assertIn("regasm-x86_64.exe", prepare)
 
+    def test_runtime_includes_json_processing_tool(self) -> None:
+        dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(encoding="utf-8")
+        self.assertIn("        jq \\", dockerfile.splitlines())
+
     def test_optional_vnc_monitoring_is_owned_by_the_runtime_entrypoint(self) -> None:
         dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(encoding="utf-8")
         entrypoint = (RUNTIME_ROOT / "entrypoint.sh").read_text(
