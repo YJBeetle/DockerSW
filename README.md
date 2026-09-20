@@ -7,7 +7,7 @@
 DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、托管 COM、Windows Python 及无头显示环境，并内置：
 
 - `sw-install`：从用户提供的完整 SOLIDWORKS 安装介质执行静默安装；
-- [SWCLI](https://github.com/YJBeetle/SWCLI)：面向 AI 与自动化的 typed SOLIDWORKS 命令行及常驻 `swclid` 服务。
+- [SWCLI](https://github.com/YJBeetle/SWCLI)：面向 AI 与自动化的 typed SOLIDWORKS 命令行及常驻 daemon 服务。
 
 > [!IMPORTANT]
 > 公开镜像 `ghcr.io/yjbeetle/sw-runtime` **不包含** SOLIDWORKS 安装介质、程序文件、序列号、许可文件或许可服务器。使用者必须自行合法取得安装介质，并在自己的私有环境中构建预安装镜像或持久化安装结果。
@@ -212,14 +212,14 @@ docker run --rm \
 ### 3. 使用 SWCLI 建模与检查
 
 DockerSW 镜像使用 Linux Python 运行 `sw-cli` 协议客户端，只在 Wine Windows
-Python 中运行 `swclid` 与 COM worker。容器入口会在检测到已安装的 SOLIDWORKS
-后直接启动并等待 daemon 就绪；Linux 薄入口负责路径转换，并在 daemon 意外退出
-后执行幂等恢复。命令语义、COM 类型处理、验证和 JSON 结果均来自同一份 SWCLI 源码。
+Python 中运行 daemon 与 COM worker。容器入口会在检测到已安装的 SOLIDWORKS
+后执行 `sw-cli daemon serve` 并等待 daemon 就绪；Linux 薄入口负责路径转换和
+选择对应的 Python 环境。
+命令语义、COM 类型处理、验证和 JSON 结果均来自同一份 SWCLI 源码。
 
 ```bash
 sw-cli version --json
-sw-cli host probe --json
-sw-cli host start --hidden --json
+sw-cli doctor --json
 sw-cli part create-box /workspace/box.SLDPRT \
   --width-mm 100 --height-mm 50 --depth-mm 20 --json
 sw-cli document inspect --detail structure --json
@@ -227,7 +227,6 @@ sw-cli document diagnose --json
 sw-cli document render /workspace/box.bmp \
   --view isometric --width 1024 --height 768 --json
 sw-cli document close --json
-sw-cli host stop --json
 ```
 
 `sw-cli document export` 只根据显式输出扩展名工作，不解释源文件命名规则。
@@ -237,8 +236,8 @@ sw-cli host stop --json
 这些问题时返回结构化 warnings；业务 CI 应使用 `--strict`，在生成正式产物前
 要求源文档已保存、已重建且导出过程不改变其状态。
 
-`sw-preinstalled` 与 `sw-executable` 启动时会直接启动 SWCLI 自己提供的
-`swclid`，并等待 SOLIDWORKS 完成初始化后才执行容器命令。daemon 通过 Wine
+`sw-preinstalled` 与 `sw-executable` 启动时会直接执行
+`sw-cli daemon serve`，并等待 SOLIDWORKS 完成初始化后才执行容器命令。daemon 通过 Wine
 已验证的 `DispatchEx` 激活路径创建独占实例，并在单一 COM worker 中串行执行
 请求；同一容器内的后续命令复用该实例，容器退出时统一清理。
 
@@ -294,11 +293,12 @@ docker run --rm \
   ghcr.io/yjbeetle/sw-executable:latest
 ```
 
-`swclid` 通过 `DispatchEx` 创建独占 SOLIDWORKS 实例后，会等待官方
+daemon 通过 `DispatchEx` 创建独占 SOLIDWORKS 实例后，会等待官方
 `StartupProcessCompleted` 状态再开始接收请求。已安装 SOLIDWORKS 的交付镜像会在
 entrypoint 中预热 daemon，后续调用通过本地回环协议复用同一个实例；若 daemon
-意外退出，typed `sw-cli` 命令会幂等恢复。默认启动等待上限为 120 秒，可通过
-`SWCLID_START_TIMEOUT` 调整；单次导出请求默认仍有独立的 600 秒超时。
+意外退出，typed `sw-cli` 命令会明确失败，由容器生命周期层处理恢复。默认启动
+等待上限为 120 秒，可通过 `SWCLID_START_TIMEOUT` 调整；单次导出请求默认仍有
+独立的 600 秒超时。
 缺少 SOLIDWORKS 或 SWCLI 的 Base/运行时镜像只记录跳过原因，不会因预热条件
 不完整而启动失败。
 
@@ -306,7 +306,7 @@ entrypoint 中预热 daemon，后续调用通过本地回环协议复用同一�
 
 | 环境变量 | 默认值 | 说明 |
 |---|---|---|
-| `SWCLI_ENDPOINT` | `127.0.0.1:18495` | `swclid` 本地协议端点 |
+| `SWCLI_ENDPOINT` | `127.0.0.1:18495` | SWCLI daemon 本地协议端点 |
 | `SWCLID_START_TIMEOUT` | `120` | daemon 与 SOLIDWORKS 就绪等待秒数 |
 | `SWCLID_LOG` | `/tmp/swclid.log` | daemon 启动与运行日志 |
 
@@ -331,7 +331,7 @@ STEP、PDF、DWG 产物。业务项目可以直接参考 `export.sh`，替换源
 python3 -m unittest discover -s runtime/tests -p "test_*.py" -v
 ```
 
-GitHub Actions 会递归检出固定 SWCLI submodule，构建真实容器，并校验固定 Wine/Wine-Mono 版本、stdcall 与托管 COM 修复、Windows Python/pywin32、`sw-install`、Linux `sw-cli` 客户端和 Wine `swclid`。SOLIDWORKS 与 Login Manager 的实际安装测试需要商业介质，因此应由持有合法介质的私有下游 CI 完成。
+GitHub Actions 会递归检出固定 SWCLI submodule，构建真实容器，并校验固定 Wine/Wine-Mono 版本、stdcall 与托管 COM 修复、Windows Python/pywin32、`sw-install`，以及 Linux/Wine 两侧的 `sw-cli` 命令。SOLIDWORKS 与 Login Manager 的实际安装测试需要商业介质，因此应由持有合法介质的私有下游 CI 完成。
 
 当前安装链主要按 SOLIDWORKS 2025 SP5.0 介质验证；其他版本的介质布局、安装属性或 Wine 行为可能不同，不能视为已经兼容。
 

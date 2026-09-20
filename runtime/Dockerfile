@@ -81,7 +81,7 @@ WORKDIR /workspace
 FROM sw-runtime-base AS sw-runtime
 
 # 5. 三个正式镜像共享的当前应用层。Linux Python 直接从 src 运行客户端，
-# Wine Windows Python 安装同一份源码以运行 swclid/COM worker。
+# Wine Windows Python 安装同一份源码以运行 daemon/COM worker。
 COPY SWCLI/ /opt/swcli/
 COPY --chmod=755 runtime/install_swcli.sh /usr/local/lib/sw-runtime/install_swcli.sh
 RUN /usr/local/lib/sw-runtime/install_swcli.sh /opt/swcli

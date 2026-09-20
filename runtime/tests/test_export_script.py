@@ -7,18 +7,18 @@ from pathlib import Path
 
 RUNTIME_ROOT = Path(__file__).resolve().parents[1]
 SWCLI_SCRIPT = RUNTIME_ROOT / "bin" / "sw-cli"
-DAEMON_SCRIPT = RUNTIME_ROOT / "bin" / "swclid"
 ENTRYPOINT_SCRIPT = RUNTIME_ROOT / "entrypoint.sh"
 
 
 class RuntimeWrapperTests(unittest.TestCase):
     def test_scripts_are_executable_and_valid_bash(self):
-        for script in (SWCLI_SCRIPT, DAEMON_SCRIPT):
+        for script in (SWCLI_SCRIPT,):
             self.assertTrue(os.access(script, os.X_OK), f"not executable: {script}")
             result = subprocess.run(
                 ["bash", "-n", str(script)], capture_output=True, text=True
             )
             self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse((RUNTIME_ROOT / "bin" / "swclid").exists())
     def test_sw_cli_translates_typed_path_argument(self):
         invocation = self._run_with_fake_wine(
             SWCLI_SCRIPT, ["document", "open", "/workspace/model.SLDPRT", "--json"]
@@ -28,38 +28,45 @@ class RuntimeWrapperTests(unittest.TestCase):
             invocation,
         )
 
-    def test_sw_cli_keeps_host_diagnostics_in_windows_python(self):
+    def test_sw_cli_keeps_doctor_diagnostics_in_windows_python(self):
         invocation = self._run_with_fake_wine(
-            SWCLI_SCRIPT, ["host", "probe", "--json"]
+            SWCLI_SCRIPT, ["doctor", "--json"]
         )
         self.assertIn(
-            "wine: C:\\Python311\\python.exe -m swcli host probe --json",
+            "wine: C:\\Python311\\python.exe -m swcli doctor --json",
             invocation,
         )
 
-    def test_typed_cli_uses_resident_daemon(self):
+    def test_typed_cli_does_not_manage_daemon_lifecycle(self):
         script = SWCLI_SCRIPT.read_text(encoding="utf-8")
-        daemon = DAEMON_SCRIPT.read_text(encoding="utf-8")
-        self.assertIn('"${SWCLID_COMMAND}" start', script)
-        self.assertIn("python3 -m swcli.daemon status", daemon)
-        self.assertIn("-m swcli.daemon serve", daemon)
+        self.assertNotIn("start_daemon", script)
         self.assertIn("SWCLI_ENDPOINT", script)
 
     def test_entrypoint_eagerly_starts_daemon_for_installed_solidworks(self):
         entrypoint = ENTRYPOINT_SCRIPT.read_text(encoding="utf-8")
         self.assertIn('[ "${SOLIDWORKS_INSTALLED}" != true ]', entrypoint)
-        self.assertIn('command -v swclid', entrypoint)
+        self.assertIn('command -v sw-cli', entrypoint)
         self.assertIn('当前镜像未安装 SWCLI', entrypoint)
-        self.assertIn('swclid start', entrypoint)
+        self.assertIn('nohup sw-cli daemon serve', entrypoint)
+        self.assertIn('sw-cli daemon status --endpoint', entrypoint)
         self.assertIn('当前镜像未安装 SOLIDWORKS', entrypoint)
         self.assertNotIn('SWCLID_AUTO_START', entrypoint)
 
-    def test_swclid_marks_docker_host_as_linux_wine(self):
+    def test_daemon_serve_marks_docker_host_as_linux_wine(self):
         invocation = self._run_with_fake_wine(
-            DAEMON_SCRIPT, ["serve", "--port", "19000"]
+            SWCLI_SCRIPT, ["daemon", "serve", "--port", "19000"]
         )
         self.assertIn(
-            "-m swcli.daemon serve --host-platform linux-wine --port 19000",
+            "-m swcli daemon serve --host-platform linux-wine --port 19000",
+            invocation,
+        )
+
+    def test_daemon_status_runs_in_windows_python(self):
+        invocation = self._run_with_fake_wine(
+            SWCLI_SCRIPT, ["daemon", "status", "--json"]
+        )
+        self.assertIn(
+            "wine: C:\\Python311\\python.exe -m swcli daemon status --json",
             invocation,
         )
 

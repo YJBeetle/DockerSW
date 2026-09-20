@@ -218,15 +218,45 @@ else
     echo "[DockerSW][WARN] 未配置 SW_LICENSE_SERVER，且未检测到本地许可服务"
 fi
 
-# 8. 同时安装 SOLIDWORKS 与 SWCLI 的交付镜像在启动时直接预热常驻 daemon。
-# 缺少任一组件的 Base/运行时镜像自动跳过；sw-cli 仍保留幂等启动作为故障恢复。
+# 8. 同时安装 SOLIDWORKS 与 SWCLI 的交付镜像在启动时直接启动常驻 daemon。
+# 缺少任一组件的 Base/运行时镜像自动跳过。
 if [ "${SOLIDWORKS_INSTALLED}" != true ]; then
     echo "[DockerSW] 当前镜像未安装 SOLIDWORKS，跳过 SWCLI daemon 预热"
-elif ! command -v swclid >/dev/null 2>&1; then
+elif ! command -v sw-cli >/dev/null 2>&1; then
     echo "[DockerSW][WARN] 当前镜像未安装 SWCLI，跳过 daemon 预热" >&2
 else
+    SWCLI_ENDPOINT="${SWCLI_ENDPOINT:-127.0.0.1:18495}"
+    SWCLID_START_TIMEOUT="${SWCLID_START_TIMEOUT:-120}"
+    SWCLID_LOG="${SWCLID_LOG:-/tmp/swclid.log}"
+    SWCLID_HOST="${SWCLI_ENDPOINT%:*}"
+    SWCLID_PORT="${SWCLI_ENDPOINT##*:}"
+    if [ -z "${SWCLID_HOST}" ] || [ "${SWCLID_HOST}" = "${SWCLI_ENDPOINT}" ] || \
+       ! [[ "${SWCLID_PORT}" =~ ^[0-9]+$ ]] || \
+       ! [[ "${SWCLID_START_TIMEOUT}" =~ ^[0-9]+$ ]]; then
+        echo "[DockerSW][ERROR] SWCLI_ENDPOINT 必须为 HOST:PORT，SWCLID_START_TIMEOUT 必须为整数" >&2
+        exit 1
+    fi
     echo "[DockerSW] 正在启动并等待 SWCLI daemon 与 SOLIDWORKS 就绪..."
-    swclid start
+    nohup sw-cli daemon serve \
+        --host "${SWCLID_HOST}" --port "${SWCLID_PORT}" \
+        --startup-timeout "${SWCLID_START_TIMEOUT}" \
+        >"${SWCLID_LOG}" 2>&1 &
+    SWCLID_PID=$!
+    SWCLID_READY=false
+    for ((attempt = 0; attempt < SWCLID_START_TIMEOUT; attempt++)); do
+        if sw-cli daemon status --endpoint "${SWCLI_ENDPOINT}" --json >/dev/null 2>&1; then
+            SWCLID_READY=true
+            break
+        fi
+        kill -0 "${SWCLID_PID}" 2>/dev/null || break
+        sleep 1
+    done
+    if [ "${SWCLID_READY}" != true ]; then
+        echo "[DockerSW][ERROR] SWCLI daemon 未在期限内就绪，请检查 ${SWCLID_LOG}" >&2
+        tail -n 100 "${SWCLID_LOG}" >&2 || true
+        exit 1
+    fi
+    echo "[DockerSW] SWCLI daemon 已就绪: ${SWCLI_ENDPOINT}"
 fi
 
 # 9. 执行传入命令或进入交互终端

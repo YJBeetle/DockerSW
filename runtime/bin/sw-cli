@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# The protocol client runs in Linux Python. Only explicit host diagnostics and
-# swclid's COM worker run in the Wine Windows Python environment.
+# The protocol client runs in Linux Python. Local host diagnostics and daemon
+# lifecycle commands run in the Wine Windows Python environment.
 WIN_PYTHON="${SWCLI_WINDOWS_PYTHON:-C:\\Python311\\python.exe}"
 ARGS=("$@")
 SWCLI_SOURCE="${SWCLI_SOURCE:-/opt/swcli/src}"
 SWCLI_ENDPOINT="${SWCLI_ENDPOINT:-127.0.0.1:18495}"
-SWCLID_COMMAND="${SWCLID_COMMAND:-$(dirname "${BASH_SOURCE[0]}")/swclid}"
 PYTHONPATH="${SWCLI_SOURCE}${PYTHONPATH:+:${PYTHONPATH}}"
 export PYTHONPATH SWCLI_ENDPOINT
 
@@ -35,15 +34,21 @@ if [ "${#ARGS[@]}" -ge 2 ]; then
     esac
 fi
 
-if [ "${#ARGS[@]}" -gt 0 ]; then
-    case "${ARGS[0]}" in
-        document|part)
-            "${SWCLID_COMMAND}" start
-            ;;
-    esac
+if [ "${#ARGS[@]}" -ge 2 ] && [ "${ARGS[0]} ${ARGS[1]}" = "daemon serve" ]; then
+    has_host_platform=false
+    for argument in "${ARGS[@]}"; do
+        if [ "${argument}" = "--host-platform" ]; then
+            has_host_platform=true
+            break
+        fi
+    done
+    if [ "${has_host_platform}" = false ]; then
+        ARGS=("daemon" "serve" "--host-platform" "linux-wine" "${ARGS[@]:2}")
+    fi
 fi
 
-if [ "${#ARGS[@]}" -gt 0 ] && [ "${ARGS[0]}" = "host" ]; then
+if [ "${#ARGS[@]}" -gt 0 ] && \
+   { [ "${ARGS[0]}" = "doctor" ] || [ "${ARGS[0]}" = "daemon" ]; }; then
     exec wine "${WIN_PYTHON}" -m swcli "${ARGS[@]}"
 fi
 

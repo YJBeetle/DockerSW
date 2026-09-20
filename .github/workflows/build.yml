@@ -159,9 +159,9 @@ jobs:
           echo "[CI] 验证 3: 测试 Windows Python 3.11 与 pywin32 COM 模块就绪..."
           docker run --rm sw-runtime:local-test wine "C:\\Python311\\python.exe" -c "import win32com.client, pythoncom; print('[HEALTH CHECK OK] Windows Python & pywin32 ready')"
 
-          echo "[CI] 验证 4: 运行 Linux Python SWCLI 客户端与 Wine swclid 命令行..."
+          echo "[CI] 验证 4: 运行 Linux Python SWCLI 客户端与 Wine daemon 命令行..."
           docker run --rm sw-runtime:local-test sw-cli version --json
-          docker run --rm sw-runtime:local-test swclid --help
+          docker run --rm sw-runtime:local-test sw-cli daemon --help
 
           echo "[CI] 验证 5: 安装器命令已内置..."
           docker run --rm sw-runtime:local-test sw-install --help

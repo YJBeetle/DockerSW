@@ -6,7 +6,7 @@
 
 1. **轻量纯粹**：专注提供无头执行与 COM 消息循环保障，确保高可靠、无弹窗阻塞的 CAD 文件批量自动化导出；
 2. **安全合规的分层解耦架构**：
-   - **公开运行时（`ghcr.io/yjbeetle/sw-runtime`）**：不包含任何 SOLIDWORKS 专有商业二进制文件、安装介质、序列号或许可服务器，也不预置 EULA 接受状态。仅提供固定版本验证的 Wine 64-bit、Wine-Mono、托管 COM 补丁、OpenGL 24-bit DIB 离屏渲染修复、Xvfb 无头虚拟显示、Linux/Windows Python 环境以及 `sw-install`、`sw-cli` 和 `swclid` 工具链；
+   - **公开运行时（`ghcr.io/yjbeetle/sw-runtime`）**：不包含任何 SOLIDWORKS 专有商业二进制文件、安装介质、序列号或许可服务器，也不预置 EULA 接受状态。仅提供固定版本验证的 Wine 64-bit、Wine-Mono、托管 COM 补丁、OpenGL 24-bit DIB 离屏渲染修复、Xvfb 无头虚拟显示、Linux/Windows Python 环境以及 `sw-install` 和 `sw-cli` 工具链；
    - **私有企业环境（下游构建与执行）**：使用者在自身可信基础设施中，通过合法取得的安装介质，使用 `sw-install` 执行官方静默安装并构建企业私有预安装镜像（`sw-preinstalled`），接入局域网浮动许可进行生产导出；
    - **Base / Delivery 成对交付**：`sw-runtime-base`、`sw-preinstalled-base`、`sw-executable-base` 固化低频变化的环境、安装与测试状态且不含 SWCLI；对应的 `sw-runtime`、`sw-preinstalled`、`sw-executable` 只在最后一层加入当前 SWCLI 与 DockerSW 运行脚本；
 3. **开箱即用的自动化导出**：由 GitLab CI / GitHub Actions 直接组合 SWCLI 的 typed `document open/export/close` 原子操作，支持 `.SLDPRT`/`.SLDASM` 导出 `.STEP`、`.SLDDRW` 导出 `.PDF` 和 `.DWG`、渲染装配体导出 `.GLB`；文件选择和命名规则归属具体 CI，不进入通用 CLI。
@@ -66,7 +66,7 @@ sw-runtime-base
    - **本地自启许可模式（按需）**：在私有构建期内置或运行时挂载到 `SW_FLEXNET_DIR`（默认 `/opt/SolidWorks_Flexnet_Server`），只要目录下存在 `lmgrd.exe` 与许可文件即自动在后台拉起守护并等待端口就绪；
 7. **命令生命周期与构建支持**：
    - 支持 `--init-only` 参数，在 Docker 构建期刷新并持久化 Wine 注册表后干净退出；
-   - 同时检测到 SOLIDWORKS 与 SWCLI 时，默认启动并等待 `swclid` 与 COM worker 就绪；任一组件缺失的 Base/运行时镜像自动跳过；
+   - 同时检测到 SOLIDWORKS 与 SWCLI 时，默认通过 `sw-cli daemon serve` 启动并等待 daemon 与 COM worker 就绪；任一组件缺失的 Base/运行时镜像自动跳过；
    - 支持透明传递任意执行命令（如 `sw-cli`、`sw-install` 或 `bash`）。
 
 ### 3.2 官方介质安装引擎 (`sw-install`)
@@ -88,7 +88,7 @@ sw-runtime-base
 4. **私有镜像构建隔离**：
    - 配合 BuildKit 挂载机制（`--mount=type=bind`），安装介质在镜像构建完成后不会残留在任何镜像层中，保证产物整洁。
 
-### 3.3 SWCLI 与 CI 导出组合 (`sw-cli` / `swclid`)
+### 3.3 SWCLI 与 CI 导出组合 (`sw-cli`)
 
 1. **Linux / Windows 路径智能透明转换**：
    - `sw-cli` 薄入口接收 typed 命令中的 Linux 输入与输出路径；
@@ -98,13 +98,13 @@ sw-runtime-base
    - `sw-cli document export` 只根据显式输出扩展名选择 STEP、GLB、PDF 或 DWG，不解释源文件名；
    - manifest、`.REND.SLDASM -> GLB` 及输出命名属于具体项目的 CI 配置，不进入 SWCLI；
    - DockerSW 只转换 Linux/Wine 路径、在交付镜像启动时预热 daemon，并提供容器生命周期适配；
-3. **常驻 `swclid` 与 Wine COM worker**：
-   - `sw-preinstalled` 与 `sw-executable` 的 entrypoint 默认启动 SWCLI 提供的 `swclid` 并等待就绪，后续调用通过 `127.0.0.1` 回环端点复用同一个实例；
-   - typed `sw-cli` 保留幂等启动路径，在 daemon 意外退出后自动恢复；
+3. **常驻 daemon 与 Wine COM worker**：
+   - `sw-preinstalled` 与 `sw-executable` 的 entrypoint 默认执行 `sw-cli daemon serve` 并等待就绪，后续调用通过 `127.0.0.1` 回环端点复用同一个实例；
+   - Docker 中由 entrypoint 负责 daemon 生命周期；typed 命令只连接已有服务，daemon 意外退出时明确失败；
    - daemon 使用 `win32com.client.DispatchEx("SldWorks.Application")` 获取独占实例，规避 Wine 下 `GetActiveObject` 对直接启动进程的不可靠行为；
    - 按官方 `StartupProcessCompleted` 状态等待启动加载完成，再开放协议端点，避免 COM 已返回但启动插件尚未就绪的竞态；
    - supervisor 与 COM worker 分进程，worker 在单一 COM apartment 中串行执行全部请求；调用超时后会连同未知状态的 SOLIDWORKS 进程树一起替换；
-   - DockerSW 仅负责 Linux/Wine 路径转换、daemon 预热/恢复和容器生命周期，协议、worker 与 typed operations 均由 SWCLI 拥有；
+   - DockerSW 仅负责 Linux/Wine 路径转换、daemon 预热和容器生命周期，协议、worker 与 typed operations 均由 SWCLI 拥有；
 4. **CI 导出策略**：
    - CI 根据项目规则选择源文件，并显式指定每一个输出路径和扩展名；
    - 当前真实门禁将 `.SLDPRT` / `.SLDASM` 导出为 `.STEP`，将 `.SLDDRW` 导出为 `.PDF` 与 `.DWG`；
@@ -139,5 +139,5 @@ DockerSW 保留不依赖旧 `sw-daemon` 的人类监看能力。设置 `VNC_ENAB
 
 - [x] **架构一致性**：公开基础镜像 `sw-runtime` 与私有安装镜像 `sw-preinstalled` 职责彻底分离；
 - [x] **版权合规性**：公开仓库无任何商业软件实体与许可凭据，EULA 坚持调用方显式确认原则；
-- [x] **命名规范性**：全局统一使用标准命令名 `sw-install`、`sw-cli` 与 `swclid`，环境变量全项目对齐（`SW_INSTALL_DIR`, `SW_LICENSE_SERVER`, `SW_FLEXNET_DIR`）；
+- [x] **命名规范性**：全局统一使用标准命令名 `sw-install` 与 `sw-cli`，环境变量全项目对齐（`SW_INSTALL_DIR`, `SW_LICENSE_SERVER`, `SW_FLEXNET_DIR`）；
 - [x] **运行健壮性**：无头环境具备 Xvfb、OpenGL 24-bit 离屏渲染与 Wine-Mono 托管 COM 的三重稳定性保障。
