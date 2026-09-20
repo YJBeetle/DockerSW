@@ -178,7 +178,8 @@ class EntrypointTests(unittest.TestCase):
         self.assertIn('[ "${SOLIDWORKS_INSTALLED}" != true ]', entrypoint)
         self.assertIn("command -v sw-cli", entrypoint)
         self.assertIn("当前镜像未安装 SWCLI", entrypoint)
-        self.assertIn("nohup sw-cli daemon serve", entrypoint)
+        self.assertIn("SWCLID_SERVE_ARGS=(", entrypoint)
+        self.assertIn('nohup sw-cli "${SWCLID_SERVE_ARGS[@]}"', entrypoint)
         self.assertIn("sw-cli daemon status", entrypoint)
         self.assertIn('--endpoint "${SWCLI_ENDPOINT}"', entrypoint)
         self.assertIn("当前镜像未安装 SOLIDWORKS", entrypoint)
@@ -189,6 +190,15 @@ class EntrypointTests(unittest.TestCase):
         self.assertIn('SWCLID_READY_GRACE="${SWCLID_READY_GRACE:-10}"', entrypoint)
         self.assertIn("SWCLID_READY_DEADLINE=$((SECONDS +", entrypoint)
         self.assertIn('timeout "${probe_timeout}s" sw-cli daemon status', entrypoint)
+
+    def test_entrypoint_requires_explicit_remote_daemon_opt_in(self):
+        entrypoint = ENTRYPOINT_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('SWCLID_ALLOW_REMOTE="${SWCLID_ALLOW_REMOTE:-false}"', entrypoint)
+        self.assertIn(
+            'require_boolean "SWCLID_ALLOW_REMOTE" "${SWCLID_ALLOW_REMOTE}"',
+            entrypoint,
+        )
+        self.assertIn('SWCLID_SERVE_ARGS+=(--allow-remote)', entrypoint)
 
 if __name__ == "__main__":
     unittest.main()

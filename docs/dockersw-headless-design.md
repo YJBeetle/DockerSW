@@ -101,6 +101,7 @@ sw-runtime-base
    - DockerSW 只提供 daemon 预热、容器生命周期适配以及指向翻译 helper 的环境变量，不再解析 CLI 参数位置；
 3. **常驻 daemon 与 Wine COM worker**：
    - `sw-preinstalled` 与 `sw-executable` 的 entrypoint 默认执行 `sw-cli daemon serve` 并等待就绪，后续调用通过 `127.0.0.1` 回环端点复用同一个实例；
+   - daemon 默认拒绝监听非回环地址；DockerSW 只有在 `SWCLID_ALLOW_REMOTE=true` 时才传入显式放行参数，该参数不提供认证，必须配合可信网络边界或安全隧道；
    - entrypoint 将 SOLIDWORKS 启动期限与健康探测余量纳入同一个总 deadline，避免一次阻塞探测让容器启动无限超期；
    - Docker 中由 entrypoint 负责 daemon 生命周期；typed 命令只连接已有服务，daemon 意外退出时明确失败；
    - daemon 使用 `win32com.client.DispatchEx("SldWorks.Application")` 获取独占实例，规避 Wine 下 `GetActiveObject` 对直接启动进程的不可靠行为；

@@ -228,6 +228,7 @@ else
     SWCLI_ENDPOINT="${SWCLI_ENDPOINT:-127.0.0.1:18495}"
     SWCLID_START_TIMEOUT="${SWCLID_START_TIMEOUT:-120}"
     SWCLID_READY_GRACE="${SWCLID_READY_GRACE:-10}"
+    SWCLID_ALLOW_REMOTE="${SWCLID_ALLOW_REMOTE:-false}"
     SWCLID_LOG="${SWCLID_LOG:-/tmp/swclid.log}"
     SWCLID_HOST="${SWCLI_ENDPOINT%:*}"
     SWCLID_PORT="${SWCLI_ENDPOINT##*:}"
@@ -238,10 +239,18 @@ else
         echo "[DockerSW][ERROR] SWCLI_ENDPOINT 必须为 HOST:PORT，SWCLID_START_TIMEOUT 和 SWCLID_READY_GRACE 必须为整数" >&2
         exit 1
     fi
+    require_boolean "SWCLID_ALLOW_REMOTE" "${SWCLID_ALLOW_REMOTE}"
+    SWCLID_SERVE_ARGS=(
+        daemon serve
+        --host "${SWCLID_HOST}"
+        --port "${SWCLID_PORT}"
+        --startup-timeout "${SWCLID_START_TIMEOUT}"
+    )
+    if is_enabled "${SWCLID_ALLOW_REMOTE}"; then
+        SWCLID_SERVE_ARGS+=(--allow-remote)
+    fi
     echo "[DockerSW] 正在启动并等待 SWCLI daemon 与 SOLIDWORKS 就绪..."
-    nohup sw-cli daemon serve \
-        --host "${SWCLID_HOST}" --port "${SWCLID_PORT}" \
-        --startup-timeout "${SWCLID_START_TIMEOUT}" \
+    nohup sw-cli "${SWCLID_SERVE_ARGS[@]}" \
         >"${SWCLID_LOG}" 2>&1 &
     SWCLID_PID=$!
     SWCLID_READY=false

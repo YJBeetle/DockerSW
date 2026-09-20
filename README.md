@@ -339,6 +339,7 @@ entrypoint 中预热 daemon，后续调用通过本地回环协议复用同一�
 | `SWCLI_ENDPOINT` | `127.0.0.1:18495` | SWCLI daemon 本地协议端点 |
 | `SWCLID_START_TIMEOUT` | `120` | daemon 与 SOLIDWORKS 就绪等待秒数 |
 | `SWCLID_READY_GRACE` | `10` | SOLIDWORKS 启动期限后的健康探测余量（秒） |
+| `SWCLID_ALLOW_REMOTE` | `false` | 显式允许 daemon 监听非回环地址；不提供认证，只能用于可信网络或安全隧道 |
 | `SWCLID_LOG` | `/tmp/swclid.log` | daemon 启动与运行日志 |
 
 ### 许可服务配置 (License)
