@@ -227,13 +227,15 @@ elif ! command -v sw-cli >/dev/null 2>&1; then
 else
     SWCLI_ENDPOINT="${SWCLI_ENDPOINT:-127.0.0.1:18495}"
     SWCLID_START_TIMEOUT="${SWCLID_START_TIMEOUT:-120}"
+    SWCLID_READY_GRACE="${SWCLID_READY_GRACE:-10}"
     SWCLID_LOG="${SWCLID_LOG:-/tmp/swclid.log}"
     SWCLID_HOST="${SWCLI_ENDPOINT%:*}"
     SWCLID_PORT="${SWCLI_ENDPOINT##*:}"
     if [ -z "${SWCLID_HOST}" ] || [ "${SWCLID_HOST}" = "${SWCLI_ENDPOINT}" ] || \
        ! [[ "${SWCLID_PORT}" =~ ^[0-9]+$ ]] || \
-       ! [[ "${SWCLID_START_TIMEOUT}" =~ ^[0-9]+$ ]]; then
-        echo "[DockerSW][ERROR] SWCLI_ENDPOINT 必须为 HOST:PORT，SWCLID_START_TIMEOUT 必须为整数" >&2
+       ! [[ "${SWCLID_START_TIMEOUT}" =~ ^[0-9]+$ ]] || \
+       ! [[ "${SWCLID_READY_GRACE}" =~ ^[0-9]+$ ]]; then
+        echo "[DockerSW][ERROR] SWCLI_ENDPOINT 必须为 HOST:PORT，SWCLID_START_TIMEOUT 和 SWCLID_READY_GRACE 必须为整数" >&2
         exit 1
     fi
     echo "[DockerSW] 正在启动并等待 SWCLI daemon 与 SOLIDWORKS 就绪..."
@@ -243,8 +245,15 @@ else
         >"${SWCLID_LOG}" 2>&1 &
     SWCLID_PID=$!
     SWCLID_READY=false
-    for ((attempt = 0; attempt < SWCLID_START_TIMEOUT; attempt++)); do
-        if sw-cli daemon status --endpoint "${SWCLI_ENDPOINT}" --json >/dev/null 2>&1; then
+    SWCLID_READY_DEADLINE=$((SECONDS + SWCLID_START_TIMEOUT + SWCLID_READY_GRACE))
+    while ((SECONDS < SWCLID_READY_DEADLINE)); do
+        remaining=$((SWCLID_READY_DEADLINE - SECONDS))
+        probe_timeout=3
+        if ((remaining < probe_timeout)); then
+            probe_timeout=${remaining}
+        fi
+        if timeout "${probe_timeout}s" sw-cli daemon status \
+            --endpoint "${SWCLI_ENDPOINT}" --json >/dev/null 2>&1; then
             SWCLID_READY=true
             break
         fi

@@ -179,10 +179,16 @@ class EntrypointTests(unittest.TestCase):
         self.assertIn("command -v sw-cli", entrypoint)
         self.assertIn("当前镜像未安装 SWCLI", entrypoint)
         self.assertIn("nohup sw-cli daemon serve", entrypoint)
-        self.assertIn("sw-cli daemon status --endpoint", entrypoint)
+        self.assertIn("sw-cli daemon status", entrypoint)
+        self.assertIn('--endpoint "${SWCLI_ENDPOINT}"', entrypoint)
         self.assertIn("当前镜像未安装 SOLIDWORKS", entrypoint)
         self.assertNotIn("SWCLID_AUTO_START", entrypoint)
 
+    def test_entrypoint_has_a_bounded_daemon_readiness_grace_period(self):
+        entrypoint = ENTRYPOINT_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('SWCLID_READY_GRACE="${SWCLID_READY_GRACE:-10}"', entrypoint)
+        self.assertIn("SWCLID_READY_DEADLINE=$((SECONDS +", entrypoint)
+        self.assertIn('timeout "${probe_timeout}s" sw-cli daemon status', entrypoint)
 
 if __name__ == "__main__":
     unittest.main()

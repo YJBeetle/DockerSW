@@ -325,9 +325,10 @@ docker run --rm \
 daemon 通过 `DispatchEx` 创建独占 SOLIDWORKS 实例后，会等待官方
 `StartupProcessCompleted` 状态再开始接收请求。已安装 SOLIDWORKS 的交付镜像会在
 entrypoint 中预热 daemon，后续调用通过本地回环协议复用同一个实例；若 daemon
-意外退出，typed `sw-cli` 命令会明确失败，由容器生命周期层处理恢复。默认启动
-等待上限为 120 秒，可通过 `SWCLID_START_TIMEOUT` 调整；单次导出请求默认仍有
-独立的 600 秒超时。
+意外退出，typed `sw-cli` 命令会明确失败，由容器生命周期层处理恢复。SOLIDWORKS
+启动等待上限默认为 120 秒，随后保留 10 秒健康探测余量，分别可通过
+`SWCLID_START_TIMEOUT` 和 `SWCLID_READY_GRACE` 调整；单次导出请求默认仍有独立的
+600 秒超时。
 缺少 SOLIDWORKS 或 SWCLI 的 Base/运行时镜像只记录跳过原因，不会因预热条件
 不完整而启动失败。
 
@@ -337,6 +338,7 @@ entrypoint 中预热 daemon，后续调用通过本地回环协议复用同一�
 |---|---|---|
 | `SWCLI_ENDPOINT` | `127.0.0.1:18495` | SWCLI daemon 本地协议端点 |
 | `SWCLID_START_TIMEOUT` | `120` | daemon 与 SOLIDWORKS 就绪等待秒数 |
+| `SWCLID_READY_GRACE` | `10` | SOLIDWORKS 启动期限后的健康探测余量（秒） |
 | `SWCLID_LOG` | `/tmp/swclid.log` | daemon 启动与运行日志 |
 
 ### 许可服务配置 (License)
