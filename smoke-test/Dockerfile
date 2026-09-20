@@ -6,13 +6,12 @@ FROM ${APP_IMAGE} AS current-app
 FROM ${BASE_IMAGE} AS sw-executable
 
 # 交付层不接触 FlexNet、授权注册表或 SOLIDWORKS 程序补丁。
-COPY --from=current-app /opt/swcli/ /opt/swcli/
-COPY --from=current-app /usr/local/lib/sw-runtime/install_swcli.sh /usr/local/lib/sw-runtime/install_swcli.sh
-COPY --from=current-app /usr/local/bin/sw-install /usr/local/bin/sw-install
-COPY --from=current-app /usr/local/bin/sw-cli /usr/local/bin/sw-cli
-COPY --from=current-app /usr/local/bin/linux-to-wine-path /usr/local/bin/linux-to-wine-path
-COPY --from=current-app /usr/local/bin/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN /usr/local/lib/sw-runtime/install_swcli.sh /opt/swcli
+# --link 使它与 preinstalled 及各语言交付镜像复用同一 payload 层。
+COPY --link --from=current-app /opt/swcli/ /opt/swcli/
+COPY --link --from=current-app /usr/local/bin/sw-install /usr/local/bin/sw-install
+COPY --link --from=current-app /usr/local/bin/sw-cli /usr/local/bin/sw-cli
+COPY --link --from=current-app /usr/local/bin/linux-to-wine-path /usr/local/bin/linux-to-wine-path
+COPY --link --from=current-app /usr/local/bin/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 WORKDIR /workspace
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

@@ -56,7 +56,6 @@ jobs:
           bash -n runtime/entrypoint.sh
           bash -n runtime/fetch_managed_com.sh
           bash -n runtime/prepare_managed_com.sh
-          bash -n runtime/install_swcli.sh
           bash -n runtime/bin/*
           bash -n smoke-test/export.sh
           perl -c runtime/patch_win32u.pl

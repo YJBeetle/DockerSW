@@ -43,22 +43,25 @@ class RuntimeWrapperTests(unittest.TestCase):
 
     def test_wrapper_does_not_hardcode_positional_path_translation(self):
         script = SWCLI_SCRIPT.read_text(encoding="utf-8")
-        self.assertNotIn("winepath", script)
         self.assertNotIn("option_takes_value", script)
         self.assertNotIn("translate_positional_path", script)
         self.assertNotIn("translate_first_positional", script)
 
+    def test_windows_python_loads_swcli_from_shared_source(self):
+        invocation = self._run_with_fake_wine(["daemon", "status", "--json"])
+        self.assertIn("PYTHONPATH=Z:\\opt\\swcli\\src", invocation)
+
     def test_doctor_runs_under_wine_python(self):
         invocation = self._run_with_fake_wine(["doctor", "--json"])
         self.assertIn(
-            "wine: C:\\Python311\\python.exe -m swcli doctor --json",
+            "C:\\Python311\\python.exe -m swcli doctor --json",
             invocation,
         )
 
     def test_daemon_status_runs_under_wine_python(self):
         invocation = self._run_with_fake_wine(["daemon", "status", "--json"])
         self.assertIn(
-            "wine: C:\\Python311\\python.exe -m swcli daemon status --json",
+            "C:\\Python311\\python.exe -m swcli daemon status --json",
             invocation,
         )
 
@@ -93,10 +96,17 @@ class RuntimeWrapperTests(unittest.TestCase):
             python_log = root / "python.log"
             wine = binary_dir / "wine"
             wine.write_text(
-                f"#!/usr/bin/env bash\nprintf 'wine: %s\\n' \"$*\" > '{wine_log}'\n",
+                "#!/usr/bin/env bash\n"
+                f"printf 'wine: PYTHONPATH=%s %s\\n' \"$PYTHONPATH\" \"$*\" > '{wine_log}'\n",
                 encoding="utf-8",
             )
             wine.chmod(0o755)
+            winepath = binary_dir / "winepath"
+            winepath.write_text(
+                "#!/usr/bin/env bash\nprintf '%s\\n' 'Z:\\opt\\swcli\\src'\n",
+                encoding="utf-8",
+            )
+            winepath.chmod(0o755)
             python3 = binary_dir / "python3"
             python3.write_text(
                 "#!/usr/bin/env bash\n"

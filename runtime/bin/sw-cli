@@ -10,7 +10,6 @@ set -euo pipefail
 WIN_PYTHON="${SWCLI_WINDOWS_PYTHON:-C:\\Python311\\python.exe}"
 SWCLI_SOURCE="${SWCLI_SOURCE:-/opt/swcli/src}"
 SWCLI_ENDPOINT="${SWCLI_ENDPOINT:-127.0.0.1:18495}"
-export PYTHONPATH="${SWCLI_SOURCE}${PYTHONPATH:+:${PYTHONPATH}}"
 export SWCLI_ENDPOINT
 export SWCLI_PATH_TRANSLATE_CMD=/usr/local/bin/linux-to-wine-path
 
@@ -23,7 +22,10 @@ fi
 
 if [ "${#ARGS[@]}" -ge 1 ] && \
    { [ "${ARGS[0]}" = "doctor" ] || [ "${ARGS[0]}" = "daemon" ]; }; then
-    exec wine "${WIN_PYTHON}" -m swcli "${ARGS[@]}"
+    WINDOWS_SWCLI_SOURCE="$(winepath -w "${SWCLI_SOURCE}")"
+    exec env PYTHONPATH="${WINDOWS_SWCLI_SOURCE}" \
+        wine "${WIN_PYTHON}" -m swcli "${ARGS[@]}"
 fi
 
-exec python3 -m swcli "${ARGS[@]}"
+exec env PYTHONPATH="${SWCLI_SOURCE}${PYTHONPATH:+:${PYTHONPATH}}" \
+    python3 -m swcli "${ARGS[@]}"

@@ -23,7 +23,7 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn("FROM ${BASE_IMAGE} AS sw-executable-base", executable_base)
         self.assertIn("FROM ${BASE_IMAGE} AS sw-executable", executable)
 
-    def test_swcli_is_only_added_to_delivery_targets(self) -> None:
+    def test_swcli_payload_is_only_linked_into_delivery_targets(self) -> None:
         for relative_path, final_target in (
             ("runtime/Dockerfile", "FROM sw-runtime-base AS sw-runtime"),
             ("preinstall/Dockerfile", "FROM ${BASE_IMAGE} AS sw-preinstalled"),
@@ -33,7 +33,13 @@ class ImageLayeringTests(unittest.TestCase):
             base, delivery = dockerfile.split(final_target, maxsplit=1)
             self.assertNotIn("/opt/swcli/", base)
             self.assertIn("/opt/swcli/", delivery)
-            self.assertIn("install_swcli.sh /opt/swcli", delivery)
+            self.assertNotIn("install_swcli.sh", delivery)
+
+        for relative_path in ("preinstall/Dockerfile", "smoke-test/Dockerfile"):
+            self.assertIn(
+                "COPY --link --from=current-app /opt/swcli/ /opt/swcli/",
+                self.read(relative_path),
+            )
 
     def test_delivery_images_do_not_copy_removed_swclid_wrapper(self) -> None:
         for relative_path in (

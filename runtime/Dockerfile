@@ -80,17 +80,15 @@ WORKDIR /workspace
 
 FROM sw-runtime-base AS sw-runtime
 
-# 5. 三个正式镜像共享的当前应用层。Linux Python 直接从 src 运行客户端，
-# Wine Windows Python 安装同一份源码以运行 daemon/COM worker。
-COPY SWCLI/ /opt/swcli/
-COPY --chmod=755 runtime/install_swcli.sh /usr/local/lib/sw-runtime/install_swcli.sh
-RUN /usr/local/lib/sw-runtime/install_swcli.sh /opt/swcli
+# 5. 三个正式镜像共享的当前应用层。Linux 与 Wine Windows Python 都直接
+# 从 /opt/swcli/src 运行；SWCLI 不写入 Wine prefix。
+COPY --link SWCLI/ /opt/swcli/
 
 # 6. 安装 DockerSW 的进程/路径适配器
-COPY --chmod=755 runtime/bin/ /usr/local/bin/
+COPY --link --chmod=755 runtime/bin/ /usr/local/bin/
 
 # 7. 配置容器 Entrypoint
-COPY --chmod=755 runtime/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --link --chmod=755 runtime/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 WORKDIR /workspace
 

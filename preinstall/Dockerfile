@@ -5,14 +5,13 @@ ARG APP_IMAGE=sw-runtime:local
 FROM ${APP_IMAGE} AS current-app
 FROM ${BASE_IMAGE} AS sw-preinstalled
 
-# 交付层不接触安装介质，纯 SWCLI 改动不会扫描 ISO。
-COPY --from=current-app /opt/swcli/ /opt/swcli/
-COPY --from=current-app /usr/local/lib/sw-runtime/install_swcli.sh /usr/local/lib/sw-runtime/install_swcli.sh
-COPY --from=current-app /usr/local/bin/sw-install /usr/local/bin/sw-install
-COPY --from=current-app /usr/local/bin/sw-cli /usr/local/bin/sw-cli
-COPY --from=current-app /usr/local/bin/linux-to-wine-path /usr/local/bin/linux-to-wine-path
-COPY --from=current-app /usr/local/bin/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN /usr/local/lib/sw-runtime/install_swcli.sh /opt/swcli
+# 交付层不接触安装介质。--link 让相同 SWCLI payload 不依赖不同的
+# SOLIDWORKS/语言父层，所有交付变体可引用相同的内容层。
+COPY --link --from=current-app /opt/swcli/ /opt/swcli/
+COPY --link --from=current-app /usr/local/bin/sw-install /usr/local/bin/sw-install
+COPY --link --from=current-app /usr/local/bin/sw-cli /usr/local/bin/sw-cli
+COPY --link --from=current-app /usr/local/bin/linux-to-wine-path /usr/local/bin/linux-to-wine-path
+COPY --link --from=current-app /usr/local/bin/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 WORKDIR /workspace
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
