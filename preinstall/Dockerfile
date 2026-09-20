@@ -10,6 +10,7 @@ COPY --from=current-app /opt/swcli/ /opt/swcli/
 COPY --from=current-app /usr/local/lib/sw-runtime/install_swcli.sh /usr/local/lib/sw-runtime/install_swcli.sh
 COPY --from=current-app /usr/local/bin/sw-install /usr/local/bin/sw-install
 COPY --from=current-app /usr/local/bin/sw-cli /usr/local/bin/sw-cli
+COPY --from=current-app /usr/local/bin/linux-to-wine-path /usr/local/bin/linux-to-wine-path
 COPY --from=current-app /usr/local/bin/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN /usr/local/lib/sw-runtime/install_swcli.sh /opt/swcli
 

@@ -213,9 +213,11 @@ docker run --rm \
 
 DockerSW 镜像使用 Linux Python 运行 `sw-cli` 协议客户端，只在 Wine Windows
 Python 中运行 daemon 与 COM worker。容器入口会在检测到已安装的 SOLIDWORKS
-后执行 `sw-cli daemon serve` 并等待 daemon 就绪；Linux 薄入口负责路径转换和
-选择对应的 Python 环境。
-命令语义、COM 类型处理、验证和 JSON 结果均来自同一份 SWCLI 源码。
+后执行 `sw-cli daemon serve` 并等待 daemon 就绪；Linux 薄入口只负责选择对应的
+Python 环境，typed 命令中的 Linux 路径由 `sw-cli` 客户端在已知的路径字段（如
+`document.open` 的 `path`、`document.export` 的 `output`、`part.create-box`
+的 `--template`）上调用 `SWCLI_PATH_TRANSLATE_CMD` 指向的 helper 转成 Wine
+路径。命令语义、COM 类型处理、验证和 JSON 结果均来自同一份 SWCLI 源码。
 
 ```bash
 sw-cli version --json

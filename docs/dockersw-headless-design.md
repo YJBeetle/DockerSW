@@ -91,13 +91,14 @@ sw-runtime-base
 ### 3.3 SWCLI 与 CI 导出组合 (`sw-cli`)
 
 1. **Linux / Windows 路径智能透明转换**：
-   - `sw-cli` 薄入口接收 typed 命令中的 Linux 输入与输出路径；
-   - 自动转换为 Wine 虚拟 Windows 盘符路径（如 `/workspace/model.SLDPRT` -> `Z:\workspace\model.SLDPRT`，或 C 盘相对映射）；
+   - `sw-cli` 客户端在发送 typed 请求前，只对已知的路径字段（`path`、`output`、`template`）做转换；不依赖参数位置；
+   - DockerSW 薄入口 `sw-cli` 导出 `SWCLI_PATH_TRANSLATE_CMD=/usr/local/bin/linux-to-wine-path`，helper 将 POSIX 路径交给 `winepath -w`（例如 `/workspace/model.SLDPRT` -> `Z:\workspace\model.SLDPRT`），已是盘符形式的 Windows 路径原样透传；
+   - 未设置该环境变量时（如原生 Windows 或 macOS-Wine 直连），客户端不做任何转换；
 2. **职责边界**：
    - typed 建模、检查、重建、渲染与原子导出均由独立 SWCLI 项目维护；
    - `sw-cli document export` 只根据显式输出扩展名选择 STEP、GLB、PDF 或 DWG，不解释源文件名；
    - manifest、`.REND.SLDASM -> GLB` 及输出命名属于具体项目的 CI 配置，不进入 SWCLI；
-   - DockerSW 只转换 Linux/Wine 路径、在交付镜像启动时预热 daemon，并提供容器生命周期适配；
+   - DockerSW 只提供 daemon 预热、容器生命周期适配以及指向翻译 helper 的环境变量，不再解析 CLI 参数位置；
 3. **常驻 daemon 与 Wine COM worker**：
    - `sw-preinstalled` 与 `sw-executable` 的 entrypoint 默认执行 `sw-cli daemon serve` 并等待就绪，后续调用通过 `127.0.0.1` 回环端点复用同一个实例；
    - Docker 中由 entrypoint 负责 daemon 生命周期；typed 命令只连接已有服务，daemon 意外退出时明确失败；

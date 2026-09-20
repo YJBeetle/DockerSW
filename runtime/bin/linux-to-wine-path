@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Translate one POSIX filesystem path into its Wine Windows form, used by the
+# sw-cli client through SWCLI_PATH_TRANSLATE_CMD. Windows-style paths are
+# passed through untouched so callers may already provide native paths.
+case "${1:-}" in
+    "")
+        exit 0
+        ;;
+    [A-Za-z]:[\\/]*)
+        printf '%s\n' "$1"
+        ;;
+    *)
+        winepath -w -- "$1"
+        ;;
+esac
