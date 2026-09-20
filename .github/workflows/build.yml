@@ -262,6 +262,44 @@ jobs:
             echo "already_verified=false" >> "${GITHUB_OUTPUT}"
           fi
 
+      - name: Resolve reusable SOLIDWORKS installation base
+        id: check-installed-base
+        if: steps.check-images.outputs.already_verified != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          force="${{ inputs.force_rebuild || 'false' }}"
+
+          # The installation ISO is an immutable input. Reuse the installed image
+          # whenever the runtime base, installation recipe and configured media
+          # identity are unchanged; do not mount or scan the ISO merely to ask
+          # BuildKit whether its RUN layer is cached.
+          docker pull "${SW_RUNTIME_BASE_IMAGE}"
+          runtime_base_digest="$(
+            docker image inspect "${SW_RUNTIME_BASE_IMAGE}" \
+              --format '{{index .RepoDigests 0}}' | sed 's/.*@//'
+          )"
+          recipe_digest="$(sha256sum preinstall/Dockerfile | cut -d' ' -f1)"
+          install_key="$(
+            printf '%s\n%s\n%s\n' \
+              "${runtime_base_digest}" \
+              "${recipe_digest}" \
+              "${SW_MEDIA_PATH}" | sha256sum | cut -d' ' -f1
+          )"
+          reusable_image="${SW_PREINSTALLED_BASE_REPO}:install-${install_key:0:32}"
+
+          echo "SW_PREINSTALLED_REUSABLE_IMAGE=${reusable_image}" >> "${GITHUB_ENV}"
+          echo "[CI cache] SOLIDWORKS installation identity: install-${install_key:0:32}"
+
+          if [ "${force}" != "true" ] && \
+             docker manifest inspect "${reusable_image}" >/dev/null 2>&1; then
+            echo "[CI cache] Reusing installed SOLIDWORKS base; ISO access is unnecessary."
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "[CI cache] Installed base is missing or rebuild was forced; ISO access is required."
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Inspect runner disk capacity
         id: runner-disk
         if: steps.check-images.outputs.already_verified != 'true'
@@ -331,7 +369,9 @@ jobs:
           rclone --config "${RCLONE_CONFIG_FILE}" listremotes | grep -qx 'gdrive:'
 
       - name: Mount Google Drive and the SOLIDWORKS ISO
-        if: steps.check-images.outputs.already_verified != 'true'
+        if: >-
+          steps.check-images.outputs.already_verified != 'true' &&
+          steps.check-installed-base.outputs.exists != 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -404,42 +444,45 @@ jobs:
           SW_SERIAL_MBD: ${{ secrets.SW_SERIAL_MBD }}
         run: |
           set -Eeuo pipefail
-          docker pull "${SW_RUNTIME_BASE_IMAGE}"
           docker pull "${SW_RUNTIME_IMAGE}"
 
-          docker buildx build --load \
-            --target sw-preinstalled-base \
-            --build-arg "BASE_IMAGE=${SW_RUNTIME_BASE_IMAGE}" \
-            --build-arg "APP_IMAGE=${SW_RUNTIME_IMAGE}" \
-            --build-arg "SW_SERIAL_SOLIDWORKS=${SW_SERIAL_SOLIDWORKS}" \
-            --build-arg "SW_SERIAL_SIMULATION=${SW_SERIAL_SIMULATION}" \
-            --build-arg "SW_SERIAL_MOTION=${SW_SERIAL_MOTION}" \
-            --build-arg "SW_SERIAL_MBD=${SW_SERIAL_MBD}" \
-            --cache-from "type=registry,ref=${SW_PREINSTALLED_BASE_REPO}:buildcache" \
-            --cache-to "type=registry,ref=${SW_PREINSTALLED_BASE_REPO}:buildcache,mode=max,ignore-error=true" \
-            -f preinstall/Dockerfile \
-            -t "${SW_PREINSTALLED_BASE_IMAGE}" \
-            .
+          if [ "${{ steps.check-installed-base.outputs.exists }}" = "true" ]; then
+            echo "[CI cache] Pulling reusable installation base without mounting the ISO..."
+            docker pull "${SW_PREINSTALLED_REUSABLE_IMAGE}"
+            docker tag "${SW_PREINSTALLED_REUSABLE_IMAGE}" "${SW_PREINSTALLED_BASE_IMAGE}"
+          else
+            echo "[CI build] Building installation base from the immutable ISO..."
+            docker buildx build --load \
+              --target sw-preinstalled-base \
+              --build-context "sw-media=preinstall/media" \
+              --build-arg "BASE_IMAGE=${SW_RUNTIME_BASE_IMAGE}" \
+              --build-arg "SW_SERIAL_SOLIDWORKS=${SW_SERIAL_SOLIDWORKS}" \
+              --build-arg "SW_SERIAL_SIMULATION=${SW_SERIAL_SIMULATION}" \
+              --build-arg "SW_SERIAL_MOTION=${SW_SERIAL_MOTION}" \
+              --build-arg "SW_SERIAL_MBD=${SW_SERIAL_MBD}" \
+              --cache-from "type=registry,ref=${SW_PREINSTALLED_BASE_REPO}:buildcache" \
+              --cache-to "type=registry,ref=${SW_PREINSTALLED_BASE_REPO}:buildcache,mode=max,ignore-error=true" \
+              -f preinstall/Dockerfile \
+              -t "${SW_PREINSTALLED_REUSABLE_IMAGE}" \
+              -t "${SW_PREINSTALLED_BASE_IMAGE}" \
+              .
+            docker push "${SW_PREINSTALLED_REUSABLE_IMAGE}"
+          fi
+
+          # Publish the immutable per-commit candidate before the delivery build:
+          # the docker-container builder cannot resolve images loaded only into
+          # the host Docker Engine.
+          docker push "${SW_PREINSTALLED_BASE_IMAGE}"
 
           docker buildx build --load \
             --target sw-preinstalled \
-            --build-arg "BASE_IMAGE=${SW_RUNTIME_BASE_IMAGE}" \
+            --build-arg "BASE_IMAGE=${SW_PREINSTALLED_BASE_IMAGE}" \
             --build-arg "APP_IMAGE=${SW_RUNTIME_IMAGE}" \
-            --build-arg "SW_SERIAL_SOLIDWORKS=${SW_SERIAL_SOLIDWORKS}" \
-            --build-arg "SW_SERIAL_SIMULATION=${SW_SERIAL_SIMULATION}" \
-            --build-arg "SW_SERIAL_MOTION=${SW_SERIAL_MOTION}" \
-            --build-arg "SW_SERIAL_MBD=${SW_SERIAL_MBD}" \
-            --cache-from "type=registry,ref=${SW_PREINSTALLED_BASE_REPO}:buildcache" \
             --cache-from "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache" \
             --cache-to "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache,mode=max,ignore-error=true" \
-            -f preinstall/Dockerfile \
+            -f preinstall/Dockerfile.delivery \
             -t "${SW_PREINSTALLED_IMAGE}" \
             .
-
-          # The docker-container builder cannot resolve an image that --load
-          # placed only in the host Docker Engine. Publish the immutable base
-          # candidate so the following Dockerfile can consume it in FROM.
-          docker push "${SW_PREINSTALLED_BASE_IMAGE}"
 
       - name: Build sw-executable image (from local sw-preinstalled, zero pull overhead)
         if: steps.check-images.outputs.already_verified != 'true'

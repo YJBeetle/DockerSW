@@ -12,19 +12,20 @@ class ImageLayeringTests(unittest.TestCase):
     def test_all_base_and_delivery_targets_are_named(self) -> None:
         runtime = self.read("runtime/Dockerfile")
         preinstall = self.read("preinstall/Dockerfile")
+        preinstall_delivery = self.read("preinstall/Dockerfile.delivery")
         executable = self.read("smoke-test/Dockerfile")
 
         self.assertIn("FROM ubuntu:22.04 AS sw-runtime-base", runtime)
         self.assertIn("FROM sw-runtime-base AS sw-runtime", runtime)
         self.assertIn("FROM ${BASE_IMAGE} AS sw-preinstalled-base", preinstall)
-        self.assertIn("FROM sw-preinstalled-base AS sw-preinstalled", preinstall)
+        self.assertIn("FROM ${BASE_IMAGE} AS sw-preinstalled", preinstall_delivery)
         self.assertIn("FROM ${BASE_IMAGE} AS sw-executable-base", executable)
         self.assertIn("FROM sw-executable-base AS sw-executable", executable)
 
     def test_swcli_is_only_added_to_delivery_targets(self) -> None:
         for relative_path, final_target in (
             ("runtime/Dockerfile", "FROM sw-runtime-base AS sw-runtime"),
-            ("preinstall/Dockerfile", "FROM sw-preinstalled-base AS sw-preinstalled"),
+            ("preinstall/Dockerfile.delivery", "FROM ${BASE_IMAGE} AS sw-preinstalled"),
             ("smoke-test/Dockerfile", "FROM sw-executable-base AS sw-executable"),
         ):
             dockerfile = self.read(relative_path)
@@ -34,7 +35,11 @@ class ImageLayeringTests(unittest.TestCase):
             self.assertIn("install_swcli.sh /opt/swcli", delivery)
 
     def test_delivery_images_do_not_copy_removed_swclid_wrapper(self) -> None:
-        for relative_path in ("preinstall/Dockerfile", "smoke-test/Dockerfile"):
+        for relative_path in (
+            "preinstall/Dockerfile",
+            "preinstall/Dockerfile.delivery",
+            "smoke-test/Dockerfile",
+        ):
             self.assertNotIn("/usr/local/bin/swclid", self.read(relative_path))
 
         export_script = self.read("smoke-test/export.sh")
@@ -96,6 +101,18 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn("required_kib=$((40 * 1024 * 1024))", workflow)
         self.assertIn("steps.runner-disk.outputs.cleanup_required == 'true'", workflow)
         self.assertIn("jlumbroso/free-disk-space", workflow)
+
+    def test_cached_installation_base_does_not_scan_iso(self) -> None:
+        workflow = self.read(".github/workflows/build.yml")
+        dockerignore = self.read(".dockerignore")
+        installer = self.read("preinstall/Dockerfile")
+
+        self.assertIn("preinstall/media", dockerignore)
+        self.assertIn("from=sw-media", installer)
+        self.assertIn('--build-context "sw-media=preinstall/media"', workflow)
+        self.assertIn("SW_PREINSTALLED_REUSABLE_IMAGE", workflow)
+        self.assertIn("steps.check-installed-base.outputs.exists != 'true'", workflow)
+        self.assertIn("preinstall/Dockerfile.delivery", workflow)
 
 
 if __name__ == "__main__":
