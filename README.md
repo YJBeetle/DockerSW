@@ -48,13 +48,13 @@ sw-runtime-base                 低频：Wine + Mono + Python + sw-install
                                       └── 真实导出 6 个产物通过后晋升
 ```
 
-六个镜像均使用不可变的 `sha-xxxxxxx` 标签推送到 GHCR；三个 `*-base` 仓库只保存后续阶段需要的构建基础与 `buildcache`，不晋升 `main` 或 `latest`。作为下游输入的 Base 与 `sw-runtime` SHA 候选可提前发布；包含 SOLIDWORKS 的 `sw-preinstalled`、`sw-executable` SHA 候选，以及三个最终镜像的分支标签和 `latest`，仍须等待同一份 `sw-executable` 完成真实导出。
+GHCR 只保留 `sw-runtime`、`sw-preinstalled`、`sw-executable` 三个 package。每个交付镜像使用不可变的 `sha-xxxxxxx` 标签，对应的内部构建基础使用 `sha-xxxxxxx-base`；base 不晋升 `main` 或 `latest`。作为下游输入的 base 与 `sw-runtime` SHA 候选可提前发布；包含 SOLIDWORKS 的 `sw-preinstalled`、`sw-executable` SHA 候选，以及三个最终镜像的分支标签和 `latest`，仍须等待同一份 `sw-executable` 完成真实导出。base 与交付层的 registry 缓存分别使用 `buildcache-base` 和 `buildcache-delivery`。
 
 ## 安装 SOLIDWORKS
 
 ### 1. 校验安装介质
 
-`sw-install` 接受挂载好的 ISO 目录或已解压目录。完整介质至少需要包含主 MSI、VC++ x64 运行库、.NET 4.8 安装包及 `swloginmgr/SOLIDWORKS Login Manager.msi`。
+`sw-install` 接受挂载好的 ISO 目录或已解压目录。完整介质至少需要包含主 MSI 及配套 CAB、根目录 `Toolbox` 压缩包、VC++ x64 运行库、.NET 4.8 安装包及 `swloginmgr/SOLIDWORKS Login Manager.msi`。
 
 可以先只校验介质，不启动 Wine 或安装任何组件：
 
@@ -95,7 +95,7 @@ sw-install \
 ```bash
 # 将官方介质放置或挂载于 preinstall/media，并从仓库根目录执行构建
 docker build \
-  --build-arg BASE_IMAGE=ghcr.io/yjbeetle/sw-runtime-base:sha-xxxxxxx \
+  --build-arg BASE_IMAGE=ghcr.io/yjbeetle/sw-runtime:sha-xxxxxxx-base \
   --build-arg APP_IMAGE=ghcr.io/yjbeetle/sw-runtime:sha-xxxxxxx \
   --target sw-preinstalled \
   -f preinstall/Dockerfile \

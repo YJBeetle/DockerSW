@@ -30,8 +30,8 @@ permissions:
   packages: write
 
 concurrency:
-  # 所有镜像构建共享同一组 GHCR buildcache 标签；串行执行可避免连续
-  # push 各自重跑安装链，并防止并发写入覆盖缓存索引。
+  # 各 package 内的 base/delivery 分别使用独立 GHCR buildcache 标签；
+  # 串行执行可避免连续 push 各自重跑安装链，并防止并发覆盖缓存索引。
   group: dockersw-image-pipeline
   cancel-in-progress: false
 
@@ -72,7 +72,6 @@ jobs:
     needs: unit-tests
     runs-on: ubuntu-latest
     env:
-      SW_RUNTIME_BASE_REPO: ghcr.io/yjbeetle/sw-runtime-base
       SW_RUNTIME_REPO: ghcr.io/yjbeetle/sw-runtime
     steps:
       - name: Checkout Code
@@ -95,7 +94,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           commit_sha="$(git rev-parse --short=7 HEAD)"
-          echo "SW_RUNTIME_BASE_IMAGE=${SW_RUNTIME_BASE_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+          echo "SW_RUNTIME_BASE_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}-base" >> "${GITHUB_ENV}"
           echo "SW_RUNTIME_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
 
       - name: Check if runtime images already exist on GHCR
@@ -126,8 +125,8 @@ jobs:
           tags: |
             sw-runtime-base:local-test
             ${{ env.SW_RUNTIME_BASE_IMAGE }}
-          cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime-base:buildcache
-          cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime-base:buildcache,mode=max,ignore-error=true
+          cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-base
+          cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-base,mode=max,ignore-error=true
 
       - name: Build and Load sw-runtime Image
         if: steps.check-runtime.outputs.exists != 'true'
@@ -142,8 +141,8 @@ jobs:
             ${{ env.SW_RUNTIME_IMAGE }}
           # 用 GHCR 上的专用 buildcache 标签替代 GHA 缓存：镜像本就推送到同一仓库，
           # registry 缓存可与已存在的 blob 去重，避免 GHA 缓存每次上传数 GB（约 195s）。
-          cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache
-          cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache,mode=max,ignore-error=true
+          cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-delivery
+          cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-delivery,mode=max,ignore-error=true
 
       - name: Smoke Test (Wine, Mono COM, Python, pywin32 & CLI)
         if: steps.check-runtime.outputs.exists != 'true'
@@ -192,11 +191,8 @@ jobs:
       SW_MEDIA_MOUNT: preinstall/media
       SW_MEDIA_PATH: ${{ inputs.media_path || 'Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/SolidWorks.2025.SP5.0.Premium.DVD.iso' }}
       SW_ASSETS_PATH: ${{ inputs.assets_path || 'Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/crack' }}
-      SW_RUNTIME_BASE_REPO: ghcr.io/yjbeetle/sw-runtime-base
       SW_RUNTIME_REPO: ghcr.io/yjbeetle/sw-runtime
-      SW_PREINSTALLED_BASE_REPO: ghcr.io/yjbeetle/sw-preinstalled-base
       SW_PREINSTALLED_REPO: ghcr.io/yjbeetle/sw-preinstalled
-      SW_EXECUTABLE_BASE_REPO: ghcr.io/yjbeetle/sw-executable-base
       SW_EXECUTABLE_REPO: ghcr.io/yjbeetle/sw-executable
     steps:
       - name: Check out repository
@@ -210,11 +206,11 @@ jobs:
           set -Eeuo pipefail
           commit_sha="$(git rev-parse --short=7 HEAD)"
           echo "SW_IMAGE_SHA_TAG=sha-${commit_sha}" >> "${GITHUB_ENV}"
-          echo "SW_RUNTIME_BASE_IMAGE=${SW_RUNTIME_BASE_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+          echo "SW_RUNTIME_BASE_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}-base" >> "${GITHUB_ENV}"
           echo "SW_RUNTIME_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
-          echo "SW_PREINSTALLED_BASE_IMAGE=${SW_PREINSTALLED_BASE_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+          echo "SW_PREINSTALLED_BASE_IMAGE=${SW_PREINSTALLED_REPO}:sha-${commit_sha}-base" >> "${GITHUB_ENV}"
           echo "SW_PREINSTALLED_IMAGE=${SW_PREINSTALLED_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
-          echo "SW_EXECUTABLE_BASE_IMAGE=${SW_EXECUTABLE_BASE_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+          echo "SW_EXECUTABLE_BASE_IMAGE=${SW_EXECUTABLE_REPO}:sha-${commit_sha}-base" >> "${GITHUB_ENV}"
           echo "SW_EXECUTABLE_IMAGE=${SW_EXECUTABLE_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
 
       - name: Set up Docker Buildx
@@ -287,10 +283,10 @@ jobs:
               "${recipe_digest}" \
               "${SW_MEDIA_PATH}" | sha256sum | cut -d' ' -f1
           )"
-          reusable_image="${SW_PREINSTALLED_BASE_REPO}:install-${install_key:0:32}"
+          reusable_image="${SW_PREINSTALLED_REPO}:install-${install_key:0:32}-base"
 
           echo "SW_PREINSTALLED_REUSABLE_IMAGE=${reusable_image}" >> "${GITHUB_ENV}"
-          echo "[CI cache] SOLIDWORKS installation identity: install-${install_key:0:32}"
+          echo "[CI cache] SOLIDWORKS installation identity: install-${install_key:0:32}-base"
 
           if [ "${force}" != "true" ] && \
              docker manifest inspect "${reusable_image}" >/dev/null 2>&1; then
@@ -465,8 +461,8 @@ jobs:
               --build-arg "SW_SERIAL_SIMULATION=${SW_SERIAL_SIMULATION}" \
               --build-arg "SW_SERIAL_MOTION=${SW_SERIAL_MOTION}" \
               --build-arg "SW_SERIAL_MBD=${SW_SERIAL_MBD}" \
-              --cache-from "type=registry,ref=${SW_PREINSTALLED_BASE_REPO}:buildcache" \
-              --cache-to "type=registry,ref=${SW_PREINSTALLED_BASE_REPO}:buildcache,mode=max,ignore-error=true" \
+              --cache-from "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-base" \
+              --cache-to "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-base,mode=max,ignore-error=true" \
               -f preinstall/Dockerfile.base \
               -t "${SW_PREINSTALLED_REUSABLE_IMAGE}" \
               -t "${SW_PREINSTALLED_BASE_IMAGE}" \
@@ -483,8 +479,8 @@ jobs:
             --target sw-preinstalled \
             --build-arg "BASE_IMAGE=${SW_PREINSTALLED_BASE_IMAGE}" \
             --build-arg "APP_IMAGE=${SW_RUNTIME_IMAGE}" \
-            --cache-from "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache" \
-            --cache-to "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache,mode=max,ignore-error=true" \
+            --cache-from "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-delivery" \
+            --cache-to "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-delivery,mode=max,ignore-error=true" \
             -f preinstall/Dockerfile \
             -t "${SW_PREINSTALLED_IMAGE}" \
             .
@@ -499,8 +495,8 @@ jobs:
             --target sw-executable-base \
             --build-context "smoke-assets=smoke-test/assets" \
             --build-arg "BASE_IMAGE=${SW_PREINSTALLED_BASE_IMAGE}" \
-            --cache-from "type=registry,ref=${SW_EXECUTABLE_BASE_REPO}:buildcache" \
-            --cache-to "type=registry,ref=${SW_EXECUTABLE_BASE_REPO}:buildcache,mode=max,ignore-error=true" \
+            --cache-from "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-base" \
+            --cache-to "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-base,mode=max,ignore-error=true" \
             -f smoke-test/Dockerfile.base \
             -t "${SW_EXECUTABLE_BASE_IMAGE}" \
             .
@@ -514,8 +510,8 @@ jobs:
             --target sw-executable \
             --build-arg "BASE_IMAGE=${SW_EXECUTABLE_BASE_IMAGE}" \
             --build-arg "APP_IMAGE=${SW_RUNTIME_IMAGE}" \
-            --cache-from "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache" \
-            --cache-to "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache,mode=max,ignore-error=true" \
+            --cache-from "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-delivery" \
+            --cache-to "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-delivery,mode=max,ignore-error=true" \
             -f smoke-test/Dockerfile \
             -t "${SW_EXECUTABLE_IMAGE}" \
             .

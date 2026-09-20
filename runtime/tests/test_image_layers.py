@@ -48,17 +48,21 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn("sw-cli daemon stop --json", export_script)
         self.assertNotIn("\nswclid ", export_script)
 
-    def test_ci_builds_and_publishes_all_six_sha_images(self) -> None:
+    def test_ci_builds_six_sha_images_in_three_packages(self) -> None:
         workflow = self.read(".github/workflows/build.yml")
         for repository in (
-            "ghcr.io/yjbeetle/sw-runtime-base",
             "ghcr.io/yjbeetle/sw-runtime",
-            "ghcr.io/yjbeetle/sw-preinstalled-base",
             "ghcr.io/yjbeetle/sw-preinstalled",
-            "ghcr.io/yjbeetle/sw-executable-base",
             "ghcr.io/yjbeetle/sw-executable",
         ):
             self.assertIn(repository, workflow)
+
+        for removed_repository in (
+            "ghcr.io/yjbeetle/sw-runtime-base",
+            "ghcr.io/yjbeetle/sw-preinstalled-base",
+            "ghcr.io/yjbeetle/sw-executable-base",
+        ):
+            self.assertNotIn(removed_repository, workflow)
 
         for target in ("sw-runtime-base", "sw-runtime"):
             self.assertIn(f"target: {target}", workflow)
@@ -80,7 +84,7 @@ class ImageLayeringTests(unittest.TestCase):
         ):
             self.assertIn(f'push "${{{image}}}"', workflow)
 
-    def test_only_delivery_repositories_receive_latest_tags(self) -> None:
+    def test_only_delivery_tags_are_mutable(self) -> None:
         workflow = self.read(".github/workflows/build.yml")
         for repository_variable in (
             "SW_RUNTIME_REPO",
@@ -89,12 +93,22 @@ class ImageLayeringTests(unittest.TestCase):
         ):
             self.assertIn(f'${{{repository_variable}}}:latest', workflow)
 
-        for base_repository_variable in (
-            "SW_RUNTIME_BASE_REPO",
-            "SW_PREINSTALLED_BASE_REPO",
-            "SW_EXECUTABLE_BASE_REPO",
-        ):
-            self.assertNotIn(f'${{{base_repository_variable}}}:latest', workflow)
+        self.assertNotIn(":latest-base", workflow)
+        self.assertNotIn(":main-base", workflow)
+        self.assertIn(
+            'SW_RUNTIME_BASE_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}-base',
+            workflow,
+        )
+        self.assertIn(
+            'SW_PREINSTALLED_BASE_IMAGE=${SW_PREINSTALLED_REPO}:sha-${commit_sha}-base',
+            workflow,
+        )
+        self.assertIn(
+            'SW_EXECUTABLE_BASE_IMAGE=${SW_EXECUTABLE_REPO}:sha-${commit_sha}-base',
+            workflow,
+        )
+        self.assertIn(":buildcache-base", workflow)
+        self.assertIn(":buildcache-delivery", workflow)
 
     def test_disk_cleanup_only_runs_below_the_required_capacity(self) -> None:
         workflow = self.read(".github/workflows/build.yml")
