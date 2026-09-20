@@ -14,6 +14,7 @@ ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 
 # 1. 配置系统基础依赖与 WineHQ 仓库。
+# jq 是有意内置的运行时工具，方便下游在容器内直接 `sw-cli --json | jq` 处理结构化输出。
 RUN dpkg --add-architecture i386 && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
