@@ -41,6 +41,27 @@ class ImageLayeringTests(unittest.TestCase):
                 self.read(relative_path),
             )
 
+    def test_sw_install_stays_in_runtime_base(self) -> None:
+        runtime = self.read("runtime/Dockerfile")
+        base, delivery = runtime.split(
+            "FROM sw-runtime-base AS sw-runtime", maxsplit=1
+        )
+
+        self.assertIn(
+            "COPY --chmod=755 runtime/bin/sw-install /usr/local/bin/sw-install",
+            base,
+        )
+        self.assertNotIn("runtime/bin/ /usr/local/bin/", delivery)
+        self.assertNotIn("runtime/bin/sw-install", delivery)
+        self.assertIn("runtime/bin/sw-cli", delivery)
+        self.assertIn("runtime/bin/linux-to-wine-path", delivery)
+
+        for relative_path in ("preinstall/Dockerfile", "smoke-test/Dockerfile"):
+            self.assertNotIn(
+                "COPY --link --from=current-app /usr/local/bin/sw-install",
+                self.read(relative_path),
+            )
+
     def test_delivery_images_do_not_copy_removed_swclid_wrapper(self) -> None:
         for relative_path in (
             "preinstall/Dockerfile",

@@ -86,8 +86,12 @@ FROM sw-runtime-base AS sw-runtime
 # 从 /opt/swcli/src 运行；SWCLI 不写入 Wine prefix。
 COPY --link SWCLI/ /opt/swcli/
 
-# 6. 安装 DockerSW 的进程/路径适配器
-COPY --link --chmod=755 runtime/bin/ /usr/local/bin/
+# 6. 加入与 SWCLI 配套的 Docker/Wine 进程与路径适配器。
+# sw-install 已属于稳定的 sw-runtime-base，不在交付层重复复制。
+COPY --link --chmod=755 \
+    runtime/bin/sw-cli \
+    runtime/bin/linux-to-wine-path \
+    /usr/local/bin/
 
 # 7. 配置容器 Entrypoint
 COPY --link --chmod=755 runtime/entrypoint.sh /usr/local/bin/entrypoint.sh
