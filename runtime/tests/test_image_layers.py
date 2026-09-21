@@ -37,9 +37,17 @@ class ImageLayeringTests(unittest.TestCase):
             self.assertNotIn("install_swcli.sh", dockerfile)
 
         for relative_path in ("preinstall/Dockerfile", "smoke-test/Dockerfile"):
+            dockerfile = self.read(relative_path)
             self.assertIn(
                 "COPY --link --from=current-app /opt/swcli/ /opt/swcli/",
-                self.read(relative_path),
+                dockerfile,
+            )
+            self.assertIn(
+                "COPY --link --from=current-app \\\n"
+                "    /usr/local/bin/sw-cli \\\n"
+                "    /usr/local/bin/linux-to-wine-path \\\n"
+                "    /usr/local/bin/",
+                dockerfile,
             )
 
     def test_sw_install_stays_in_runtime_base(self) -> None:
