@@ -34,8 +34,8 @@ class ImageLayeringTests(unittest.TestCase):
 
         payload = self.read("swcli/Dockerfile")
         self.assertIn("COPY --link swcli/SWCLI/ /opt/swcli/", payload)
-        self.assertIn("runtime/bin/sw-cli", payload)
-        self.assertIn("runtime/bin/linux-to-wine-path", payload)
+        self.assertIn("swcli/bin/sw-cli", payload)
+        self.assertIn("swcli/bin/linux-to-wine-path", payload)
         self.assertIn("swcli/entrypoint-cli.sh", payload)
         self.assertNotIn("runtime/entrypoint.sh", payload)
         self.assertNotIn("install_swcli.sh", payload)
@@ -64,6 +64,8 @@ class ImageLayeringTests(unittest.TestCase):
             base,
         )
         self.assertNotIn("runtime/bin/sw-install", payload)
+        self.assertNotIn("runtime/bin/sw-cli", payload)
+        self.assertNotIn("runtime/bin/linux-to-wine-path", payload)
         self.assertNotIn("sw-install", delivery)
 
         workflow = self.read(".github/workflows/build.yml")

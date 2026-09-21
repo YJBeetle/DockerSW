@@ -5,12 +5,13 @@ import unittest
 from pathlib import Path
 
 
-RUNTIME_ROOT = Path(__file__).resolve().parents[1]
-PROJECT_ROOT = RUNTIME_ROOT.parent
-SWCLI_SCRIPT = RUNTIME_ROOT / "bin" / "sw-cli"
-TRANSLATOR_SCRIPT = RUNTIME_ROOT / "bin" / "linux-to-wine-path"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+RUNTIME_ROOT = PROJECT_ROOT / "runtime"
+SWCLI_ROOT = PROJECT_ROOT / "swcli"
+SWCLI_SCRIPT = SWCLI_ROOT / "bin" / "sw-cli"
+TRANSLATOR_SCRIPT = SWCLI_ROOT / "bin" / "linux-to-wine-path"
 RUNTIME_ENTRYPOINT = RUNTIME_ROOT / "entrypoint.sh"
-CLI_ENTRYPOINT = PROJECT_ROOT / "swcli" / "entrypoint-cli.sh"
+CLI_ENTRYPOINT = SWCLI_ROOT / "entrypoint-cli.sh"
 
 
 class RuntimeWrapperTests(unittest.TestCase):
