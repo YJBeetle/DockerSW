@@ -288,50 +288,48 @@ jobs:
             echo "[CI fast-path] 跳过 30+ 分钟的 ISO 挂载、预安装与冒烟测试，秒级晋升标签..."
 
             if [ -n "${target_tag}" ]; then
-              echo "[CI fast-path] 晋升分支标签: ${target_tag}..."
-              docker buildx imagetools create --tag "${SW_RUNTIME_REPO}:${target_tag}" "${SW_RUNTIME_IMAGE}"
-              docker buildx imagetools create --tag "${SW_RUNTIME_REPO}:${target_tag}-cli" "${SW_RUNTIME_CLI_IMAGE}"
-              docker buildx imagetools create --tag "${SW_PREINSTALLED_REPO}:${target_tag}" "${SW_PREINSTALLED_IMAGE}"
-              docker buildx imagetools create --tag "${SW_PREINSTALLED_REPO}:${target_tag}-cli" "${SW_PREINSTALLED_CLI_IMAGE}"
-              docker buildx imagetools create --tag "${SW_EXECUTABLE_REPO}:${target_tag}" "${SW_EXECUTABLE_IMAGE}"
-              docker buildx imagetools create --tag "${SW_EXECUTABLE_REPO}:${target_tag}-cli" "${SW_EXECUTABLE_CLI_IMAGE}"
-              while IFS=$'\t' read -r language_tag _; do
-                docker buildx imagetools create \
-                  --tag "${SW_PREINSTALLED_REPO}:${target_tag}-${language_tag}" \
-                  "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
-                docker buildx imagetools create \
-                  --tag "${SW_PREINSTALLED_REPO}:${target_tag}-${language_tag}-cli" \
-                  "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
-                docker buildx imagetools create \
-                  --tag "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}" \
-                  "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
-                docker buildx imagetools create \
-                  --tag "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}-cli" \
-                  "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
-              done < "${SW_LANGUAGE_PLAN}"
-            fi
+              promote_image() {
+                local source_image="$1"
+                local branch_tag="$2"
+                local latest_tag="$3"
+                local -a tags=(--tag "${branch_tag}")
+                if [ "${target_tag}" = "main" ]; then
+                  tags+=(--tag "${latest_tag}")
+                fi
+                docker buildx imagetools create --prefer-index=false \
+                  "${tags[@]}" "${source_image}"
+              }
 
-            if [ "${target_tag}" = "main" ]; then
-              echo "[CI fast-path] 晋升 :latest 标签..."
-              docker buildx imagetools create --tag "${SW_RUNTIME_REPO}:latest" "${SW_RUNTIME_IMAGE}"
-              docker buildx imagetools create --tag "${SW_RUNTIME_REPO}:latest-cli" "${SW_RUNTIME_CLI_IMAGE}"
-              docker buildx imagetools create --tag "${SW_PREINSTALLED_REPO}:latest" "${SW_PREINSTALLED_IMAGE}"
-              docker buildx imagetools create --tag "${SW_PREINSTALLED_REPO}:latest-cli" "${SW_PREINSTALLED_CLI_IMAGE}"
-              docker buildx imagetools create --tag "${SW_EXECUTABLE_REPO}:latest" "${SW_EXECUTABLE_IMAGE}"
-              docker buildx imagetools create --tag "${SW_EXECUTABLE_REPO}:latest-cli" "${SW_EXECUTABLE_CLI_IMAGE}"
+              echo "[CI fast-path] 晋升分支标签: ${target_tag}..."
+              promote_image "${SW_RUNTIME_IMAGE}" \
+                "${SW_RUNTIME_REPO}:${target_tag}" "${SW_RUNTIME_REPO}:latest"
+              promote_image "${SW_RUNTIME_CLI_IMAGE}" \
+                "${SW_RUNTIME_REPO}:${target_tag}-cli" "${SW_RUNTIME_REPO}:latest-cli"
+              promote_image "${SW_PREINSTALLED_IMAGE}" \
+                "${SW_PREINSTALLED_REPO}:${target_tag}" "${SW_PREINSTALLED_REPO}:latest"
+              promote_image "${SW_PREINSTALLED_CLI_IMAGE}" \
+                "${SW_PREINSTALLED_REPO}:${target_tag}-cli" "${SW_PREINSTALLED_REPO}:latest-cli"
+              promote_image "${SW_EXECUTABLE_IMAGE}" \
+                "${SW_EXECUTABLE_REPO}:${target_tag}" "${SW_EXECUTABLE_REPO}:latest"
+              promote_image "${SW_EXECUTABLE_CLI_IMAGE}" \
+                "${SW_EXECUTABLE_REPO}:${target_tag}-cli" "${SW_EXECUTABLE_REPO}:latest-cli"
               while IFS=$'\t' read -r language_tag _; do
-                docker buildx imagetools create \
-                  --tag "${SW_PREINSTALLED_REPO}:latest-${language_tag}" \
-                  "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
-                docker buildx imagetools create \
-                  --tag "${SW_PREINSTALLED_REPO}:latest-${language_tag}-cli" \
-                  "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
-                docker buildx imagetools create \
-                  --tag "${SW_EXECUTABLE_REPO}:latest-${language_tag}" \
-                  "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
-                docker buildx imagetools create \
-                  --tag "${SW_EXECUTABLE_REPO}:latest-${language_tag}-cli" \
-                  "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
+                promote_image \
+                  "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}" \
+                  "${SW_PREINSTALLED_REPO}:${target_tag}-${language_tag}" \
+                  "${SW_PREINSTALLED_REPO}:latest-${language_tag}"
+                promote_image \
+                  "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli" \
+                  "${SW_PREINSTALLED_REPO}:${target_tag}-${language_tag}-cli" \
+                  "${SW_PREINSTALLED_REPO}:latest-${language_tag}-cli"
+                promote_image \
+                  "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}" \
+                  "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}" \
+                  "${SW_EXECUTABLE_REPO}:latest-${language_tag}"
+                promote_image \
+                  "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli" \
+                  "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}-cli" \
+                  "${SW_EXECUTABLE_REPO}:latest-${language_tag}-cli"
               done < "${SW_LANGUAGE_PLAN}"
             fi
 
@@ -776,79 +774,93 @@ jobs:
             echo "[CI language] ${language_tag} UI language and real STEP export verified."
           done < "${SW_LANGUAGE_BUILD_PLAN}"
 
-      - name: Publish verified images & promote atomically
+      - name: Publish verified CLI images & promote atomically
         if: steps.check-images.outputs.already_verified != 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
-          echo "[CI push] Smoke test PASSED! Publishing verified candidates to GHCR..."
-          docker push "${SW_PREINSTALLED_CLI_IMAGE}"
-          docker push "${SW_EXECUTABLE_CLI_IMAGE}"
+          # 不直接 docker push 冒烟时 --load 的镜像：Docker Engine 会重新压缩父层，
+          # 导致数 GB 的 SOLIDWORKS 层以新 digest 重复上传。由 BuildKit 重新组合
+          # registry manifest，可直接复用默认镜像与 SWCLI payload 的既有 blob。
+          publish_cli_image() {
+            local source_image="$1"
+            local target_image="$2"
+            local cache_ref="$3"
+            docker buildx build --push \
+              --target swcli-delivery \
+              --build-arg "IMAGE=${source_image}" \
+              --build-arg "PAYLOAD_IMAGE=${SW_RUNTIME_PAYLOAD_IMAGE}" \
+              --cache-from "type=registry,ref=${cache_ref}" \
+              -f swcli/Dockerfile.delivery \
+              -t "${target_image}" \
+              .
+          }
+
+          echo "[CI push] Smoke test PASSED! Publishing CLI manifests through BuildKit..."
+          publish_cli_image \
+            "${SW_PREINSTALLED_IMAGE}" \
+            "${SW_PREINSTALLED_CLI_IMAGE}" \
+            "${SW_PREINSTALLED_REPO}:buildcache-cli"
+          publish_cli_image \
+            "${SW_EXECUTABLE_IMAGE}" \
+            "${SW_EXECUTABLE_CLI_IMAGE}" \
+            "${SW_EXECUTABLE_REPO}:buildcache-cli"
           while IFS=$'\t' read -r language_tag _; do
-            docker push "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
-            docker push "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
+            publish_cli_image \
+              "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}" \
+              "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli" \
+              "${SW_PREINSTALLED_REPO}:buildcache-${language_tag}-cli"
+            publish_cli_image \
+              "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}" \
+              "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli" \
+              "${SW_EXECUTABLE_REPO}:buildcache-${language_tag}-cli"
           done < "${SW_LANGUAGE_BUILD_PLAN}"
 
           target_tag="${{ github.ref_name }}"
           if [ -n "${target_tag}" ]; then
+            promote_image() {
+              local source_image="$1"
+              local branch_tag="$2"
+              local latest_tag="$3"
+              local -a tags=(--tag "${branch_tag}")
+              if [ "${target_tag}" = "main" ]; then
+                tags+=(--tag "${latest_tag}")
+              fi
+              docker buildx imagetools create --prefer-index=false \
+                "${tags[@]}" "${source_image}"
+            }
+
             echo "[CI promote] Promoting verified tags for ${target_tag}..."
-            docker buildx imagetools create --prefer-index=false \
-              --tag "${SW_RUNTIME_REPO}:${target_tag}" "${SW_RUNTIME_IMAGE}"
-            docker buildx imagetools create --prefer-index=false \
-              --tag "${SW_RUNTIME_REPO}:${target_tag}-cli" "${SW_RUNTIME_CLI_IMAGE}"
-            docker buildx imagetools create --prefer-index=false \
-              --tag "${SW_PREINSTALLED_REPO}:${target_tag}" "${SW_PREINSTALLED_IMAGE}"
-            docker buildx imagetools create --prefer-index=false \
-              --tag "${SW_PREINSTALLED_REPO}:${target_tag}-cli" "${SW_PREINSTALLED_CLI_IMAGE}"
-            docker buildx imagetools create --prefer-index=false \
-              --tag "${SW_EXECUTABLE_REPO}:${target_tag}" "${SW_EXECUTABLE_IMAGE}"
-            docker buildx imagetools create --prefer-index=false \
-              --tag "${SW_EXECUTABLE_REPO}:${target_tag}-cli" "${SW_EXECUTABLE_CLI_IMAGE}"
+            promote_image "${SW_RUNTIME_IMAGE}" \
+              "${SW_RUNTIME_REPO}:${target_tag}" "${SW_RUNTIME_REPO}:latest"
+            promote_image "${SW_RUNTIME_CLI_IMAGE}" \
+              "${SW_RUNTIME_REPO}:${target_tag}-cli" "${SW_RUNTIME_REPO}:latest-cli"
+            promote_image "${SW_PREINSTALLED_IMAGE}" \
+              "${SW_PREINSTALLED_REPO}:${target_tag}" "${SW_PREINSTALLED_REPO}:latest"
+            promote_image "${SW_PREINSTALLED_CLI_IMAGE}" \
+              "${SW_PREINSTALLED_REPO}:${target_tag}-cli" "${SW_PREINSTALLED_REPO}:latest-cli"
+            promote_image "${SW_EXECUTABLE_IMAGE}" \
+              "${SW_EXECUTABLE_REPO}:${target_tag}" "${SW_EXECUTABLE_REPO}:latest"
+            promote_image "${SW_EXECUTABLE_CLI_IMAGE}" \
+              "${SW_EXECUTABLE_REPO}:${target_tag}-cli" "${SW_EXECUTABLE_REPO}:latest-cli"
 
             while IFS=$'\t' read -r language_tag _; do
-              docker buildx imagetools create --prefer-index=false \
-                --tag "${SW_PREINSTALLED_REPO}:${target_tag}-${language_tag}" \
-                "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
-              docker buildx imagetools create --prefer-index=false \
-                --tag "${SW_PREINSTALLED_REPO}:${target_tag}-${language_tag}-cli" \
-                "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
-              docker buildx imagetools create --prefer-index=false \
-                --tag "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}" \
-                "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
-              docker buildx imagetools create --prefer-index=false \
-                --tag "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}-cli" \
-                "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
-            done < "${SW_LANGUAGE_BUILD_PLAN}"
-          fi
-
-          if [ "${target_tag}" = "main" ]; then
-            echo "[CI promote] Promoting verified :latest tags..."
-            docker buildx imagetools create --prefer-index=false \
-              --tag "${SW_RUNTIME_REPO}:latest" "${SW_RUNTIME_IMAGE}"
-            docker buildx imagetools create --prefer-index=false \
-              --tag "${SW_RUNTIME_REPO}:latest-cli" "${SW_RUNTIME_CLI_IMAGE}"
-            docker buildx imagetools create --prefer-index=false \
-              --tag "${SW_PREINSTALLED_REPO}:latest" "${SW_PREINSTALLED_IMAGE}"
-            docker buildx imagetools create --prefer-index=false \
-              --tag "${SW_PREINSTALLED_REPO}:latest-cli" "${SW_PREINSTALLED_CLI_IMAGE}"
-            docker buildx imagetools create --prefer-index=false \
-              --tag "${SW_EXECUTABLE_REPO}:latest" "${SW_EXECUTABLE_IMAGE}"
-            docker buildx imagetools create --prefer-index=false \
-              --tag "${SW_EXECUTABLE_REPO}:latest-cli" "${SW_EXECUTABLE_CLI_IMAGE}"
-
-            while IFS=$'\t' read -r language_tag _; do
-              docker buildx imagetools create --prefer-index=false \
-                --tag "${SW_PREINSTALLED_REPO}:latest-${language_tag}" \
-                "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
-              docker buildx imagetools create --prefer-index=false \
-                --tag "${SW_PREINSTALLED_REPO}:latest-${language_tag}-cli" \
-                "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
-              docker buildx imagetools create --prefer-index=false \
-                --tag "${SW_EXECUTABLE_REPO}:latest-${language_tag}" \
-                "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
-              docker buildx imagetools create --prefer-index=false \
-                --tag "${SW_EXECUTABLE_REPO}:latest-${language_tag}-cli" \
-                "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
+              promote_image \
+                "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}" \
+                "${SW_PREINSTALLED_REPO}:${target_tag}-${language_tag}" \
+                "${SW_PREINSTALLED_REPO}:latest-${language_tag}"
+              promote_image \
+                "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli" \
+                "${SW_PREINSTALLED_REPO}:${target_tag}-${language_tag}-cli" \
+                "${SW_PREINSTALLED_REPO}:latest-${language_tag}-cli"
+              promote_image \
+                "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}" \
+                "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}" \
+                "${SW_EXECUTABLE_REPO}:latest-${language_tag}"
+              promote_image \
+                "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli" \
+                "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}-cli" \
+                "${SW_EXECUTABLE_REPO}:latest-${language_tag}-cli"
             done < "${SW_LANGUAGE_BUILD_PLAN}"
           fi
 

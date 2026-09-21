@@ -171,6 +171,21 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertNotIn("-base", workflow)
         self.assertNotIn("BASE_IMAGE", workflow)
 
+    def test_cli_publish_reuses_buildkit_layers_and_combines_promotions(self) -> None:
+        workflow = self.read(".github/workflows/build.yml")
+        publish_step = workflow.split(
+            "- name: Publish verified CLI images & promote atomically", maxsplit=1
+        )[1].split("- name: Show storage usage", maxsplit=1)[0]
+
+        self.assertIn("publish_cli_image()", publish_step)
+        self.assertIn("docker buildx build --push", publish_step)
+        self.assertIn('--build-arg "IMAGE=${source_image}"', publish_step)
+        self.assertIn('--build-arg "PAYLOAD_IMAGE=${SW_RUNTIME_PAYLOAD_IMAGE}"', publish_step)
+        self.assertNotIn('docker push "${SW_PREINSTALLED_CLI_IMAGE}"', workflow)
+        self.assertNotIn('docker push "${SW_EXECUTABLE_CLI_IMAGE}"', workflow)
+        self.assertEqual(workflow.count("promote_image()"), 2)
+        self.assertEqual(workflow.count('tags+=(--tag "${latest_tag}")'), 2)
+
     def test_disk_cleanup_only_runs_below_the_required_capacity(self) -> None:
         workflow = self.read(".github/workflows/build.yml")
         self.assertIn("Inspect runner disk capacity", workflow)
