@@ -36,7 +36,7 @@ sw-runtime-base
                     └── 执行真实 CAD 导出门禁
 
 swcli-payload
-  SWCLI 源码 + DockerSW 包装与 entrypoint；由所有 Delivery 镜像共享同一内容层
+  SWCLI 源码 + CLI 包装与 daemon entrypoint；由所有 Delivery 镜像共享同一内容层
 ```
 
 每个仓库均发布不可变的 `sha-xxxxxxx` 镜像并维护独立 registry build cache。Base、内部 `sha-xxxxxxx-payload` 与 `sw-runtime` SHA 候选可按后续 Dockerfile 的 `FROM` 依赖顺序提前发布，但 Base 和 payload 不带 `main`/`latest`；真实导出通过后，才发布包含 SOLIDWORKS 的 Delivery SHA 候选，并晋升三个最终镜像的分支标签和 `latest`。因此 CLI 高频变化只会生成一次 payload，并让各 Delivery manifest 复用该内容层，不会触发 Wine、SOLIDWORKS 安装、语言资源和测试授权层重建；E2E 仍验证最终交付镜像，而不是缓存本身。
@@ -45,7 +45,7 @@ swcli-payload
 
 ## 3. 核心功能与模块详细设计
 
-### 3.1 基础运行时与容器入口守护 (`entrypoint.sh`)
+### 3.1 分层容器入口守护 (`runtime/entrypoint.sh` + `swcli/entrypoint-cli.sh`)
 
 容器启动时执行以下标准化自适应与环境保障：
 

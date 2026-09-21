@@ -53,7 +53,7 @@ sw-runtime-base                 低频：Wine + Mono + Python + sw-install
                                 ├── sw-preinstalled:<版本>-<语言>
                                 └── sw-executable:<版本>-<语言>
 
-swcli-payload                   高频：SWCLI 源码 + DockerSW 包装与 entrypoint
+swcli-payload                   高频：SWCLI 源码 + CLI 包装与 daemon entrypoint
         └── 由以上所有 Delivery 镜像共享同一内容层
 ```
 

@@ -96,10 +96,10 @@ echo "[DockerSW] 正在校验 Wine-Mono stdcall 与托管 COM 注册组件..."
 # 4. 验证 SolidWorks 主程序目录
 C_SW_TARGET="${WINEPREFIX}/drive_c/Program Files/SOLIDWORKS"
 if [ -f "${C_SW_TARGET}/SLDWORKS.exe" ]; then
-    SOLIDWORKS_INSTALLED=true
+    export SOLIDWORKS_INSTALLED=true
     echo "[DockerSW] 验证主程序: SLDWORKS.exe 存在"
 else
-    SOLIDWORKS_INSTALLED=false
+    export SOLIDWORKS_INSTALLED=false
     echo "[DockerSW][WARN] 未检测到 SLDWORKS.exe"
 fi
 
@@ -116,7 +116,7 @@ if [ "${1:-}" = "--init-only" ]; then
     exit 0
 fi
 
-# 6. 可选的人类 VNC 监看层。它只发布现有 Xvfb 桌面，不参与 SWCLI 或 COM 生命周期。
+# 6. 可选的人类 VNC 监看层。它只发布现有 Xvfb 桌面，不参与 CAD 自动化进程生命周期。
 require_boolean "VNC_ENABLE" "${VNC_ENABLE}"
 if is_enabled "${VNC_ENABLE}"; then
     require_boolean "VNC_VIEW_ONLY" "${VNC_VIEW_ONLY}"
@@ -218,70 +218,10 @@ else
     echo "[DockerSW][WARN] 未配置 SW_LICENSE_SERVER，且未检测到本地许可服务"
 fi
 
-# 8. 同时安装 SOLIDWORKS 与 SWCLI 的交付镜像在启动时直接启动常驻 daemon。
-# 缺少任一组件的 Base/运行时镜像自动跳过。
-if [ "${SOLIDWORKS_INSTALLED}" != true ]; then
-    echo "[DockerSW] 当前镜像未安装 SOLIDWORKS，跳过 SWCLI daemon 预热"
-elif ! command -v sw-cli >/dev/null 2>&1; then
-    echo "[DockerSW][WARN] 当前镜像未安装 SWCLI，跳过 daemon 预热" >&2
-else
-    SWCLI_ENDPOINT="${SWCLI_ENDPOINT:-127.0.0.1:18495}"
-    SWCLID_START_TIMEOUT="${SWCLID_START_TIMEOUT:-120}"
-    SWCLID_READY_GRACE="${SWCLID_READY_GRACE:-10}"
-    SWCLID_ALLOW_REMOTE="${SWCLID_ALLOW_REMOTE:-false}"
-    SWCLID_LOG="${SWCLID_LOG:-/tmp/swclid.log}"
-    SWCLID_HOST="${SWCLI_ENDPOINT%:*}"
-    SWCLID_PORT="${SWCLI_ENDPOINT##*:}"
-    if [ -z "${SWCLID_HOST}" ] || [ "${SWCLID_HOST}" = "${SWCLI_ENDPOINT}" ] || \
-       ! [[ "${SWCLID_PORT}" =~ ^[0-9]+$ ]] || \
-       ! [[ "${SWCLID_START_TIMEOUT}" =~ ^[0-9]+$ ]] || \
-       ! [[ "${SWCLID_READY_GRACE}" =~ ^[0-9]+$ ]]; then
-        echo "[DockerSW][ERROR] SWCLI_ENDPOINT 必须为 HOST:PORT，SWCLID_START_TIMEOUT 和 SWCLID_READY_GRACE 必须为整数" >&2
-        exit 1
-    fi
-    require_boolean "SWCLID_ALLOW_REMOTE" "${SWCLID_ALLOW_REMOTE}"
-    SWCLID_SERVE_ARGS=(
-        daemon serve
-        --host "${SWCLID_HOST}"
-        --port "${SWCLID_PORT}"
-        --startup-timeout "${SWCLID_START_TIMEOUT}"
-    )
-    if is_enabled "${SWCLID_ALLOW_REMOTE}"; then
-        SWCLID_SERVE_ARGS+=(--allow-remote)
-    fi
-    echo "[DockerSW] 正在启动并等待 SWCLI daemon 与 SOLIDWORKS 就绪..."
-    nohup sw-cli "${SWCLID_SERVE_ARGS[@]}" \
-        >"${SWCLID_LOG}" 2>&1 &
-    SWCLID_PID=$!
-    SWCLID_READY=false
-    SWCLID_READY_DEADLINE=$((SECONDS + SWCLID_START_TIMEOUT + SWCLID_READY_GRACE))
-    while ((SECONDS < SWCLID_READY_DEADLINE)); do
-        remaining=$((SWCLID_READY_DEADLINE - SECONDS))
-        probe_timeout=3
-        if ((remaining < probe_timeout)); then
-            probe_timeout=${remaining}
-        fi
-        if timeout "${probe_timeout}s" sw-cli daemon status \
-            --endpoint "${SWCLI_ENDPOINT}" --json >/dev/null 2>&1; then
-            SWCLID_READY=true
-            break
-        fi
-        kill -0 "${SWCLID_PID}" 2>/dev/null || break
-        sleep 1
-    done
-    if [ "${SWCLID_READY}" != true ]; then
-        echo "[DockerSW][ERROR] SWCLI daemon 未在期限内就绪，请检查 ${SWCLID_LOG}" >&2
-        tail -n 100 "${SWCLID_LOG}" >&2 || true
-        exit 1
-    fi
-    echo "[DockerSW] SWCLI daemon 已就绪: ${SWCLI_ENDPOINT}"
-fi
-
-# 9. 执行传入命令或进入交互终端
+# 8. 执行下一层 entrypoint、用户命令或进入交互终端。
 if [ "$#" -gt 0 ]; then
-    echo "[DockerSW] 容器初始化完成"
     exec "$@"
 else
-    echo "[DockerSW] 容器就绪。使用 'sw-cli' 执行建模、检查与导出。"
+    echo "[DockerSW] Wine 运行环境已就绪"
     exec /bin/bash
 fi

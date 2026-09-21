@@ -8,5 +8,5 @@ FROM ${BASE_IMAGE} AS sw-delivery
 COPY --link --from=swcli-payload / /
 
 WORKDIR /workspace
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh", "/usr/local/bin/entrypoint-cli.sh"]
 CMD ["/bin/bash"]

@@ -75,5 +75,8 @@ RUN --mount=type=bind,source=runtime/fetch_managed_com.sh,target=/mnt/runtime/fe
 # 4. 仅加入执行 SOLIDWORKS 官方安装所需的稳定工具。频繁变化的 SWCLI、
 # DockerSW 运行脚本与入口点留到正式镜像的交付层。
 COPY --chmod=755 runtime/bin/sw-install /usr/local/bin/sw-install
+COPY --chmod=755 runtime/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["/bin/bash"]

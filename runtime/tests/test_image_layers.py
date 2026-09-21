@@ -36,11 +36,17 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn("COPY --link swcli/SWCLI/ /opt/swcli/", payload)
         self.assertIn("runtime/bin/sw-cli", payload)
         self.assertIn("runtime/bin/linux-to-wine-path", payload)
-        self.assertIn("runtime/entrypoint.sh", payload)
+        self.assertIn("swcli/entrypoint-cli.sh", payload)
+        self.assertNotIn("runtime/entrypoint.sh", payload)
         self.assertNotIn("install_swcli.sh", payload)
 
         delivery = self.read("swcli/Dockerfile.delivery")
         self.assertIn("COPY --link --from=swcli-payload / /", delivery)
+        self.assertIn(
+            'ENTRYPOINT ["/usr/local/bin/entrypoint.sh", '
+            '"/usr/local/bin/entrypoint-cli.sh"]',
+            delivery,
+        )
         self.assertFalse((PROJECT_ROOT / "preinstall/Dockerfile").exists())
         self.assertFalse((PROJECT_ROOT / "smoke-test/Dockerfile").exists())
 
@@ -51,6 +57,10 @@ class ImageLayeringTests(unittest.TestCase):
 
         self.assertIn(
             "COPY --chmod=755 runtime/bin/sw-install /usr/local/bin/sw-install",
+            base,
+        )
+        self.assertIn(
+            "COPY --chmod=755 runtime/entrypoint.sh /usr/local/bin/entrypoint.sh",
             base,
         )
         self.assertNotIn("runtime/bin/sw-install", payload)

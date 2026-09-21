@@ -6,14 +6,21 @@ from pathlib import Path
 
 
 RUNTIME_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = RUNTIME_ROOT.parent
 SWCLI_SCRIPT = RUNTIME_ROOT / "bin" / "sw-cli"
 TRANSLATOR_SCRIPT = RUNTIME_ROOT / "bin" / "linux-to-wine-path"
-ENTRYPOINT_SCRIPT = RUNTIME_ROOT / "entrypoint.sh"
+RUNTIME_ENTRYPOINT = RUNTIME_ROOT / "entrypoint.sh"
+CLI_ENTRYPOINT = PROJECT_ROOT / "swcli" / "entrypoint-cli.sh"
 
 
 class RuntimeWrapperTests(unittest.TestCase):
     def test_scripts_are_executable_and_valid_bash(self):
-        for script in (SWCLI_SCRIPT, TRANSLATOR_SCRIPT):
+        for script in (
+            SWCLI_SCRIPT,
+            TRANSLATOR_SCRIPT,
+            RUNTIME_ENTRYPOINT,
+            CLI_ENTRYPOINT,
+        ):
             self.assertTrue(os.access(script, os.X_OK), f"not executable: {script}")
             result = subprocess.run(
                 ["bash", "-n", str(script)], capture_output=True, text=True
@@ -174,15 +181,20 @@ class LinuxToWinePathTests(unittest.TestCase):
 
 class EntrypointTests(unittest.TestCase):
     def test_entrypoint_does_not_echo_runner_command_payload(self):
-        entrypoint = ENTRYPOINT_SCRIPT.read_text(encoding="utf-8")
-        self.assertIn('echo "[DockerSW] 容器初始化完成"', entrypoint)
-        self.assertNotIn('echo "[DockerSW] 执行指令: $@"', entrypoint)
+        for entrypoint_path in (RUNTIME_ENTRYPOINT, CLI_ENTRYPOINT):
+            entrypoint = entrypoint_path.read_text(encoding="utf-8")
+            self.assertNotIn('echo "[DockerSW] 执行指令: $@"', entrypoint)
 
-    def test_entrypoint_eagerly_starts_daemon_for_installed_solidworks(self):
-        entrypoint = ENTRYPOINT_SCRIPT.read_text(encoding="utf-8")
-        self.assertIn('[ "${SOLIDWORKS_INSTALLED}" != true ]', entrypoint)
-        self.assertIn("command -v sw-cli", entrypoint)
-        self.assertIn("当前镜像未安装 SWCLI", entrypoint)
+    def test_runtime_entrypoint_has_no_swcli_lifecycle(self):
+        entrypoint = RUNTIME_ENTRYPOINT.read_text(encoding="utf-8")
+        self.assertIn("export SOLIDWORKS_INSTALLED=true", entrypoint)
+        self.assertIn('exec "$@"', entrypoint)
+        self.assertNotIn("SWCLI", entrypoint)
+        self.assertNotIn("sw-cli", entrypoint)
+
+    def test_cli_entrypoint_eagerly_starts_daemon_for_installed_solidworks(self):
+        entrypoint = CLI_ENTRYPOINT.read_text(encoding="utf-8")
+        self.assertIn('[ "${SOLIDWORKS_INSTALLED:-false}" != true ]', entrypoint)
         self.assertIn("SWCLID_SERVE_ARGS=(", entrypoint)
         self.assertIn('nohup sw-cli "${SWCLID_SERVE_ARGS[@]}"', entrypoint)
         self.assertIn("sw-cli daemon status", entrypoint)
@@ -190,20 +202,26 @@ class EntrypointTests(unittest.TestCase):
         self.assertIn("当前镜像未安装 SOLIDWORKS", entrypoint)
         self.assertNotIn("SWCLID_AUTO_START", entrypoint)
 
-    def test_entrypoint_has_a_bounded_daemon_readiness_grace_period(self):
-        entrypoint = ENTRYPOINT_SCRIPT.read_text(encoding="utf-8")
+    def test_cli_entrypoint_has_a_bounded_daemon_readiness_grace_period(self):
+        entrypoint = CLI_ENTRYPOINT.read_text(encoding="utf-8")
         self.assertIn('SWCLID_READY_GRACE="${SWCLID_READY_GRACE:-10}"', entrypoint)
         self.assertIn("SWCLID_READY_DEADLINE=$((SECONDS +", entrypoint)
         self.assertIn('timeout "${probe_timeout}s" sw-cli daemon status', entrypoint)
 
-    def test_entrypoint_requires_explicit_remote_daemon_opt_in(self):
-        entrypoint = ENTRYPOINT_SCRIPT.read_text(encoding="utf-8")
+    def test_cli_entrypoint_requires_explicit_remote_daemon_opt_in(self):
+        entrypoint = CLI_ENTRYPOINT.read_text(encoding="utf-8")
         self.assertIn('SWCLID_ALLOW_REMOTE="${SWCLID_ALLOW_REMOTE:-false}"', entrypoint)
-        self.assertIn(
-            'require_boolean "SWCLID_ALLOW_REMOTE" "${SWCLID_ALLOW_REMOTE}"',
-            entrypoint,
-        )
         self.assertIn('SWCLID_SERVE_ARGS+=(--allow-remote)', entrypoint)
+
+    def test_delivery_chains_runtime_then_cli_entrypoint(self):
+        delivery = (PROJECT_ROOT / "swcli" / "Dockerfile.delivery").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            'ENTRYPOINT ["/usr/local/bin/entrypoint.sh", '
+            '"/usr/local/bin/entrypoint-cli.sh"]',
+            delivery,
+        )
 
 if __name__ == "__main__":
     unittest.main()

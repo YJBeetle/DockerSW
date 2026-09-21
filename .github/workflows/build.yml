@@ -58,6 +58,7 @@ jobs:
         run: |
           bash -n runtime/init_wineprefix.sh
           bash -n runtime/entrypoint.sh
+          bash -n swcli/entrypoint-cli.sh
           bash -n runtime/fetch_managed_com.sh
           bash -n runtime/prepare_managed_com.sh
           bash -n runtime/bin/*

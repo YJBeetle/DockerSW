@@ -6,4 +6,4 @@ COPY --link --chmod=755 \
     runtime/bin/sw-cli \
     runtime/bin/linux-to-wine-path \
     /usr/local/bin/
-COPY --link --chmod=755 runtime/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --link --chmod=755 swcli/entrypoint-cli.sh /usr/local/bin/entrypoint-cli.sh
