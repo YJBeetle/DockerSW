@@ -164,9 +164,23 @@ class ImageLayeringTests(unittest.TestCase):
         workflow = self.read(".github/workflows/build.yml")
         self.assertIn("Inspect runner disk capacity", workflow)
         self.assertIn("Verify runner disk capacity", workflow)
-        self.assertIn("required_kib=$((40 * 1024 * 1024))", workflow)
+        self.assertIn("required_kib=$((50 * 1024 * 1024))", workflow)
         self.assertIn("steps.runner-disk.outputs.cleanup_required == 'true'", workflow)
         self.assertIn("jlumbroso/free-disk-space", workflow)
+
+    def test_runtime_and_solidworks_builds_share_one_runner(self) -> None:
+        workflow = self.read(".github/workflows/build.yml")
+
+        self.assertNotIn("\n  build-runtime:\n", workflow)
+        self.assertIn("\n  build-and-smoke-test:\n", workflow)
+        image_job = workflow.split("\n  build-and-smoke-test:\n", maxsplit=1)[1]
+        self.assertIn("needs: unit-tests", image_job)
+        self.assertEqual(image_job.count("uses: docker/setup-buildx-action@"), 1)
+        self.assertEqual(image_job.count("uses: docker/login-action@"), 1)
+        self.assertLess(
+            image_job.index("Build and load sw-runtime-base image"),
+            image_job.index("Build vanilla preinstalled image"),
+        )
 
     def test_cached_installation_base_does_not_scan_iso(self) -> None:
         workflow = self.read(".github/workflows/build.yml")

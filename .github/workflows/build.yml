@@ -72,149 +72,9 @@ jobs:
           python -m unittest discover -s runtime/tests -p "test_*.py" -v
           PYTHONPATH=swcli/SWCLI/src python -m unittest discover -s swcli/SWCLI/tests -p "test_*.py" -v
 
-  build-runtime:
-    name: Build sw-runtime Image
-    needs: unit-tests
-    runs-on: ubuntu-latest
-    env:
-      SW_RUNTIME_REPO: ghcr.io/yjbeetle/sw-runtime
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v7
-        with:
-          submodules: recursive
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Resolve runtime image names
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          commit_sha="$(git rev-parse --short=7 HEAD)"
-          echo "SW_RUNTIME_BASE_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}-base" >> "${GITHUB_ENV}"
-          echo "SW_RUNTIME_PAYLOAD_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}-payload" >> "${GITHUB_ENV}"
-          echo "SW_RUNTIME_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
-
-      - name: Check if runtime images already exist on GHCR
-        id: check-runtime
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          force="${{ inputs.force_rebuild || 'false' }}"
-
-          if [ "${force}" != "true" ] && \
-             docker manifest inspect "${SW_RUNTIME_BASE_IMAGE}" >/dev/null 2>&1 && \
-             docker manifest inspect "${SW_RUNTIME_PAYLOAD_IMAGE}" >/dev/null 2>&1 && \
-             docker manifest inspect "${SW_RUNTIME_IMAGE}" >/dev/null 2>&1; then
-            echo "[CI fast-path] runtime base、SWCLI payload 与正式镜像均已存在，跳过重复构建。"
-            echo "exists=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "[CI] 镜像不存在或要求强制重构，继续执行构建流程..."
-            echo "exists=false" >> "${GITHUB_OUTPUT}"
-          fi
-
-      - name: Build and load sw-runtime-base image
-        if: steps.check-runtime.outputs.exists != 'true'
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: runtime/Dockerfile.base
-          target: sw-runtime-base
-          load: true
-          tags: |
-            sw-runtime-base:local-test
-            ${{ env.SW_RUNTIME_BASE_IMAGE }}
-          cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-base
-          cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-base,mode=max,ignore-error=true
-
-      - name: Smoke test sw-runtime-base image
-        if: steps.check-runtime.outputs.exists != 'true'
-        run: |
-          echo "[CI] 验证 0: base 镜像不包含 SWCLI，且安装器可用..."
-          docker run --rm --entrypoint bash sw-runtime-base:local-test -lc \
-            'test ! -e /opt/swcli && sw-install --help >/dev/null'
-
-          echo "[CI] 验证 1: 测试固定 Wine 版本与 Windows 虚拟版本..."
-          test "$(docker run --rm --entrypoint wine sw-runtime-base:local-test --version)" = "wine-11.16"
-          docker run --rm sw-runtime-base:local-test wine cmd /c ver
-
-          echo "[CI] 验证 2: 测试 Wine-Mono stdcall 与托管 COM 注册组件..."
-          docker run --rm sw-runtime-base:local-test /usr/local/lib/sw-runtime/prepare_managed_com.sh
-
-          echo "[CI] 验证 3: 测试 Windows Python 3.11 与 pywin32 COM 模块就绪..."
-          docker run --rm sw-runtime-base:local-test wine "C:\\Python311\\python.exe" -c "import win32com.client, pythoncom; print('[HEALTH CHECK OK] Windows Python & pywin32 ready')"
-
-          echo "[CI] 验证 4: 检查 Wine OpenGL 24-bit DIB 补丁已应用..."
-          docker run --rm sw-runtime-base:local-test perl /usr/local/lib/sw-runtime/patch_win32u.pl
-
-      - name: Push verified sw-runtime-base image
-        if: steps.check-runtime.outputs.exists != 'true'
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          echo "[CI] base 验证通过，推送至 GHCR 供 delivery 构建消费..."
-          docker push "${SW_RUNTIME_BASE_IMAGE}"
-
-      - name: Build and push SWCLI payload image
-        if: steps.check-runtime.outputs.exists != 'true'
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: swcli/Dockerfile
-          target: swcli-payload
-          push: true
-          tags: ${{ env.SW_RUNTIME_PAYLOAD_IMAGE }}
-          cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-payload
-          cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-payload,mode=max,ignore-error=true
-
-      - name: Build and load sw-runtime image
-        if: steps.check-runtime.outputs.exists != 'true'
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: swcli/Dockerfile.delivery
-          target: sw-delivery
-          build-args: |
-            BASE_IMAGE=${{ env.SW_RUNTIME_BASE_IMAGE }}
-            PAYLOAD_IMAGE=${{ env.SW_RUNTIME_PAYLOAD_IMAGE }}
-          load: true
-          tags: |
-            sw-runtime:local-test
-            ${{ env.SW_RUNTIME_IMAGE }}
-          # 用 GHCR 上的专用 buildcache 标签替代 GHA 缓存：镜像本就推送到同一仓库，
-          # registry 缓存可与已存在的 blob 去重，避免 GHA 缓存每次上传数 GB（约 195s）。
-          cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-delivery
-          cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-delivery,mode=max,ignore-error=true
-
-      - name: Smoke test sw-runtime image
-        if: steps.check-runtime.outputs.exists != 'true'
-        run: |
-          echo "[CI] 验证 delivery 中的 Linux Python SWCLI 客户端与 Wine daemon 命令行..."
-          docker run --rm sw-runtime:local-test sw-cli version --json
-          docker run --rm sw-runtime:local-test sw-cli daemon --help
-
-          echo "[CI] 验证 delivery 保留 base 中的安装器命令..."
-          docker run --rm sw-runtime:local-test sw-install --help
-
-      - name: Push verified sw-runtime image
-        if: steps.check-runtime.outputs.exists != 'true'
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          echo "[CI] delivery 验证通过，推送正式镜像至 GHCR..."
-          docker push "${SW_RUNTIME_IMAGE}"
-
   build-and-smoke-test:
-    name: Build & Smoke Test SolidWorks
-    needs: build-runtime
+    name: Build & Verify SolidWorks Images
+    needs: unit-tests
     runs-on: ubuntu-latest
     timeout-minutes: 360
     env:
@@ -284,6 +144,115 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if runtime images already exist on GHCR
+        id: check-runtime
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          force="${{ inputs.force_rebuild || 'false' }}"
+
+          if [ "${force}" != "true" ] && \
+             docker manifest inspect "${SW_RUNTIME_BASE_IMAGE}" >/dev/null 2>&1 && \
+             docker manifest inspect "${SW_RUNTIME_PAYLOAD_IMAGE}" >/dev/null 2>&1 && \
+             docker manifest inspect "${SW_RUNTIME_IMAGE}" >/dev/null 2>&1; then
+            echo "[CI fast-path] runtime base、SWCLI payload 与正式镜像均已存在，跳过重复构建。"
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "[CI] runtime 镜像不存在或要求强制重构，继续执行构建流程..."
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Build and load sw-runtime-base image
+        if: steps.check-runtime.outputs.exists != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: runtime/Dockerfile.base
+          target: sw-runtime-base
+          load: true
+          tags: |
+            sw-runtime-base:local-test
+            ${{ env.SW_RUNTIME_BASE_IMAGE }}
+          cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-base
+          cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-base,mode=max,ignore-error=true
+
+      - name: Smoke test sw-runtime-base image
+        if: steps.check-runtime.outputs.exists != 'true'
+        run: |
+          echo "[CI] 验证 0: base 镜像不包含 SWCLI，且安装器可用..."
+          docker run --rm --entrypoint bash sw-runtime-base:local-test -lc \
+            'test ! -e /opt/swcli && sw-install --help >/dev/null'
+
+          echo "[CI] 验证 1: 测试固定 Wine 版本与 Windows 虚拟版本..."
+          test "$(docker run --rm --entrypoint wine sw-runtime-base:local-test --version)" = "wine-11.16"
+          docker run --rm sw-runtime-base:local-test wine cmd /c ver
+
+          echo "[CI] 验证 2: 测试 Wine-Mono stdcall 与托管 COM 注册组件..."
+          docker run --rm sw-runtime-base:local-test /usr/local/lib/sw-runtime/prepare_managed_com.sh
+
+          echo "[CI] 验证 3: 测试 Windows Python 3.11 与 pywin32 COM 模块就绪..."
+          docker run --rm sw-runtime-base:local-test wine "C:\\Python311\\python.exe" -c "import win32com.client, pythoncom; print('[HEALTH CHECK OK] Windows Python & pywin32 ready')"
+
+          echo "[CI] 验证 4: 检查 Wine OpenGL 24-bit DIB 补丁已应用..."
+          docker run --rm sw-runtime-base:local-test perl /usr/local/lib/sw-runtime/patch_win32u.pl
+
+      - name: Push verified sw-runtime-base image
+        if: steps.check-runtime.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "[CI] base 验证通过，推送至 GHCR 供后续构建与复现..."
+          docker push "${SW_RUNTIME_BASE_IMAGE}"
+
+      - name: Build and push SWCLI payload image
+        if: steps.check-runtime.outputs.exists != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: swcli/Dockerfile
+          target: swcli-payload
+          push: true
+          tags: ${{ env.SW_RUNTIME_PAYLOAD_IMAGE }}
+          cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-payload
+          cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-payload,mode=max,ignore-error=true
+
+      - name: Build and load sw-runtime image
+        if: steps.check-runtime.outputs.exists != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: swcli/Dockerfile.delivery
+          target: sw-delivery
+          build-args: |
+            BASE_IMAGE=${{ env.SW_RUNTIME_BASE_IMAGE }}
+            PAYLOAD_IMAGE=${{ env.SW_RUNTIME_PAYLOAD_IMAGE }}
+          load: true
+          tags: |
+            sw-runtime:local-test
+            ${{ env.SW_RUNTIME_IMAGE }}
+          # 用 GHCR 上的专用 buildcache 标签替代 GHA 缓存：镜像本就推送到同一仓库，
+          # registry 缓存可与已存在的 blob 去重，避免 GHA 缓存每次上传数 GB（约 195s）。
+          cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-delivery
+          cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-delivery,mode=max,ignore-error=true
+
+      - name: Smoke test sw-runtime image
+        if: steps.check-runtime.outputs.exists != 'true'
+        run: |
+          echo "[CI] 验证 delivery 中的 Linux Python SWCLI 客户端与 Wine daemon 命令行..."
+          docker run --rm sw-runtime:local-test sw-cli version --json
+          docker run --rm sw-runtime:local-test sw-cli daemon --help
+
+          echo "[CI] 验证 delivery 保留 base 中的安装器命令..."
+          docker run --rm sw-runtime:local-test sw-install --help
+
+      - name: Push verified sw-runtime image
+        if: steps.check-runtime.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "[CI] delivery 验证通过，推送正式镜像至 GHCR..."
+          docker push "${SW_RUNTIME_IMAGE}"
 
       - name: Check if images are already verified and built for this commit
         id: check-images
@@ -439,7 +408,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          required_kib=$((40 * 1024 * 1024))
+          required_kib=$((50 * 1024 * 1024))
           available_kib="$(df --output=avail -k / | tail -n 1 | tr -d ' ')"
           df -h /
           if [ "${available_kib}" -lt "${required_kib}" ]; then
@@ -462,12 +431,12 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          required_kib=$((40 * 1024 * 1024))
+          required_kib=$((50 * 1024 * 1024))
           available_kib="$(df --output=avail -k / | tail -n 1 | tr -d ' ')"
           df -h /
           if [ "${available_kib}" -lt "${required_kib}" ]; then
             available_gib="$((available_kib / 1024 / 1024))"
-            echo "Runner disk is too small after cleanup: ${available_gib} GiB available; at least 40 GiB is required." >&2
+            echo "Runner disk is too small after cleanup: ${available_gib} GiB available; at least 50 GiB is required." >&2
             exit 1
           fi
 

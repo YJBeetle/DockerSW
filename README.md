@@ -149,8 +149,8 @@ sw-install \
 本项目提供完整的 GitHub Actions 单一持续集成流水线配置 [`.github/workflows/build.yml`](.github/workflows/build.yml)，实现原生 DAG 依赖与零多余网络开销的自动化交付：
 
 1. **`unit-tests`**：递归检出固定 SWCLI submodule，校验 Docker 适配器与安装脚本；
-2. **`build-runtime`**：分别构建不含 SWCLI 的 `sw-runtime-base` 与独立 `swcli-payload`，再通过通用 Delivery Dockerfile 组合为 `sw-runtime`，并验证 base 边界与两侧 CLI 入口；
-3. **`build-and-smoke-test`**：
+2. **`build-and-smoke-test`**：在同一台 runner 与同一个 BuildKit content store 内完成全部镜像构建，避免 runtime 刚推送到 GHCR 又被下一台 runner 重复下载：
+   - 分别构建不含 SWCLI 的 `sw-runtime-base` 与独立 `swcli-payload`，再通过通用 Delivery Dockerfile 组合为 `sw-runtime`，并验证 base 边界与两侧 CLI 入口；
    - 挂载 Google Drive，通过 `rclone` 开启 VFS 缓存稀疏读取官方 ISO；
    - 执行无人值守安装生成 `sw-preinstalled-base`，再加入当前应用层生成 `sw-preinstalled`；
    - 就地构建 `sw-executable-base` 与最终 `sw-executable`，后者执行真实 CAD 导出冒烟测试（验证 6 个 STEP、PDF、DWG 输出）；
