@@ -204,7 +204,9 @@ class InstallScriptValidationTests(unittest.TestCase):
 
     def test_solidworks_com_registration_comes_from_the_official_msi(self) -> None:
         script = INSTALLER.read_text(encoding="utf-8")
-        dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(encoding="utf-8")
+        dockerfile = (RUNTIME_ROOT / "Dockerfile.base").read_text(
+            encoding="utf-8"
+        )
         init_script = (RUNTIME_ROOT / "init_wineprefix.sh").read_text(
             encoding="utf-8"
         )
@@ -222,7 +224,9 @@ class InstallScriptValidationTests(unittest.TestCase):
 
     def test_runtime_versions_and_both_mono_patches_are_pinned(self) -> None:
         config = (RUNTIME_ROOT / "managed_com.env").read_text(encoding="utf-8")
-        dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(encoding="utf-8")
+        dockerfile = (RUNTIME_ROOT / "Dockerfile.base").read_text(
+            encoding="utf-8"
+        )
         prepare = (RUNTIME_ROOT / "prepare_managed_com.sh").read_text(
             encoding="utf-8"
         )
@@ -252,11 +256,15 @@ class InstallScriptValidationTests(unittest.TestCase):
         self.assertIn("regasm-x86_64.exe", prepare)
 
     def test_runtime_includes_json_processing_tool(self) -> None:
-        dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(encoding="utf-8")
+        dockerfile = (RUNTIME_ROOT / "Dockerfile.base").read_text(
+            encoding="utf-8"
+        )
         self.assertIn("        jq \\", dockerfile.splitlines())
 
     def test_optional_vnc_monitoring_is_owned_by_the_runtime_entrypoint(self) -> None:
-        dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(encoding="utf-8")
+        dockerfile = (RUNTIME_ROOT / "Dockerfile.base").read_text(
+            encoding="utf-8"
+        )
         entrypoint = (RUNTIME_ROOT / "entrypoint.sh").read_text(
             encoding="utf-8"
         )

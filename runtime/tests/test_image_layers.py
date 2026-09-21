@@ -10,30 +10,31 @@ class ImageLayeringTests(unittest.TestCase):
         return (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
 
     def test_all_base_and_delivery_targets_are_named(self) -> None:
+        runtime_base = self.read("runtime/Dockerfile.base")
         runtime = self.read("runtime/Dockerfile")
         preinstall_base = self.read("preinstall/Dockerfile.base")
         preinstall = self.read("preinstall/Dockerfile")
         executable_base = self.read("smoke-test/Dockerfile.base")
         executable = self.read("smoke-test/Dockerfile")
 
-        self.assertIn("FROM ubuntu:22.04 AS sw-runtime-base", runtime)
-        self.assertIn("FROM sw-runtime-base AS sw-runtime", runtime)
+        self.assertIn("FROM ubuntu:22.04 AS sw-runtime-base", runtime_base)
+        self.assertIn("FROM ${BASE_IMAGE} AS sw-runtime", runtime)
         self.assertIn("FROM ${BASE_IMAGE} AS sw-preinstalled-base", preinstall_base)
         self.assertIn("FROM ${BASE_IMAGE} AS sw-preinstalled", preinstall)
         self.assertIn("FROM ${BASE_IMAGE} AS sw-executable-base", executable_base)
         self.assertIn("FROM ${BASE_IMAGE} AS sw-executable", executable)
 
     def test_swcli_payload_is_only_linked_into_delivery_targets(self) -> None:
-        for relative_path, final_target in (
-            ("runtime/Dockerfile", "FROM sw-runtime-base AS sw-runtime"),
-            ("preinstall/Dockerfile", "FROM ${BASE_IMAGE} AS sw-preinstalled"),
-            ("smoke-test/Dockerfile", "FROM ${BASE_IMAGE} AS sw-executable"),
+        self.assertNotIn("/opt/swcli/", self.read("runtime/Dockerfile.base"))
+
+        for relative_path in (
+            "runtime/Dockerfile",
+            "preinstall/Dockerfile",
+            "smoke-test/Dockerfile",
         ):
             dockerfile = self.read(relative_path)
-            base, delivery = dockerfile.split(final_target, maxsplit=1)
-            self.assertNotIn("/opt/swcli/", base)
-            self.assertIn("/opt/swcli/", delivery)
-            self.assertNotIn("install_swcli.sh", delivery)
+            self.assertIn("/opt/swcli/", dockerfile)
+            self.assertNotIn("install_swcli.sh", dockerfile)
 
         for relative_path in ("preinstall/Dockerfile", "smoke-test/Dockerfile"):
             self.assertIn(
@@ -42,10 +43,8 @@ class ImageLayeringTests(unittest.TestCase):
             )
 
     def test_sw_install_stays_in_runtime_base(self) -> None:
-        runtime = self.read("runtime/Dockerfile")
-        base, delivery = runtime.split(
-            "FROM sw-runtime-base AS sw-runtime", maxsplit=1
-        )
+        base = self.read("runtime/Dockerfile.base")
+        delivery = self.read("runtime/Dockerfile")
 
         self.assertIn(
             "COPY --chmod=755 runtime/bin/sw-install /usr/local/bin/sw-install",
@@ -61,6 +60,10 @@ class ImageLayeringTests(unittest.TestCase):
                 "COPY --link --from=current-app /usr/local/bin/sw-install",
                 self.read(relative_path),
             )
+
+        workflow = self.read(".github/workflows/build.yml")
+        self.assertIn("file: runtime/Dockerfile.base", workflow)
+        self.assertIn("BASE_IMAGE=${{ env.SW_RUNTIME_BASE_IMAGE }}", workflow)
 
     def test_delivery_images_do_not_copy_removed_swclid_wrapper(self) -> None:
         for relative_path in (
