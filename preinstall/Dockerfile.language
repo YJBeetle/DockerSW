@@ -1,6 +1,6 @@
 # DockerSW: 在纯净 SOLIDWORKS 安装基础上增加一种官方语言资源
-ARG BASE_IMAGE=sw-preinstalled-base:local
-FROM ${BASE_IMAGE} AS sw-language-base
+ARG PREINSTALLED_IMAGE=sw-preinstalled:local
+FROM ${PREINSTALLED_IMAGE} AS sw-preinstalled-language
 
 ARG SW_LANGUAGE_TAG
 ARG SW_LANGUAGE_DIRECTORY

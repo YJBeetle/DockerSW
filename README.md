@@ -4,7 +4,7 @@
 [![Docker Image](https://img.shields.io/badge/ghcr.io-sw--runtime-blue?logo=docker)](https://github.com/YJBeetle/DockerSW/pkgs/container/sw-runtime)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、托管 COM、Windows Python 及无头显示环境，并内置：
+DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、托管 COM、Windows Python 及无头显示环境，并提供：
 
 - `sw-install`：从用户提供的完整 SOLIDWORKS 安装介质执行静默安装；
 - [SWCLI](https://github.com/YJBeetle/SWCLI)：面向 AI 与自动化的 typed SOLIDWORKS 命令行及常驻 daemon 服务。
@@ -24,40 +24,47 @@ DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、�
   - `*.REND.SLDASM` 导出为 `.GLB`；
   - 支持 Linux、Wine Windows、绝对及相对路径。
 - **两种许可接入方式**：优先使用局域网浮动许可服务器，也可按需挂载 `lmgrd.exe` 与许可文件并在容器内启动。
-- **固定 SWCLI 版本**：DockerSW 以 Git submodule 固定并安装经过真实 Wine/SOLIDWORKS 冒烟验证的 SWCLI 提交；容器只负责路径、进程、许可与显示环境适配。
+- **固定 SWCLI 版本**：DockerSW 以 Git submodule 固定经过真实 Wine/SOLIDWORKS 冒烟验证的 SWCLI 提交，并将其装入对应的 `-cli` 镜像；容器只负责路径、进程、许可与显示环境适配。
 
-## 三组 Base / Delivery 镜像流水线
+## 默认镜像与 CLI 变体
 
 ```text
-sw-runtime-base                 低频：Wine + Mono + Python + sw-install
+sw-runtime                     Wine + Mono + Python + sw-install，不含 SWCLI
         │
-        ├── sw-runtime          高频：链接同一个 swcli-payload
+        ├── sw-runtime:<版本>-cli
+        │     链接同一个 swcli-payload
         │
-        └── sw-preinstalled-base
-              低频：从官方介质安装纯净 SOLIDWORKS，不包含 SWCLI
+        └── sw-preinstalled
+              从官方介质安装纯净 SOLIDWORKS，不含 SWCLI
                     │
-                    ├── sw-preinstalled
-                    │     高频：链接同一个 swcli-payload
+                    ├── sw-preinstalled:<版本>-cli
+                    │     链接同一个 swcli-payload
                     │
-                    └── sw-executable-base
-                          低频：加入测试补丁、FlexNet 与授权状态，不包含 SWCLI
+                    └── sw-executable
+                          加入测试补丁、FlexNet 与授权状态，不含 SWCLI
                                 │
-                                └── sw-executable
-                                      高频：链接同一个 swcli-payload
+                                └── sw-executable:<版本>-cli
+                                      链接同一个 swcli-payload
                                       │
                                       └── 真实导出 6 个产物通过后晋升
                     │
-                    └── sw-language-base
-                          低频：增加一种官方语言资源，不重复核心安装
+                    └── sw-preinstalled:<版本>-<语言>
+                          通过 sw-preinstalled-language 增加官方语言资源
+                          │
+                          ├── sw-preinstalled:<版本>-<语言>-cli
+                          │     链接同一个 swcli-payload
+                          │
+                          └── sw-executable:<版本>-<语言>
+                                加入测试补丁、FlexNet 与授权状态
                                 │
-                                ├── sw-preinstalled:<版本>-<语言>
-                                └── sw-executable:<版本>-<语言>
+                                └── sw-executable:<版本>-<语言>-cli
+                                      链接同一个 swcli-payload
 
 swcli-payload                   高频：SWCLI 源码 + CLI 包装与 daemon entrypoint
-        └── 由以上所有 Delivery 镜像共享同一内容层
+        └── 由以上所有 -cli 镜像共享同一内容层
 ```
 
-GHCR 只保留 `sw-runtime`、`sw-preinstalled`、`sw-executable` 三个 package。每个交付镜像使用不可变的 `sha-xxxxxxx` 标签，对应的内部构建基础使用 `sha-xxxxxxx-base`；base 不晋升 `main` 或 `latest`。本地化交付镜像在版本身份后追加标准语言 tag，例如 `sha-xxxxxxx-zh-cn`、`main-zh-cn` 和 `latest-zh-cn`，其内部基础为 `sha-xxxxxxx-zh-cn-base`。作为下游输入的 base 与 `sw-runtime` SHA 候选可提前发布；包含 SOLIDWORKS 的 `sw-preinstalled`、`sw-executable` SHA 候选，以及三个最终镜像的分支标签和 `latest`，仍须等待同一份 `sw-executable` 完成真实导出。base 与交付层的 registry 缓存分别使用独立 tag。
+GHCR 只保留 `sw-runtime`、`sw-preinstalled`、`sw-executable` 三个 package。无后缀标签是可独立运行但不含 SWCLI 的默认镜像，例如 `sha-xxxxxxx`、`main`、`2025` 和 `latest`；同一镜像加入 SWCLI 后使用对应的 `-cli` 标签，例如 `sha-xxxxxxx-cli`、`main-cli`、`2025-cli` 和 `latest-cli`。本地化镜像将语言 tag 放在 `-cli` 之前，例如 `latest-zh-cn` 与 `latest-zh-cn-cli`。不可变 SHA 候选可按构建依赖顺序提前发布；所有可变标签仍须等待对应 `sw-executable:*cli` 完成真实导出后原子晋升。
 
 ## 安装 SOLIDWORKS
 
@@ -99,7 +106,7 @@ sw-install \
 
 ### 3. 构建私有预安装镜像
 
-本项目将镜像构建分为三个彼此独立的部分：[`preinstall/Dockerfile.base`](preinstall/Dockerfile.base) 只从官方安装介质生成 SOLIDWORKS 基础镜像，[`swcli/Dockerfile`](swcli/Dockerfile) 只生成当前 SWCLI 与 DockerSW 适配器组成的 payload，[`swcli/Dockerfile.delivery`](swcli/Dockerfile.delivery) 再把同一 payload 链接到 runtime、preinstalled 与 executable 基础镜像。这样仅修改 SWCLI 时，不需要重新安装 SOLIDWORKS，也不会改变已有的大体积基础层。
+本项目将镜像构建分为三个彼此独立的部分：[`preinstall/Dockerfile`](preinstall/Dockerfile) 只从官方安装介质生成不含 SWCLI 的 SOLIDWORKS 镜像，[`swcli/Dockerfile`](swcli/Dockerfile) 只生成当前 SWCLI 与 DockerSW 适配器组成的 payload，[`swcli/Dockerfile.delivery`](swcli/Dockerfile.delivery) 再把同一 payload 链接到 runtime、preinstalled 与 executable 镜像，生成对应的 `-cli` 变体。这样仅修改 SWCLI 时，不需要重新安装 SOLIDWORKS，也不会改变已有的大体积层。
 
 官方 CI 通过命名 BuildKit context 将 `swwi/data`、`Toolbox`、`swloginmgr` 和必要的先决组件从 `preinstall/media` 只读传给安装阶段；安装完成后介质不会进入镜像层。不要把介质、序列号属性文件、许可文件或生成的安装日志提交到公开仓库。即使使用 BuildKit 临时挂载，也应只在可信私有 Builder 上构建，并按组织策略保护或清理构建缓存。
 
@@ -128,9 +135,11 @@ sw-install \
 英文仍是无语言后缀的默认镜像。CI 默认额外安装并验证简体中文资源，发布：
 
 - `ghcr.io/yjbeetle/sw-preinstalled:latest-zh-cn`
+- `ghcr.io/yjbeetle/sw-preinstalled:latest-zh-cn-cli`
 - `ghcr.io/yjbeetle/sw-executable:latest-zh-cn`
+- `ghcr.io/yjbeetle/sw-executable:latest-zh-cn-cli`
 
-语言资源在核心 SOLIDWORKS 安装完成后，以独立 MSI 层加入；该层同时生成对应 UTF-8 locale，并通过 `LANG`/`LC_ALL` 让 Wine 中的 SOLIDWORKS 选择该语言。同一语言基础同时供 `sw-preinstalled` 和 `sw-executable` 使用，不会为每个交付镜像重新安装 SOLIDWORKS。语言 MSI 只在对应缓存缺失时从 ISO 读取。每个本地化 `sw-executable` 会通过 COM 核对实际界面语言，并导出一个 STEP 文件后才晋升可变 tag。
+语言资源在核心 SOLIDWORKS 安装完成后，以独立 MSI 层加入；该层同时生成对应 UTF-8 locale，并通过 `LANG`/`LC_ALL` 让 Wine 中的 SOLIDWORKS 选择该语言。同一语言镜像同时供默认版本与 `-cli` 变体复用，不会重新安装 SOLIDWORKS。语言 MSI 只在对应缓存缺失时从 ISO 读取。每个本地化 `sw-executable:*cli` 会通过 COM 核对实际界面语言，并导出一个 STEP 文件后才晋升可变 tag。
 
 手动运行工作流时，`languages` 接受逗号分隔的语言 tag，或使用 `all` 构建全部官方语言：
 
@@ -150,12 +159,12 @@ sw-install \
 
 1. **`unit-tests`**：递归检出固定 SWCLI submodule，校验 Docker 适配器与安装脚本；
 2. **`build-and-smoke-test`**：在同一台 runner 与同一个 BuildKit content store 内完成全部镜像构建，避免 runtime 刚推送到 GHCR 又被下一台 runner 重复下载：
-   - 分别构建不含 SWCLI 的 `sw-runtime-base` 与独立 `swcli-payload`，再通过通用 Delivery Dockerfile 组合为 `sw-runtime`，并验证 base 边界与两侧 CLI 入口；
+   - 构建不含 SWCLI 的 `sw-runtime` 与独立 `swcli-payload`，再通过通用 Delivery Dockerfile 组合为 `sw-runtime:*cli`，并验证两种镜像的能力边界；
    - 挂载 Google Drive，通过 `rclone` 开启 VFS 缓存稀疏读取官方 ISO；
-   - 执行无人值守安装生成 `sw-preinstalled-base`，再加入当前应用层生成 `sw-preinstalled`；
-   - 就地构建 `sw-executable-base` 与最终 `sw-executable`，后者执行真实 CAD 导出冒烟测试（验证 6 个 STEP、PDF、DWG 输出）；
+   - 执行无人值守安装生成 `sw-preinstalled`，再加入当前 SWCLI payload 生成 `sw-preinstalled:*cli`；
+   - 就地构建 `sw-executable` 与 `sw-executable:*cli`，后者执行真实 CAD 导出冒烟测试（验证 6 个 STEP、PDF、DWG 输出）；
    - 六个英文镜像及本地化变体分别使用 GHCR registry cache；仅修改 SWCLI 时会复用 Wine、SOLIDWORKS 安装、语言资源与测试运行时层；
-   - Base 与 `sw-runtime` SHA 候选按后续 `FROM` 依赖顺序发布；**原子晋升发布**仍只在冒烟测试通过后推送包含 SOLIDWORKS 的 Delivery SHA 候选，并为三个最终镜像晋升 `:latest` 与分支标签。
+   - 默认镜像与 CLI 镜像的 SHA 候选按后续 `FROM` 依赖顺序发布；**原子晋升发布**仍只在冒烟测试通过后为两套镜像同时晋升 `:latest`、`:latest-cli` 及对应分支标签。
 
 ### Google Drive Secret 配置
 
@@ -210,7 +219,7 @@ echo "<YOUR_GITHUB_PAT>" | docker login ghcr.io -u <YOUR_GITHUB_USERNAME> --pass
 ```bash
 docker run --rm \
   -v "$(pwd):/workspace" \
-  ghcr.io/yjbeetle/sw-executable:latest \
+  ghcr.io/yjbeetle/sw-executable:latest-cli \
   bash -lc 'sw-cli document open /workspace/model.SLDPRT --json &&
             sw-cli document export /workspace/dist/model.STEP --json &&
             sw-cli document close --discard --json'
@@ -222,7 +231,7 @@ docker run --rm \
 docker run --rm \
   -e SW_LICENSE_SERVER=25734@192.168.1.100 \
   -v "$(pwd):/workspace" \
-  ghcr.io/yjbeetle/sw-preinstalled:latest \
+  ghcr.io/yjbeetle/sw-preinstalled:latest-cli \
   bash -lc 'sw-cli document open /workspace/model.SLDPRT --json &&
             sw-cli document export /workspace/dist/model.STEP --json &&
             sw-cli document close --discard --json'
@@ -257,20 +266,20 @@ sw-cli document close --json
 这些问题时返回结构化 warnings；业务 CI 应使用 `--strict`，在生成正式产物前
 要求源文档已保存、已重建且导出过程不改变其状态。
 
-`sw-preinstalled` 与 `sw-executable` 启动时会直接执行
+`sw-preinstalled:*cli` 与 `sw-executable:*cli` 启动时会直接执行
 `sw-cli daemon serve`，并等待 SOLIDWORKS 完成初始化后才执行容器命令。daemon 通过 Wine
 已验证的 `DispatchEx` 激活路径创建独占实例，并在单一 COM worker 中串行执行
 请求；同一容器内的后续命令复用该实例，容器退出时统一清理。
 
 ### 4. CI/CD 流水线集成示例 (GitLab CI)
 
-在私有 GitLab Runner 中使用 `sw-preinstalled` 镜像导出 CAD 产物。源文件到目标
+在私有 GitLab Runner 中使用 `sw-preinstalled:*cli` 镜像导出 CAD 产物。源文件到目标
 格式的规则直接属于该项目的 CI 配置：
 
 ```yaml
 export_cad_assets:
   stage: export
-  image: ghcr.io/yjbeetle/sw-preinstalled:latest
+  image: ghcr.io/yjbeetle/sw-preinstalled:latest-cli
   variables:
     SW_LICENSE_SERVER: "25734@192.168.1.100"  # 建议配置为 masked/protected CI/CD Variable
   script:
@@ -311,17 +320,17 @@ export_cad_assets:
 docker run --rm \
   -e VNC_ENABLE=true \
   -p 127.0.0.1:5900:5900 \
-  ghcr.io/yjbeetle/sw-executable:latest
+  ghcr.io/yjbeetle/sw-executable:latest-cli
 ```
 
 daemon 通过 `DispatchEx` 创建独占 SOLIDWORKS 实例后，会等待官方
-`StartupProcessCompleted` 状态再开始接收请求。已安装 SOLIDWORKS 的交付镜像会在
+`StartupProcessCompleted` 状态再开始接收请求。已安装 SOLIDWORKS 的 `-cli` 镜像会在
 entrypoint 中预热 daemon，后续调用通过本地回环协议复用同一个实例；若 daemon
 意外退出，typed `sw-cli` 命令会明确失败，由容器生命周期层处理恢复。SOLIDWORKS
 启动等待上限默认为 120 秒，随后保留 10 秒健康探测余量，分别可通过
 `SWCLID_START_TIMEOUT` 和 `SWCLID_READY_GRACE` 调整；单次导出请求默认仍有独立的
 600 秒超时。
-缺少 SOLIDWORKS 或 SWCLI 的 Base/运行时镜像只记录跳过原因，不会因预热条件
+缺少 SOLIDWORKS 或 SWCLI 的默认/运行时镜像只记录跳过原因，不会因预热条件
 不完整而启动失败。
 
 ### SWCLI daemon

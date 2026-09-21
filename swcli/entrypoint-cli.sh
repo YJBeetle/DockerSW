@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# 仅 Delivery 镜像包含此层。安装了 SOLIDWORKS 时预热 SWCLI daemon；
+# 仅 -cli 镜像包含此层。安装了 SOLIDWORKS 时预热 SWCLI daemon；
 # sw-runtime 没有商业程序，因此直接跳过并保留完整 CLI 客户端能力。
 if [ "${SOLIDWORKS_INSTALLED:-false}" != true ]; then
     echo "[DockerSW] 当前镜像未安装 SOLIDWORKS，跳过 SWCLI daemon 预热"

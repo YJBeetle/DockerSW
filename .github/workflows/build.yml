@@ -34,7 +34,7 @@ permissions:
   packages: write
 
 concurrency:
-  # 各 package 内的 base/delivery 分别使用独立 GHCR buildcache 标签；
+  # 各 package 内的默认镜像与 CLI 变体分别使用独立 GHCR buildcache 标签；
   # 串行执行可避免连续 push 各自重跑安装链，并防止并发覆盖缓存索引。
   group: dockersw-image-pipeline
   cancel-in-progress: false
@@ -102,13 +102,13 @@ jobs:
           set -Eeuo pipefail
           commit_sha="$(git rev-parse --short=7 HEAD)"
           echo "SW_IMAGE_SHA_TAG=sha-${commit_sha}" >> "${GITHUB_ENV}"
-          echo "SW_RUNTIME_BASE_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}-base" >> "${GITHUB_ENV}"
-          echo "SW_RUNTIME_PAYLOAD_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}-payload" >> "${GITHUB_ENV}"
           echo "SW_RUNTIME_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
-          echo "SW_PREINSTALLED_BASE_IMAGE=${SW_PREINSTALLED_REPO}:sha-${commit_sha}-base" >> "${GITHUB_ENV}"
+          echo "SW_RUNTIME_PAYLOAD_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}-payload" >> "${GITHUB_ENV}"
           echo "SW_PREINSTALLED_IMAGE=${SW_PREINSTALLED_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
-          echo "SW_EXECUTABLE_BASE_IMAGE=${SW_EXECUTABLE_REPO}:sha-${commit_sha}-base" >> "${GITHUB_ENV}"
+          echo "SW_RUNTIME_CLI_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}-cli" >> "${GITHUB_ENV}"
+          echo "SW_PREINSTALLED_CLI_IMAGE=${SW_PREINSTALLED_REPO}:sha-${commit_sha}-cli" >> "${GITHUB_ENV}"
           echo "SW_EXECUTABLE_IMAGE=${SW_EXECUTABLE_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
+          echo "SW_EXECUTABLE_CLI_IMAGE=${SW_EXECUTABLE_REPO}:sha-${commit_sha}-cli" >> "${GITHUB_ENV}"
 
           language_plan="${RUNNER_TEMP}/solidworks-languages.tsv"
           : > "${language_plan}"
@@ -156,57 +156,57 @@ jobs:
           force="${{ inputs.force_rebuild || 'false' }}"
 
           if [ "${force}" != "true" ] && \
-             docker manifest inspect "${SW_RUNTIME_BASE_IMAGE}" >/dev/null 2>&1 && \
+             docker manifest inspect "${SW_RUNTIME_IMAGE}" >/dev/null 2>&1 && \
              docker manifest inspect "${SW_RUNTIME_PAYLOAD_IMAGE}" >/dev/null 2>&1 && \
-             docker manifest inspect "${SW_RUNTIME_IMAGE}" >/dev/null 2>&1; then
-            echo "[CI fast-path] runtime base、SWCLI payload 与正式镜像均已存在，跳过重复构建。"
+             docker manifest inspect "${SW_RUNTIME_CLI_IMAGE}" >/dev/null 2>&1; then
+            echo "[CI fast-path] runtime、SWCLI payload 与 runtime CLI 镜像均已存在，跳过重复构建。"
             echo "exists=true" >> "${GITHUB_OUTPUT}"
           else
             echo "[CI] runtime 镜像不存在或要求强制重构，继续执行构建流程..."
             echo "exists=false" >> "${GITHUB_OUTPUT}"
           fi
 
-      - name: Build and load sw-runtime-base image
+      - name: Build and load sw-runtime image
         if: steps.check-runtime.outputs.exists != 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: runtime/Dockerfile.base
-          target: sw-runtime-base
+          file: runtime/Dockerfile
+          target: sw-runtime
           load: true
           tags: |
-            sw-runtime-base:local-test
-            ${{ env.SW_RUNTIME_BASE_IMAGE }}
-          cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-base
-          cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-base,mode=max,ignore-error=true
+            sw-runtime:local-test
+            ${{ env.SW_RUNTIME_IMAGE }}
+          cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-image
+          cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-image,mode=max,ignore-error=true
 
-      - name: Smoke test sw-runtime-base image
+      - name: Smoke test sw-runtime image
         if: steps.check-runtime.outputs.exists != 'true'
         run: |
-          echo "[CI] 验证 0: base 镜像不包含 SWCLI，且安装器可用..."
-          docker run --rm --entrypoint bash sw-runtime-base:local-test -lc \
+          echo "[CI] 验证 0: 默认镜像不包含 SWCLI，且安装器可用..."
+          docker run --rm --entrypoint bash sw-runtime:local-test -lc \
             'test ! -e /opt/swcli && sw-install --help >/dev/null'
 
           echo "[CI] 验证 1: 测试固定 Wine 版本与 Windows 虚拟版本..."
-          test "$(docker run --rm --entrypoint wine sw-runtime-base:local-test --version)" = "wine-11.16"
-          docker run --rm sw-runtime-base:local-test wine cmd /c ver
+          test "$(docker run --rm --entrypoint wine sw-runtime:local-test --version)" = "wine-11.16"
+          docker run --rm sw-runtime:local-test wine cmd /c ver
 
           echo "[CI] 验证 2: 测试 Wine-Mono stdcall 与托管 COM 注册组件..."
-          docker run --rm sw-runtime-base:local-test /usr/local/lib/sw-runtime/prepare_managed_com.sh
+          docker run --rm sw-runtime:local-test /usr/local/lib/sw-runtime/prepare_managed_com.sh
 
           echo "[CI] 验证 3: 测试 Windows Python 3.11 与 pywin32 COM 模块就绪..."
-          docker run --rm sw-runtime-base:local-test wine "C:\\Python311\\python.exe" -c "import win32com.client, pythoncom; print('[HEALTH CHECK OK] Windows Python & pywin32 ready')"
+          docker run --rm sw-runtime:local-test wine "C:\\Python311\\python.exe" -c "import win32com.client, pythoncom; print('[HEALTH CHECK OK] Windows Python & pywin32 ready')"
 
           echo "[CI] 验证 4: 检查 Wine OpenGL 24-bit DIB 补丁已应用..."
-          docker run --rm sw-runtime-base:local-test perl /usr/local/lib/sw-runtime/patch_win32u.pl
+          docker run --rm sw-runtime:local-test perl /usr/local/lib/sw-runtime/patch_win32u.pl
 
-      - name: Push verified sw-runtime-base image
+      - name: Push verified sw-runtime image
         if: steps.check-runtime.outputs.exists != 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
-          echo "[CI] base 验证通过，推送至 GHCR 供后续构建与复现..."
-          docker push "${SW_RUNTIME_BASE_IMAGE}"
+          echo "[CI] runtime 验证通过，推送至 GHCR 供后续构建与复现..."
+          docker push "${SW_RUNTIME_IMAGE}"
 
       - name: Build and push SWCLI payload image
         if: steps.check-runtime.outputs.exists != 'true'
@@ -220,42 +220,42 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-payload
           cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-payload,mode=max,ignore-error=true
 
-      - name: Build and load sw-runtime image
+      - name: Build and load sw-runtime CLI image
         if: steps.check-runtime.outputs.exists != 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
           file: swcli/Dockerfile.delivery
-          target: sw-delivery
+          target: swcli-delivery
           build-args: |
-            BASE_IMAGE=${{ env.SW_RUNTIME_BASE_IMAGE }}
+            IMAGE=${{ env.SW_RUNTIME_IMAGE }}
             PAYLOAD_IMAGE=${{ env.SW_RUNTIME_PAYLOAD_IMAGE }}
           load: true
           tags: |
-            sw-runtime:local-test
-            ${{ env.SW_RUNTIME_IMAGE }}
+            sw-runtime-cli:local-test
+            ${{ env.SW_RUNTIME_CLI_IMAGE }}
           # 用 GHCR 上的专用 buildcache 标签替代 GHA 缓存：镜像本就推送到同一仓库，
           # registry 缓存可与已存在的 blob 去重，避免 GHA 缓存每次上传数 GB（约 195s）。
-          cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-delivery
-          cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-delivery,mode=max,ignore-error=true
+          cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-cli
+          cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-cli,mode=max,ignore-error=true
 
-      - name: Smoke test sw-runtime image
+      - name: Smoke test sw-runtime CLI image
         if: steps.check-runtime.outputs.exists != 'true'
         run: |
-          echo "[CI] 验证 delivery 中的 Linux Python SWCLI 客户端与 Wine daemon 命令行..."
-          docker run --rm sw-runtime:local-test sw-cli version --json
-          docker run --rm sw-runtime:local-test sw-cli daemon --help
+          echo "[CI] 验证 CLI 镜像中的 Linux Python 客户端与 Wine daemon 命令行..."
+          docker run --rm sw-runtime-cli:local-test sw-cli version --json
+          docker run --rm sw-runtime-cli:local-test sw-cli daemon --help
 
-          echo "[CI] 验证 delivery 保留 base 中的安装器命令..."
-          docker run --rm sw-runtime:local-test sw-install --help
+          echo "[CI] 验证 CLI 镜像保留默认镜像中的安装器命令..."
+          docker run --rm sw-runtime-cli:local-test sw-install --help
 
-      - name: Push verified sw-runtime image
+      - name: Push verified sw-runtime CLI image
         if: steps.check-runtime.outputs.exists != 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
-          echo "[CI] delivery 验证通过，推送正式镜像至 GHCR..."
-          docker push "${SW_RUNTIME_IMAGE}"
+          echo "[CI] CLI 镜像验证通过，推送至 GHCR..."
+          docker push "${SW_RUNTIME_CLI_IMAGE}"
 
       - name: Check if images are already verified and built for this commit
         id: check-images
@@ -267,18 +267,18 @@ jobs:
 
           all_images_exist=true
           for image in \
-            "${SW_PREINSTALLED_BASE_IMAGE}" \
             "${SW_PREINSTALLED_IMAGE}" \
-            "${SW_EXECUTABLE_BASE_IMAGE}" \
-            "${SW_EXECUTABLE_IMAGE}"; do
+            "${SW_PREINSTALLED_CLI_IMAGE}" \
+            "${SW_EXECUTABLE_IMAGE}" \
+            "${SW_EXECUTABLE_CLI_IMAGE}"; do
             docker manifest inspect "${image}" >/dev/null 2>&1 \
               || all_images_exist=false
           done
           while IFS=$'\t' read -r language_tag _; do
             for repository in "${SW_PREINSTALLED_REPO}" "${SW_EXECUTABLE_REPO}"; do
-              docker manifest inspect "${repository}:${SW_IMAGE_SHA_TAG}-${language_tag}-base" >/dev/null 2>&1 \
-                || all_images_exist=false
               docker manifest inspect "${repository}:${SW_IMAGE_SHA_TAG}-${language_tag}" >/dev/null 2>&1 \
+                || all_images_exist=false
+              docker manifest inspect "${repository}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli" >/dev/null 2>&1 \
                 || all_images_exist=false
             done
           done < "${SW_LANGUAGE_PLAN}"
@@ -289,31 +289,49 @@ jobs:
 
             if [ -n "${target_tag}" ]; then
               echo "[CI fast-path] 晋升分支标签: ${target_tag}..."
-              docker buildx imagetools create --tag "${SW_RUNTIME_REPO}:${target_tag}" "${SW_RUNTIME_IMAGE}" || true
+              docker buildx imagetools create --tag "${SW_RUNTIME_REPO}:${target_tag}" "${SW_RUNTIME_IMAGE}"
+              docker buildx imagetools create --tag "${SW_RUNTIME_REPO}:${target_tag}-cli" "${SW_RUNTIME_CLI_IMAGE}"
               docker buildx imagetools create --tag "${SW_PREINSTALLED_REPO}:${target_tag}" "${SW_PREINSTALLED_IMAGE}"
+              docker buildx imagetools create --tag "${SW_PREINSTALLED_REPO}:${target_tag}-cli" "${SW_PREINSTALLED_CLI_IMAGE}"
               docker buildx imagetools create --tag "${SW_EXECUTABLE_REPO}:${target_tag}" "${SW_EXECUTABLE_IMAGE}"
+              docker buildx imagetools create --tag "${SW_EXECUTABLE_REPO}:${target_tag}-cli" "${SW_EXECUTABLE_CLI_IMAGE}"
               while IFS=$'\t' read -r language_tag _; do
                 docker buildx imagetools create \
                   --tag "${SW_PREINSTALLED_REPO}:${target_tag}-${language_tag}" \
                   "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
                 docker buildx imagetools create \
+                  --tag "${SW_PREINSTALLED_REPO}:${target_tag}-${language_tag}-cli" \
+                  "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
+                docker buildx imagetools create \
                   --tag "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}" \
                   "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
+                docker buildx imagetools create \
+                  --tag "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}-cli" \
+                  "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
               done < "${SW_LANGUAGE_PLAN}"
             fi
 
             if [ "${target_tag}" = "main" ]; then
               echo "[CI fast-path] 晋升 :latest 标签..."
-              docker buildx imagetools create --tag "${SW_RUNTIME_REPO}:latest" "${SW_RUNTIME_IMAGE}" || true
+              docker buildx imagetools create --tag "${SW_RUNTIME_REPO}:latest" "${SW_RUNTIME_IMAGE}"
+              docker buildx imagetools create --tag "${SW_RUNTIME_REPO}:latest-cli" "${SW_RUNTIME_CLI_IMAGE}"
               docker buildx imagetools create --tag "${SW_PREINSTALLED_REPO}:latest" "${SW_PREINSTALLED_IMAGE}"
+              docker buildx imagetools create --tag "${SW_PREINSTALLED_REPO}:latest-cli" "${SW_PREINSTALLED_CLI_IMAGE}"
               docker buildx imagetools create --tag "${SW_EXECUTABLE_REPO}:latest" "${SW_EXECUTABLE_IMAGE}"
+              docker buildx imagetools create --tag "${SW_EXECUTABLE_REPO}:latest-cli" "${SW_EXECUTABLE_CLI_IMAGE}"
               while IFS=$'\t' read -r language_tag _; do
                 docker buildx imagetools create \
                   --tag "${SW_PREINSTALLED_REPO}:latest-${language_tag}" \
                   "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
                 docker buildx imagetools create \
+                  --tag "${SW_PREINSTALLED_REPO}:latest-${language_tag}-cli" \
+                  "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
+                docker buildx imagetools create \
                   --tag "${SW_EXECUTABLE_REPO}:latest-${language_tag}" \
                   "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
+                docker buildx imagetools create \
+                  --tag "${SW_EXECUTABLE_REPO}:latest-${language_tag}-cli" \
+                  "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
               done < "${SW_LANGUAGE_PLAN}"
             fi
 
@@ -323,8 +341,8 @@ jobs:
             echo "already_verified=false" >> "${GITHUB_OUTPUT}"
           fi
 
-      - name: Resolve reusable SOLIDWORKS installation base
-        id: check-installed-base
+      - name: Resolve reusable SOLIDWORKS installation image
+        id: check-installed
         if: steps.check-images.outputs.already_verified != 'true'
         shell: bash
         run: |
@@ -332,35 +350,35 @@ jobs:
           force="${{ inputs.force_rebuild || 'false' }}"
 
           # The installation ISO is an immutable input. Reuse the installed image
-          # whenever the runtime base, installation recipe and configured media
+          # whenever the runtime image, installation recipe and configured media
           # identity are unchanged; do not mount or scan the ISO merely to ask
           # BuildKit whether its RUN layer is cached.
-          runtime_base_digest="$(
-            docker buildx imagetools inspect "${SW_RUNTIME_BASE_IMAGE}" \
+          runtime_digest="$(
+            docker buildx imagetools inspect "${SW_RUNTIME_IMAGE}" \
               --format '{{json .Manifest}}' | jq -r '.digest'
           )"
-          [[ "${runtime_base_digest}" == sha256:* ]] || {
-            echo "Unable to resolve runtime base digest: ${runtime_base_digest}" >&2
+          [[ "${runtime_digest}" == sha256:* ]] || {
+            echo "Unable to resolve runtime image digest: ${runtime_digest}" >&2
             exit 1
           }
-          recipe_digest="$(sha256sum preinstall/Dockerfile.base | cut -d' ' -f1)"
+          recipe_digest="$(sha256sum preinstall/Dockerfile | cut -d' ' -f1)"
           install_key="$(
             printf '%s\n%s\n%s\n' \
-              "${runtime_base_digest}" \
+              "${runtime_digest}" \
               "${recipe_digest}" \
               "${SW_MEDIA_PATH}" | sha256sum | cut -d' ' -f1
           )"
-          reusable_image="${SW_PREINSTALLED_REPO}:install-${install_key:0:32}-base"
+          reusable_image="${SW_PREINSTALLED_REPO}:install-${install_key:0:32}"
 
           echo "SW_PREINSTALLED_REUSABLE_IMAGE=${reusable_image}" >> "${GITHUB_ENV}"
-          echo "[CI cache] SOLIDWORKS installation identity: install-${install_key:0:32}-base"
+          echo "[CI cache] SOLIDWORKS installation identity: install-${install_key:0:32}"
 
           if [ "${force}" != "true" ] && \
              docker manifest inspect "${reusable_image}" >/dev/null 2>&1; then
-            echo "[CI cache] Reusing installed SOLIDWORKS base; ISO access is unnecessary."
+            echo "[CI cache] Reusing installed SOLIDWORKS image; ISO access is unnecessary."
             echo "exists=true" >> "${GITHUB_OUTPUT}"
           else
-            echo "[CI cache] Installed base is missing or rebuild was forced; ISO access is required."
+            echo "[CI cache] Installed image is missing or rebuild was forced; ISO access is required."
             echo "exists=false" >> "${GITHUB_OUTPUT}"
           fi
 
@@ -382,15 +400,15 @@ jobs:
                 "${posix_locale}" \
                 "${solidworks_language}" | sha256sum | cut -d' ' -f1
             )"
-            language_reusable_image="${SW_PREINSTALLED_REPO}:install-${language_key:0:32}-${language_tag}-base"
+            language_reusable_image="${SW_PREINSTALLED_REPO}:install-${language_key:0:32}-${language_tag}"
             language_cached=false
             if [ "${force}" != "true" ] && \
                docker manifest inspect "${language_reusable_image}" >/dev/null 2>&1; then
               language_cached=true
-              echo "[CI cache] Reusing ${language_tag} SOLIDWORKS language base."
+              echo "[CI cache] Reusing ${language_tag} SOLIDWORKS language image."
             else
               language_media_required=true
-              echo "[CI cache] ${language_tag} language base is missing or rebuild was forced."
+              echo "[CI cache] ${language_tag} language image is missing or rebuild was forced."
             fi
             printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
               "${language_tag}" \
@@ -476,8 +494,8 @@ jobs:
       - name: Mount Google Drive and the SOLIDWORKS ISO
         if: >-
           steps.check-images.outputs.already_verified != 'true' &&
-          (steps.check-installed-base.outputs.exists != 'true' ||
-           steps.check-installed-base.outputs.language_media_required == 'true')
+          (steps.check-installed.outputs.exists != 'true' ||
+           steps.check-installed.outputs.language_media_required == 'true')
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -550,41 +568,41 @@ jobs:
           SW_SERIAL_MBD: ${{ secrets.SW_SERIAL_MBD }}
         run: |
           set -Eeuo pipefail
-          if [ "${{ steps.check-installed-base.outputs.exists }}" = "true" ]; then
-            echo "[CI cache] Reusing installation base entirely inside GHCR..."
+          if [ "${{ steps.check-installed.outputs.exists }}" = "true" ]; then
+            echo "[CI cache] Reusing installation image entirely inside GHCR..."
             docker buildx imagetools create --prefer-index=false \
-              --tag "${SW_PREINSTALLED_BASE_IMAGE}" \
+              --tag "${SW_PREINSTALLED_IMAGE}" \
               "${SW_PREINSTALLED_REUSABLE_IMAGE}"
           else
-            echo "[CI build] Building installation base from the immutable ISO..."
+            echo "[CI build] Building installation image from the immutable ISO..."
             docker buildx build --push \
-              --target sw-preinstalled-base \
+              --target sw-preinstalled \
               --build-context "sw-data=preinstall/media/swwi/data" \
               --build-context "sw-toolbox=preinstall/media/Toolbox" \
               --build-context "sw-login=preinstall/media/swloginmgr" \
               --build-context "sw-vcredist=preinstall/media/PreReqs/VCRedist17" \
               --build-context "sw-dotnet=preinstall/media/PreReqs/dotNetFx" \
-              --build-arg "BASE_IMAGE=${SW_RUNTIME_BASE_IMAGE}" \
+              --build-arg "RUNTIME_IMAGE=${SW_RUNTIME_IMAGE}" \
               --build-arg "SW_SERIAL_SOLIDWORKS=${SW_SERIAL_SOLIDWORKS}" \
               --build-arg "SW_SERIAL_SIMULATION=${SW_SERIAL_SIMULATION}" \
               --build-arg "SW_SERIAL_MOTION=${SW_SERIAL_MOTION}" \
               --build-arg "SW_SERIAL_MBD=${SW_SERIAL_MBD}" \
-              --cache-from "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-base" \
-              --cache-to "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-base,mode=max,ignore-error=true" \
-              -f preinstall/Dockerfile.base \
+              --cache-from "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-image" \
+              --cache-to "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-image,mode=max,ignore-error=true" \
+              -f preinstall/Dockerfile \
               -t "${SW_PREINSTALLED_REUSABLE_IMAGE}" \
-              -t "${SW_PREINSTALLED_BASE_IMAGE}" \
+              -t "${SW_PREINSTALLED_IMAGE}" \
               .
           fi
 
           docker buildx build --load \
-            --target sw-delivery \
-            --build-arg "BASE_IMAGE=${SW_PREINSTALLED_BASE_IMAGE}" \
+            --target swcli-delivery \
+            --build-arg "IMAGE=${SW_PREINSTALLED_IMAGE}" \
             --build-arg "PAYLOAD_IMAGE=${SW_RUNTIME_PAYLOAD_IMAGE}" \
-            --cache-from "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-delivery" \
-            --cache-to "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-delivery,mode=max,ignore-error=true" \
+            --cache-from "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-cli" \
+            --cache-to "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-cli,mode=max,ignore-error=true" \
             -f swcli/Dockerfile.delivery \
-            -t "${SW_PREINSTALLED_IMAGE}" \
+            -t "${SW_PREINSTALLED_CLI_IMAGE}" \
             .
 
       - name: Build sw-executable image
@@ -592,25 +610,25 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          echo "[CI build] Building sw-executable from ${SW_PREINSTALLED_BASE_IMAGE}..."
+          echo "[CI build] Building sw-executable from ${SW_PREINSTALLED_IMAGE}..."
           docker buildx build --push \
-            --target sw-executable-base \
+            --target sw-executable \
             --build-context "smoke-assets=smoke-test/assets" \
-            --build-arg "BASE_IMAGE=${SW_PREINSTALLED_BASE_IMAGE}" \
-            --cache-from "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-base" \
-            --cache-to "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-base,mode=max,ignore-error=true" \
-            -f smoke-test/Dockerfile.base \
-            -t "${SW_EXECUTABLE_BASE_IMAGE}" \
+            --build-arg "PREINSTALLED_IMAGE=${SW_PREINSTALLED_IMAGE}" \
+            --cache-from "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-image" \
+            --cache-to "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-image,mode=max,ignore-error=true" \
+            -f smoke-test/Dockerfile \
+            -t "${SW_EXECUTABLE_IMAGE}" \
             .
 
           docker buildx build --load \
-            --target sw-delivery \
-            --build-arg "BASE_IMAGE=${SW_EXECUTABLE_BASE_IMAGE}" \
+            --target swcli-delivery \
+            --build-arg "IMAGE=${SW_EXECUTABLE_IMAGE}" \
             --build-arg "PAYLOAD_IMAGE=${SW_RUNTIME_PAYLOAD_IMAGE}" \
-            --cache-from "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-delivery" \
-            --cache-to "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-delivery,mode=max,ignore-error=true" \
+            --cache-from "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-cli" \
+            --cache-to "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-cli,mode=max,ignore-error=true" \
             -f swcli/Dockerfile.delivery \
-            -t "${SW_EXECUTABLE_IMAGE}" \
+            -t "${SW_EXECUTABLE_CLI_IMAGE}" \
             .
 
       - name: Build localized SOLIDWORKS images
@@ -622,21 +640,21 @@ jobs:
             language_tag media_directory language_msi language_id \
             posix_locale solidworks_language \
             language_reusable_image language_cached; do
-            preinstalled_language_base="${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-base"
             preinstalled_language_image="${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
-            executable_language_base="${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-base"
+            preinstalled_language_cli_image="${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
             executable_language_image="${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
+            executable_language_cli_image="${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
 
             if [ "${language_cached}" = "true" ]; then
               docker buildx imagetools create --prefer-index=false \
-                --tag "${preinstalled_language_base}" \
+                --tag "${preinstalled_language_image}" \
                 "${language_reusable_image}"
             else
               echo "[CI language] Installing ${language_tag} resources from ${media_directory}/${language_msi}..."
               docker buildx build --push \
-                --target sw-language-base \
+                --target sw-preinstalled-language \
                 --build-context "sw-language=preinstall/media/swwi/lang/${media_directory}" \
-                --build-arg "BASE_IMAGE=${SW_PREINSTALLED_BASE_IMAGE}" \
+                --build-arg "PREINSTALLED_IMAGE=${SW_PREINSTALLED_IMAGE}" \
                 --build-arg "SW_LANGUAGE_TAG=${language_tag}" \
                 --build-arg "SW_LANGUAGE_DIRECTORY=${media_directory}" \
                 --build-arg "SW_LANGUAGE_MSI=${language_msi}" \
@@ -647,38 +665,38 @@ jobs:
                 --cache-to "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-${language_tag}-language,mode=max,ignore-error=true" \
                 -f preinstall/Dockerfile.language \
                 -t "${language_reusable_image}" \
-                -t "${preinstalled_language_base}" \
+                -t "${preinstalled_language_image}" \
                 .
             fi
 
             docker buildx build --load \
-              --target sw-delivery \
-              --build-arg "BASE_IMAGE=${preinstalled_language_base}" \
+              --target swcli-delivery \
+              --build-arg "IMAGE=${preinstalled_language_image}" \
               --build-arg "PAYLOAD_IMAGE=${SW_RUNTIME_PAYLOAD_IMAGE}" \
-              --cache-from "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-${language_tag}-delivery" \
-              --cache-to "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-${language_tag}-delivery,mode=max,ignore-error=true" \
+              --cache-from "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-${language_tag}-cli" \
+              --cache-to "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-${language_tag}-cli,mode=max,ignore-error=true" \
               -f swcli/Dockerfile.delivery \
-              -t "${preinstalled_language_image}" \
+              -t "${preinstalled_language_cli_image}" \
               .
 
             docker buildx build --push \
-              --target sw-executable-base \
+              --target sw-executable \
               --build-context "smoke-assets=smoke-test/assets" \
-              --build-arg "BASE_IMAGE=${preinstalled_language_base}" \
-              --cache-from "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-${language_tag}-base" \
-              --cache-to "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-${language_tag}-base,mode=max,ignore-error=true" \
-              -f smoke-test/Dockerfile.base \
-              -t "${executable_language_base}" \
+              --build-arg "PREINSTALLED_IMAGE=${preinstalled_language_image}" \
+              --cache-from "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-${language_tag}-image" \
+              --cache-to "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-${language_tag}-image,mode=max,ignore-error=true" \
+              -f smoke-test/Dockerfile \
+              -t "${executable_language_image}" \
               .
 
             docker buildx build --load \
-              --target sw-delivery \
-              --build-arg "BASE_IMAGE=${executable_language_base}" \
+              --target swcli-delivery \
+              --build-arg "IMAGE=${executable_language_image}" \
               --build-arg "PAYLOAD_IMAGE=${SW_RUNTIME_PAYLOAD_IMAGE}" \
-              --cache-from "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-${language_tag}-delivery" \
-              --cache-to "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-${language_tag}-delivery,mode=max,ignore-error=true" \
+              --cache-from "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-${language_tag}-cli" \
+              --cache-to "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-${language_tag}-cli,mode=max,ignore-error=true" \
               -f swcli/Dockerfile.delivery \
-              -t "${executable_language_image}" \
+              -t "${executable_language_cli_image}" \
               .
           done < "${SW_LANGUAGE_BUILD_PLAN}"
 
@@ -703,7 +721,7 @@ jobs:
             --mount "type=bind,source=${smoke_root},target=/ci-smoke" \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/export.sh,target=/opt/dockersw-smoke/export.sh,readonly" \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/verify-swcli.sh,target=/opt/dockersw-smoke/verify-swcli.sh,readonly" \
-            "${SW_EXECUTABLE_IMAGE}" \
+            "${SW_EXECUTABLE_CLI_IMAGE}" \
             bash /opt/dockersw-smoke/export.sh 2>&1 \
             | tee "${log_file}"
 
@@ -740,7 +758,7 @@ jobs:
             smoke_root="${RUNNER_TEMP}/sw-language-smoke/${language_tag}"
             output_dir="${smoke_root}/output"
             log_file="${smoke_root}/sw-cli-export.log"
-            executable_language_image="${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
+            executable_language_cli_image="${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
 
             rm -rf "${smoke_root}"
             mkdir -p "${output_dir}"
@@ -751,7 +769,7 @@ jobs:
               --env "SW_SOLIDWORKS_LANGUAGE=${solidworks_language}" \
               --mount "type=bind,source=${smoke_root},target=/ci-smoke" \
               --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/export-localized.sh,target=/opt/dockersw-smoke/export-localized.sh,readonly" \
-              "${executable_language_image}" \
+              "${executable_language_cli_image}" \
               bash /opt/dockersw-smoke/export-localized.sh 2>&1 \
               | tee "${log_file}"
             test -s "${output_dir}/Paper Airplane.STEP"
@@ -764,11 +782,11 @@ jobs:
         run: |
           set -Eeuo pipefail
           echo "[CI push] Smoke test PASSED! Publishing verified candidates to GHCR..."
-          docker push "${SW_PREINSTALLED_IMAGE}"
-          docker push "${SW_EXECUTABLE_IMAGE}"
+          docker push "${SW_PREINSTALLED_CLI_IMAGE}"
+          docker push "${SW_EXECUTABLE_CLI_IMAGE}"
           while IFS=$'\t' read -r language_tag _; do
-            docker push "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
-            docker push "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
+            docker push "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
+            docker push "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
           done < "${SW_LANGUAGE_BUILD_PLAN}"
 
           target_tag="${{ github.ref_name }}"
@@ -777,17 +795,29 @@ jobs:
             docker buildx imagetools create --prefer-index=false \
               --tag "${SW_RUNTIME_REPO}:${target_tag}" "${SW_RUNTIME_IMAGE}"
             docker buildx imagetools create --prefer-index=false \
+              --tag "${SW_RUNTIME_REPO}:${target_tag}-cli" "${SW_RUNTIME_CLI_IMAGE}"
+            docker buildx imagetools create --prefer-index=false \
               --tag "${SW_PREINSTALLED_REPO}:${target_tag}" "${SW_PREINSTALLED_IMAGE}"
             docker buildx imagetools create --prefer-index=false \
+              --tag "${SW_PREINSTALLED_REPO}:${target_tag}-cli" "${SW_PREINSTALLED_CLI_IMAGE}"
+            docker buildx imagetools create --prefer-index=false \
               --tag "${SW_EXECUTABLE_REPO}:${target_tag}" "${SW_EXECUTABLE_IMAGE}"
+            docker buildx imagetools create --prefer-index=false \
+              --tag "${SW_EXECUTABLE_REPO}:${target_tag}-cli" "${SW_EXECUTABLE_CLI_IMAGE}"
 
             while IFS=$'\t' read -r language_tag _; do
               docker buildx imagetools create --prefer-index=false \
                 --tag "${SW_PREINSTALLED_REPO}:${target_tag}-${language_tag}" \
                 "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
               docker buildx imagetools create --prefer-index=false \
+                --tag "${SW_PREINSTALLED_REPO}:${target_tag}-${language_tag}-cli" \
+                "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
+              docker buildx imagetools create --prefer-index=false \
                 --tag "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}" \
                 "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
+              docker buildx imagetools create --prefer-index=false \
+                --tag "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}-cli" \
+                "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
             done < "${SW_LANGUAGE_BUILD_PLAN}"
           fi
 
@@ -796,17 +826,29 @@ jobs:
             docker buildx imagetools create --prefer-index=false \
               --tag "${SW_RUNTIME_REPO}:latest" "${SW_RUNTIME_IMAGE}"
             docker buildx imagetools create --prefer-index=false \
+              --tag "${SW_RUNTIME_REPO}:latest-cli" "${SW_RUNTIME_CLI_IMAGE}"
+            docker buildx imagetools create --prefer-index=false \
               --tag "${SW_PREINSTALLED_REPO}:latest" "${SW_PREINSTALLED_IMAGE}"
             docker buildx imagetools create --prefer-index=false \
+              --tag "${SW_PREINSTALLED_REPO}:latest-cli" "${SW_PREINSTALLED_CLI_IMAGE}"
+            docker buildx imagetools create --prefer-index=false \
               --tag "${SW_EXECUTABLE_REPO}:latest" "${SW_EXECUTABLE_IMAGE}"
+            docker buildx imagetools create --prefer-index=false \
+              --tag "${SW_EXECUTABLE_REPO}:latest-cli" "${SW_EXECUTABLE_CLI_IMAGE}"
 
             while IFS=$'\t' read -r language_tag _; do
               docker buildx imagetools create --prefer-index=false \
                 --tag "${SW_PREINSTALLED_REPO}:latest-${language_tag}" \
                 "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
               docker buildx imagetools create --prefer-index=false \
+                --tag "${SW_PREINSTALLED_REPO}:latest-${language_tag}-cli" \
+                "${SW_PREINSTALLED_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
+              docker buildx imagetools create --prefer-index=false \
                 --tag "${SW_EXECUTABLE_REPO}:latest-${language_tag}" \
                 "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}"
+              docker buildx imagetools create --prefer-index=false \
+                --tag "${SW_EXECUTABLE_REPO}:latest-${language_tag}-cli" \
+                "${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
             done < "${SW_LANGUAGE_BUILD_PLAN}"
           fi
 

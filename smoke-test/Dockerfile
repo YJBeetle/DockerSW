@@ -1,6 +1,6 @@
-# DockerSW: SolidWorks 本地可执行基础镜像（注入内部许可服务供离线/交叉冒烟测试）
-ARG BASE_IMAGE=sw-preinstalled-base:local
-FROM ${BASE_IMAGE} AS sw-executable-base
+# DockerSW: SolidWorks 本地可执行镜像（注入内部许可服务供离线/交叉冒烟测试）
+ARG PREINSTALLED_IMAGE=sw-preinstalled:local
+FROM ${PREINSTALLED_IMAGE} AS sw-executable
 
 LABEL maintainer="YJBeetle"
 LABEL description="Private SolidWorks headless executable container with internal FlexNet service"

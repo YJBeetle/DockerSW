@@ -1,7 +1,7 @@
-# DockerSW: SolidWorks 官方原版静默预装基础镜像
-# 在 sw-runtime-base 上挂载官方安装介质，生成不含 SWCLI 的稳定安装层
-ARG BASE_IMAGE=sw-runtime-base:local
-FROM ${BASE_IMAGE} AS sw-preinstalled-base
+# DockerSW: SolidWorks 官方原版静默预装镜像
+# 在 sw-runtime 上挂载官方安装介质，生成不含 SWCLI 的稳定安装层
+ARG RUNTIME_IMAGE=sw-runtime:local
+FROM ${RUNTIME_IMAGE} AS sw-preinstalled
 
 LABEL maintainer="YJBeetle"
 LABEL description="Private SolidWorks headless container with official installation"

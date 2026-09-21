@@ -1,9 +1,9 @@
-# DockerSW: 将同一个 SWCLI payload 链接到任意稳定基础镜像
-ARG BASE_IMAGE
+# DockerSW: 将同一个 SWCLI payload 链接到任意默认镜像
+ARG IMAGE
 ARG PAYLOAD_IMAGE
 
 FROM ${PAYLOAD_IMAGE} AS swcli-payload
-FROM ${BASE_IMAGE} AS sw-delivery
+FROM ${IMAGE} AS swcli-delivery
 
 COPY --link --from=swcli-payload / /
 
