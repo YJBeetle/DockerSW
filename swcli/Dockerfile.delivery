@@ -1,0 +1,12 @@
+# DockerSW: 将同一个 SWCLI payload 链接到任意稳定基础镜像
+ARG BASE_IMAGE
+ARG PAYLOAD_IMAGE
+
+FROM ${PAYLOAD_IMAGE} AS swcli-payload
+FROM ${BASE_IMAGE} AS sw-delivery
+
+COPY --link --from=swcli-payload / /
+
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["/bin/bash"]

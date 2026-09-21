@@ -8,7 +8,7 @@
 2. **安全合规的分层解耦架构**：
    - **公开运行时（`ghcr.io/yjbeetle/sw-runtime`）**：不包含任何 SOLIDWORKS 专有商业二进制文件、安装介质、序列号或许可服务器，也不预置 EULA 接受状态。仅提供固定版本验证的 Wine 64-bit、Wine-Mono、托管 COM 补丁、OpenGL 24-bit DIB 离屏渲染修复、Xvfb 无头虚拟显示、Linux/Windows Python 环境以及 `sw-install` 和 `sw-cli` 工具链；
    - **私有企业环境（下游构建与执行）**：使用者在自身可信基础设施中，通过合法取得的安装介质，使用 `sw-install` 执行官方静默安装并构建企业私有预安装镜像（`sw-preinstalled`），接入局域网浮动许可进行生产导出；
-   - **Base / Delivery 成对交付**：`sw-runtime-base`、`sw-preinstalled-base`、`sw-executable-base` 固化低频变化的环境、安装与测试状态且不含 SWCLI；对应的 `sw-runtime`、`sw-preinstalled`、`sw-executable` 只在最后一层加入当前 SWCLI 与 DockerSW 运行脚本；
+   - **Base / Payload / Delivery 解耦交付**：`sw-runtime-base`、`sw-preinstalled-base`、`sw-executable-base` 固化低频变化的环境、安装与测试状态且不含 SWCLI；独立 `swcli-payload` 只包含当前 SWCLI 与 DockerSW 运行脚本；对应的 `sw-runtime`、`sw-preinstalled`、`sw-executable` 通过同一个通用 Delivery Dockerfile 链接该 payload；
 3. **开箱即用的自动化导出**：由 GitLab CI / GitHub Actions 直接组合 SWCLI 的 typed `document open/export/close` 原子操作，支持 `.SLDPRT`/`.SLDASM` 导出 `.STEP`、`.SLDDRW` 导出 `.PDF` 和 `.DWG`、渲染装配体导出 `.GLB`；文件选择和命名规则归属具体 CI，不进入通用 CLI。
 
 ---
@@ -20,23 +20,26 @@ sw-runtime-base
   Wine + Mono + Python + pywin32 + sw-install；不含 SWCLI
   │
   ├── sw-runtime
-  │     加入当前 SWCLI 与 DockerSW 运行脚本
+  │     链接同一个 swcli-payload
   │
   └── sw-preinstalled-base
         从官方介质安装纯净 SOLIDWORKS；不含 SWCLI
         │
         ├── sw-preinstalled
-        │     加入当前 SWCLI 与 DockerSW 运行脚本，用于生产导出
+        │     链接同一个 swcli-payload，用于生产导出
         │
         └── sw-executable-base
               加入测试补丁、FlexNet 与授权状态；不含 SWCLI
               │
               └── sw-executable
-                    加入当前 SWCLI 与 DockerSW 运行脚本
+                    链接同一个 swcli-payload
                     └── 执行真实 CAD 导出门禁
+
+swcli-payload
+  SWCLI 源码 + DockerSW 包装与 entrypoint；由所有 Delivery 镜像共享同一内容层
 ```
 
-每个仓库均发布不可变的 `sha-xxxxxxx` 镜像并维护独立 registry build cache。Base 与 `sw-runtime` SHA 候选可按后续 Dockerfile 的 `FROM` 依赖顺序提前发布，但 Base 不带 `main`/`latest`；真实导出通过后，才发布包含 SOLIDWORKS 的 Delivery SHA 候选，并晋升三个最终镜像的分支标签和 `latest`。因此 CLI 高频变化不会触发 Wine、SOLIDWORKS 安装和测试授权层重建，同时 E2E 仍验证最终交付镜像，而不是缓存本身。
+每个仓库均发布不可变的 `sha-xxxxxxx` 镜像并维护独立 registry build cache。Base、内部 `sha-xxxxxxx-payload` 与 `sw-runtime` SHA 候选可按后续 Dockerfile 的 `FROM` 依赖顺序提前发布，但 Base 和 payload 不带 `main`/`latest`；真实导出通过后，才发布包含 SOLIDWORKS 的 Delivery SHA 候选，并晋升三个最终镜像的分支标签和 `latest`。因此 CLI 高频变化只会生成一次 payload，并让各 Delivery manifest 复用该内容层，不会触发 Wine、SOLIDWORKS 安装、语言资源和测试授权层重建；E2E 仍验证最终交付镜像，而不是缓存本身。
 
 ---
 

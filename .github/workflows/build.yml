@@ -70,7 +70,7 @@ jobs:
       - name: Run Logic Tests
         run: |
           python -m unittest discover -s runtime/tests -p "test_*.py" -v
-          PYTHONPATH=SWCLI/src python -m unittest discover -s SWCLI/tests -p "test_*.py" -v
+          PYTHONPATH=swcli/SWCLI/src python -m unittest discover -s swcli/SWCLI/tests -p "test_*.py" -v
 
   build-runtime:
     name: Build sw-runtime Image
@@ -100,6 +100,7 @@ jobs:
           set -Eeuo pipefail
           commit_sha="$(git rev-parse --short=7 HEAD)"
           echo "SW_RUNTIME_BASE_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}-base" >> "${GITHUB_ENV}"
+          echo "SW_RUNTIME_PAYLOAD_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}-payload" >> "${GITHUB_ENV}"
           echo "SW_RUNTIME_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
 
       - name: Check if runtime images already exist on GHCR
@@ -111,8 +112,9 @@ jobs:
 
           if [ "${force}" != "true" ] && \
              docker manifest inspect "${SW_RUNTIME_BASE_IMAGE}" >/dev/null 2>&1 && \
+             docker manifest inspect "${SW_RUNTIME_PAYLOAD_IMAGE}" >/dev/null 2>&1 && \
              docker manifest inspect "${SW_RUNTIME_IMAGE}" >/dev/null 2>&1; then
-            echo "[CI fast-path] runtime base 与正式镜像均已存在，跳过重复构建。"
+            echo "[CI fast-path] runtime base、SWCLI payload 与正式镜像均已存在，跳过重复构建。"
             echo "exists=true" >> "${GITHUB_OUTPUT}"
           else
             echo "[CI] 镜像不存在或要求强制重构，继续执行构建流程..."
@@ -161,15 +163,28 @@ jobs:
           echo "[CI] base 验证通过，推送至 GHCR 供 delivery 构建消费..."
           docker push "${SW_RUNTIME_BASE_IMAGE}"
 
+      - name: Build and push SWCLI payload image
+        if: steps.check-runtime.outputs.exists != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: swcli/Dockerfile
+          target: swcli-payload
+          push: true
+          tags: ${{ env.SW_RUNTIME_PAYLOAD_IMAGE }}
+          cache-from: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-payload
+          cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-payload,mode=max,ignore-error=true
+
       - name: Build and load sw-runtime image
         if: steps.check-runtime.outputs.exists != 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: runtime/Dockerfile
-          target: sw-runtime
+          file: swcli/Dockerfile.delivery
+          target: sw-delivery
           build-args: |
             BASE_IMAGE=${{ env.SW_RUNTIME_BASE_IMAGE }}
+            PAYLOAD_IMAGE=${{ env.SW_RUNTIME_PAYLOAD_IMAGE }}
           load: true
           tags: |
             sw-runtime:local-test
@@ -225,6 +240,7 @@ jobs:
           commit_sha="$(git rev-parse --short=7 HEAD)"
           echo "SW_IMAGE_SHA_TAG=sha-${commit_sha}" >> "${GITHUB_ENV}"
           echo "SW_RUNTIME_BASE_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}-base" >> "${GITHUB_ENV}"
+          echo "SW_RUNTIME_PAYLOAD_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}-payload" >> "${GITHUB_ENV}"
           echo "SW_RUNTIME_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
           echo "SW_PREINSTALLED_BASE_IMAGE=${SW_PREINSTALLED_REPO}:sha-${commit_sha}-base" >> "${GITHUB_ENV}"
           echo "SW_PREINSTALLED_IMAGE=${SW_PREINSTALLED_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
@@ -590,12 +606,12 @@ jobs:
           fi
 
           docker buildx build --load \
-            --target sw-preinstalled \
+            --target sw-delivery \
             --build-arg "BASE_IMAGE=${SW_PREINSTALLED_BASE_IMAGE}" \
-            --build-arg "APP_IMAGE=${SW_RUNTIME_IMAGE}" \
+            --build-arg "PAYLOAD_IMAGE=${SW_RUNTIME_PAYLOAD_IMAGE}" \
             --cache-from "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-delivery" \
             --cache-to "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-delivery,mode=max,ignore-error=true" \
-            -f preinstall/Dockerfile \
+            -f swcli/Dockerfile.delivery \
             -t "${SW_PREINSTALLED_IMAGE}" \
             .
 
@@ -616,12 +632,12 @@ jobs:
             .
 
           docker buildx build --load \
-            --target sw-executable \
+            --target sw-delivery \
             --build-arg "BASE_IMAGE=${SW_EXECUTABLE_BASE_IMAGE}" \
-            --build-arg "APP_IMAGE=${SW_RUNTIME_IMAGE}" \
+            --build-arg "PAYLOAD_IMAGE=${SW_RUNTIME_PAYLOAD_IMAGE}" \
             --cache-from "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-delivery" \
             --cache-to "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-delivery,mode=max,ignore-error=true" \
-            -f smoke-test/Dockerfile \
+            -f swcli/Dockerfile.delivery \
             -t "${SW_EXECUTABLE_IMAGE}" \
             .
 
@@ -664,12 +680,12 @@ jobs:
             fi
 
             docker buildx build --load \
-              --target sw-preinstalled \
+              --target sw-delivery \
               --build-arg "BASE_IMAGE=${preinstalled_language_base}" \
-              --build-arg "APP_IMAGE=${SW_RUNTIME_IMAGE}" \
+              --build-arg "PAYLOAD_IMAGE=${SW_RUNTIME_PAYLOAD_IMAGE}" \
               --cache-from "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-${language_tag}-delivery" \
               --cache-to "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-${language_tag}-delivery,mode=max,ignore-error=true" \
-              -f preinstall/Dockerfile \
+              -f swcli/Dockerfile.delivery \
               -t "${preinstalled_language_image}" \
               .
 
@@ -684,12 +700,12 @@ jobs:
               .
 
             docker buildx build --load \
-              --target sw-executable \
+              --target sw-delivery \
               --build-arg "BASE_IMAGE=${executable_language_base}" \
-              --build-arg "APP_IMAGE=${SW_RUNTIME_IMAGE}" \
+              --build-arg "PAYLOAD_IMAGE=${SW_RUNTIME_PAYLOAD_IMAGE}" \
               --cache-from "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-${language_tag}-delivery" \
               --cache-to "type=registry,ref=${SW_EXECUTABLE_REPO}:buildcache-${language_tag}-delivery,mode=max,ignore-error=true" \
-              -f smoke-test/Dockerfile \
+              -f swcli/Dockerfile.delivery \
               -t "${executable_language_image}" \
               .
           done < "${SW_LANGUAGE_BUILD_PLAN}"

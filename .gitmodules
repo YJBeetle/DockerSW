@@ -1,3 +1,3 @@
 [submodule "SWCLI"]
-	path = SWCLI
+	path = swcli/SWCLI
 	url = https://github.com/YJBeetle/SWCLI.git

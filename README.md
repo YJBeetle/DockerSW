@@ -31,19 +31,19 @@ DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、�
 ```text
 sw-runtime-base                 低频：Wine + Mono + Python + sw-install
         │
-        ├── sw-runtime          高频：最后加入当前 SWCLI 与 DockerSW 运行脚本
+        ├── sw-runtime          高频：链接同一个 swcli-payload
         │
         └── sw-preinstalled-base
               低频：从官方介质安装纯净 SOLIDWORKS，不包含 SWCLI
                     │
                     ├── sw-preinstalled
-                    │     高频：最后加入当前 SWCLI 与 DockerSW 运行脚本
+                    │     高频：链接同一个 swcli-payload
                     │
                     └── sw-executable-base
                           低频：加入测试补丁、FlexNet 与授权状态，不包含 SWCLI
                                 │
                                 └── sw-executable
-                                      高频：最后加入当前 SWCLI 与 DockerSW 运行脚本
+                                      高频：链接同一个 swcli-payload
                                       │
                                       └── 真实导出 6 个产物通过后晋升
                     │
@@ -52,6 +52,9 @@ sw-runtime-base                 低频：Wine + Mono + Python + sw-install
                                 │
                                 ├── sw-preinstalled:<版本>-<语言>
                                 └── sw-executable:<版本>-<语言>
+
+swcli-payload                   高频：SWCLI 源码 + DockerSW 包装与 entrypoint
+        └── 由以上所有 Delivery 镜像共享同一内容层
 ```
 
 GHCR 只保留 `sw-runtime`、`sw-preinstalled`、`sw-executable` 三个 package。每个交付镜像使用不可变的 `sha-xxxxxxx` 标签，对应的内部构建基础使用 `sha-xxxxxxx-base`；base 不晋升 `main` 或 `latest`。本地化交付镜像在版本身份后追加标准语言 tag，例如 `sha-xxxxxxx-zh-cn`、`main-zh-cn` 和 `latest-zh-cn`，其内部基础为 `sha-xxxxxxx-zh-cn-base`。作为下游输入的 base 与 `sw-runtime` SHA 候选可提前发布；包含 SOLIDWORKS 的 `sw-preinstalled`、`sw-executable` SHA 候选，以及三个最终镜像的分支标签和 `latest`，仍须等待同一份 `sw-executable` 完成真实导出。base 与交付层的 registry 缓存分别使用独立 tag。
@@ -96,20 +99,9 @@ sw-install \
 
 ### 3. 构建私有预安装镜像
 
-本项目提供了生产级预安装配置 [`preinstall/Dockerfile`](preinstall/Dockerfile)，利用 BuildKit 在构建期以只读 bind mount 挂载官方安装介质，安装结束后介质不会被 `COPY` 到最终层：
+本项目将镜像构建分为三个彼此独立的部分：[`preinstall/Dockerfile.base`](preinstall/Dockerfile.base) 只从官方安装介质生成 SOLIDWORKS 基础镜像，[`swcli/Dockerfile`](swcli/Dockerfile) 只生成当前 SWCLI 与 DockerSW 适配器组成的 payload，[`swcli/Dockerfile.delivery`](swcli/Dockerfile.delivery) 再把同一 payload 链接到 runtime、preinstalled 与 executable 基础镜像。这样仅修改 SWCLI 时，不需要重新安装 SOLIDWORKS，也不会改变已有的大体积基础层。
 
-```bash
-# 将官方介质放置或挂载于 preinstall/media，并从仓库根目录执行构建
-docker build \
-  --build-arg BASE_IMAGE=ghcr.io/yjbeetle/sw-runtime:sha-xxxxxxx-base \
-  --build-arg APP_IMAGE=ghcr.io/yjbeetle/sw-runtime:sha-xxxxxxx \
-  --target sw-preinstalled \
-  -f preinstall/Dockerfile \
-  -t sw-preinstalled \
-  .
-```
-
-构建上下文需将官方介质放置于 `preinstall/media`。不要把介质、序列号属性文件、许可文件或生成的安装日志提交到公开仓库。即使使用 BuildKit 临时挂载，也应只在可信私有 Builder 上构建，并按组织策略保护或清理构建缓存。
+官方 CI 通过命名 BuildKit context 将 `swwi/data`、`Toolbox`、`swloginmgr` 和必要的先决组件从 `preinstall/media` 只读传给安装阶段；安装完成后介质不会进入镜像层。不要把介质、序列号属性文件、许可文件或生成的安装日志提交到公开仓库。即使使用 BuildKit 临时挂载，也应只在可信私有 Builder 上构建，并按组织策略保护或清理构建缓存。
 
 如需传入序列号或站点专用 MSI 属性，优先使用 `SW_MSI_PROPERTIES_FILE` 指向私有 CI Secret 文件，不要通过 Dockerfile 的 `ARG`、`ENV` 或公开构建日志传递。
 
@@ -157,7 +149,7 @@ docker build \
 本项目提供完整的 GitHub Actions 单一持续集成流水线配置 [`.github/workflows/build.yml`](.github/workflows/build.yml)，实现原生 DAG 依赖与零多余网络开销的自动化交付：
 
 1. **`unit-tests`**：递归检出固定 SWCLI submodule，校验 Docker 适配器与安装脚本；
-2. **`build-runtime`**：构建不含 SWCLI 的 `sw-runtime-base`，再以最后一层加入当前 SWCLI 生成 `sw-runtime`，并验证 base 边界与两侧 CLI 入口；
+2. **`build-runtime`**：分别构建不含 SWCLI 的 `sw-runtime-base` 与独立 `swcli-payload`，再通过通用 Delivery Dockerfile 组合为 `sw-runtime`，并验证 base 边界与两侧 CLI 入口；
 3. **`build-and-smoke-test`**：
    - 挂载 Google Drive，通过 `rclone` 开启 VFS 缓存稀疏读取官方 ISO；
    - 执行无人值守安装生成 `sw-preinstalled-base`，再加入当前应用层生成 `sw-preinstalled`；
