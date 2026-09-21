@@ -19,6 +19,8 @@ class ImageLayeringTests(unittest.TestCase):
 
         self.assertIn("FROM ubuntu:22.04 AS sw-runtime", runtime)
         self.assertIn("FROM scratch AS swcli-payload", payload)
+        self.assertIn("ARG IMAGE=sw-runtime:local", delivery)
+        self.assertIn("ARG PAYLOAD_IMAGE=swcli-payload:local", delivery)
         self.assertIn("FROM ${PAYLOAD_IMAGE} AS swcli-payload", delivery)
         self.assertIn("FROM ${IMAGE} AS swcli-delivery", delivery)
         self.assertIn("FROM ${RUNTIME_IMAGE} AS sw-preinstalled", preinstalled)

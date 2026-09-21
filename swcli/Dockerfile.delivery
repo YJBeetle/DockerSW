@@ -1,6 +1,6 @@
 # DockerSW: 将同一个 SWCLI payload 链接到任意默认镜像
-ARG IMAGE
-ARG PAYLOAD_IMAGE
+ARG IMAGE=sw-runtime:local
+ARG PAYLOAD_IMAGE=swcli-payload:local
 
 FROM ${PAYLOAD_IMAGE} AS swcli-payload
 FROM ${IMAGE} AS swcli-delivery
