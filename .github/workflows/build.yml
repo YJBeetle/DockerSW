@@ -561,9 +561,6 @@ jobs:
         shell: bash
         env:
           SW_SERIAL_SOLIDWORKS: ${{ secrets.SW_SERIAL_SOLIDWORKS }}
-          SW_SERIAL_SIMULATION: ${{ secrets.SW_SERIAL_SIMULATION }}
-          SW_SERIAL_MOTION: ${{ secrets.SW_SERIAL_MOTION }}
-          SW_SERIAL_MBD: ${{ secrets.SW_SERIAL_MBD }}
         run: |
           set -Eeuo pipefail
           if [ "${{ steps.check-installed.outputs.exists }}" = "true" ]; then
@@ -582,9 +579,6 @@ jobs:
               --build-context "sw-dotnet=preinstall/media/PreReqs/dotNetFx" \
               --build-arg "RUNTIME_IMAGE=${SW_RUNTIME_IMAGE}" \
               --build-arg "SW_SERIAL_SOLIDWORKS=${SW_SERIAL_SOLIDWORKS}" \
-              --build-arg "SW_SERIAL_SIMULATION=${SW_SERIAL_SIMULATION}" \
-              --build-arg "SW_SERIAL_MOTION=${SW_SERIAL_MOTION}" \
-              --build-arg "SW_SERIAL_MBD=${SW_SERIAL_MBD}" \
               --cache-from "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-image" \
               --cache-to "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-image,mode=max,ignore-error=true" \
               -f preinstall/Dockerfile \

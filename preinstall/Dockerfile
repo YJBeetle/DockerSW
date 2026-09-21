@@ -8,9 +8,6 @@ LABEL description="Private SolidWorks headless container with official installat
 
 # 接收官方安装所需的序列号与许可配置（构建参数不持久化到最终镜像 ENV 中）
 ARG SW_SERIAL_SOLIDWORKS=""
-ARG SW_SERIAL_SIMULATION=""
-ARG SW_SERIAL_MOTION=""
-ARG SW_SERIAL_MBD=""
 ARG SW_LICENSE_SERVER=""
 
 # 只向 BuildKit 传入安装流程已在真实 MSI 安装中验证过的官方目录。
@@ -21,9 +18,6 @@ RUN --mount=type=bind,from=sw-data,target=/mnt/sw-media/swwi/data \
     --mount=type=bind,from=sw-vcredist,target=/mnt/sw-media/PreReqs/VCRedist17 \
     --mount=type=bind,from=sw-dotnet,target=/mnt/sw-media/PreReqs/dotNetFx \
     SW_SERIAL_SOLIDWORKS="${SW_SERIAL_SOLIDWORKS}" \
-    SW_SERIAL_SIMULATION="${SW_SERIAL_SIMULATION}" \
-    SW_SERIAL_MOTION="${SW_SERIAL_MOTION}" \
-    SW_SERIAL_MBD="${SW_SERIAL_MBD}" \
     SW_LICENSE_SERVER="${SW_LICENSE_SERVER}" \
     sw-install \
         --media /mnt/sw-media \

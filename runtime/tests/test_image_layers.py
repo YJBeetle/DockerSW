@@ -226,6 +226,16 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn("steps.check-installed.outputs.exists != 'true'", workflow)
         self.assertIn("-f preinstall/Dockerfile", workflow)
 
+    def test_preinstall_accepts_only_the_core_solidworks_serial(self) -> None:
+        workflow = self.read(".github/workflows/build.yml")
+        dockerfile = self.read("preinstall/Dockerfile")
+
+        self.assertIn("SW_SERIAL_SOLIDWORKS", workflow)
+        self.assertIn("SW_SERIAL_SOLIDWORKS", dockerfile)
+        for product in ("SIMULATION", "MOTION", "MBD"):
+            self.assertNotIn(f"SW_SERIAL_{product}", workflow)
+            self.assertNotIn(f"SW_SERIAL_{product}", dockerfile)
+
     def test_executable_cli_delivery_does_not_read_private_assets(self) -> None:
         workflow = self.read(".github/workflows/build.yml")
         dockerignore = self.read(".dockerignore")
