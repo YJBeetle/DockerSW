@@ -54,6 +54,27 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn("sw-cli daemon stop --json", export_script)
         self.assertNotIn("\nswclid ", export_script)
 
+    def test_real_export_smoke_test_covers_protocol_and_concurrency_gates(self) -> None:
+        export_script = self.read("smoke-test/export.sh")
+        verification_script = self.read("smoke-test/verify-swcli.sh")
+
+        self.assertIn("verify-swcli.sh", export_script)
+        self.assertIn("sw-cli capabilities --json", verification_script)
+        self.assertIn(".document.update_stamp != null", verification_script)
+        self.assertIn("document lease acquire", verification_script)
+        self.assertIn('"DocumentLeaseConflict"', verification_script)
+        self.assertIn("document lease release", verification_script)
+        self.assertIn("document list --json", verification_script)
+        self.assertIn("swcli-smoke-multi-document.STEP", verification_script)
+
+        workflow = self.read(".github/workflows/build.yml")
+        self.assertIn("smoke-test/verify-swcli.sh", workflow)
+        expected_outputs = workflow.split("expected_outputs=(", maxsplit=1)[1].split(
+            ")", maxsplit=1
+        )[0]
+        self.assertEqual(expected_outputs.count('"'), 12)
+        self.assertNotIn("swcli-smoke-", expected_outputs)
+
     def test_ci_builds_six_sha_images_in_three_packages(self) -> None:
         workflow = self.read(".github/workflows/build.yml")
         for repository in (

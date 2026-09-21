@@ -355,7 +355,9 @@ entrypoint 中预热 daemon，后续调用通过本地回环协议复用同一�
 总时长、收集日志并验证产物；容器内的 [`smoke-test/export.sh`](smoke-test/export.sh)
 则只组合 typed SWCLI 命令，对四个官方样例执行 `open -> export -> close`，生成 6 个
 STEP、PDF、DWG 产物。业务项目可以直接参考 `export.sh`，替换源文件、输出路径与
-格式规则。只有这一真实 SOLIDWORKS 门禁通过后，流水线才会晋升镜像。
+格式规则。随后 [`smoke-test/verify-swcli.sh`](smoke-test/verify-swcli.sh) 会在同一真实
+SOLIDWORKS 会话中验证 capabilities Schema、更新戳、多文档切换和 lease 互斥。只有
+这些门禁全部通过后，流水线才会晋升镜像。
 
 ## 测试
 

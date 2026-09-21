@@ -33,4 +33,6 @@ sw-cli document open \
 sw-cli document export "${outdir}/Paper Airplane.STEP" --json
 sw-cli document close --discard --json
 
+bash "$(dirname "${BASH_SOURCE[0]}")/verify-swcli.sh" "${workspace}"
+
 sw-cli daemon stop --json

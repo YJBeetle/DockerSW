@@ -62,6 +62,7 @@ jobs:
           bash -n runtime/prepare_managed_com.sh
           bash -n runtime/bin/*
           bash -n smoke-test/export.sh
+          bash -n smoke-test/verify-swcli.sh
           bash -n smoke-test/export-localized.sh
           perl -c runtime/patch_win32u.pl
           perl -c runtime/patch_wine_mono.pl
@@ -701,6 +702,7 @@ jobs:
             --name "${smoke_container}" \
             --mount "type=bind,source=${smoke_root},target=/ci-smoke" \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/export.sh,target=/opt/dockersw-smoke/export.sh,readonly" \
+            --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/verify-swcli.sh,target=/opt/dockersw-smoke/verify-swcli.sh,readonly" \
             "${SW_EXECUTABLE_IMAGE}" \
             bash /opt/dockersw-smoke/export.sh 2>&1 \
             | tee "${log_file}"
