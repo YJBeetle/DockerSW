@@ -28,12 +28,15 @@ else
             ;;
     esac
     echo "[DockerSW] 正在启动并等待 SWCLI daemon 与 SOLIDWORKS 就绪..."
-    if SWCLID_START_RESULT="$(sw-cli "${SWCLID_START_ARGS[@]}" 2>&1)"; then
+    SWCLID_START_OUTPUT="$(mktemp "${TMPDIR:-/tmp}/swclid-start.XXXXXX")"
+    if sw-cli "${SWCLID_START_ARGS[@]}" >"${SWCLID_START_OUTPUT}" 2>&1; then
+        rm -f "${SWCLID_START_OUTPUT}"
         echo "[DockerSW] SWCLI daemon 已就绪: ${SWCLI_ENDPOINT}"
     else
         SWCLID_START_EXIT=$?
         echo "[DockerSW][ERROR] SWCLI daemon 或 SOLIDWORKS 启动失败:" >&2
-        printf '%s\n' "${SWCLID_START_RESULT}" >&2
+        cat "${SWCLID_START_OUTPUT}" >&2
+        rm -f "${SWCLID_START_OUTPUT}"
         exit "${SWCLID_START_EXIT}"
     fi
 fi

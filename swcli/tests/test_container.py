@@ -1,6 +1,8 @@
 import os
+import signal
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -246,11 +248,22 @@ class EntrypointTests(unittest.TestCase):
         self.assertIn("SWCLI daemon 或 SOLIDWORKS 启动失败", result.stderr)
         self.assertIn("WorkerStartupError", result.stderr)
 
-    def _run_cli_entrypoint(self, *, vnc_enable="false", start_failure=False):
+    def test_cli_entrypoint_does_not_wait_for_daemon_descendant_stdout(self):
+        started_at = time.monotonic()
+        result, calls = self._run_cli_entrypoint(hold_start_output=True)
+        elapsed = time.monotonic() - started_at
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(calls), 2)
+        self.assertLess(elapsed, 3.0)
+
+    def _run_cli_entrypoint(
+        self, *, vnc_enable="false", start_failure=False, hold_start_output=False
+    ):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             fake_sw_cli = root / "sw-cli"
             call_log = root / "calls.log"
+            descendant_pid_file = root / "descendant.pid"
             fake_sw_cli.write_text(
                 "#!/usr/bin/env bash\n"
                 "printf '%s\\n' \"$*\" >> \"$SWCLI_TEST_CALL_LOG\"\n"
@@ -259,6 +272,10 @@ class EntrypointTests(unittest.TestCase):
                 "    printf '%s\\n' "
                 "'{\"success\":false,\"error\":{\"code\":\"WorkerStartupError\",\"message\":\"startup failed\"}}'\n"
                 "    exit 7\n"
+                "  fi\n"
+                "  if [ \"${SWCLI_TEST_HOLD_START_OUTPUT:-false}\" = true ]; then\n"
+                "    sleep 30 &\n"
+                "    printf '%s\\n' \"$!\" > \"$SWCLI_TEST_DESCENDANT_PID_FILE\"\n"
                 "  fi\n"
                 "  printf '%s\\n' '{\"success\":true,\"result\":{\"started\":true}}'\n"
                 "fi\n",
@@ -274,14 +291,21 @@ class EntrypointTests(unittest.TestCase):
                     "VNC_ENABLE": vnc_enable,
                     "SWCLI_TEST_CALL_LOG": str(call_log),
                     "SWCLI_TEST_START_FAILURE": "true" if start_failure else "false",
+                    "SWCLI_TEST_HOLD_START_OUTPUT": "true" if hold_start_output else "false",
+                    "SWCLI_TEST_DESCENDANT_PID_FILE": str(descendant_pid_file),
                 }
             )
-            result = subprocess.run(
-                [str(CLI_ENTRYPOINT), "sw-cli", "document", "list", "--json"],
-                capture_output=True,
-                text=True,
-                env=environment,
-            )
+            try:
+                result = subprocess.run(
+                    [str(CLI_ENTRYPOINT), "sw-cli", "document", "list", "--json"],
+                    capture_output=True,
+                    text=True,
+                    env=environment,
+                    timeout=5.0,
+                )
+            finally:
+                if descendant_pid_file.exists():
+                    os.kill(int(descendant_pid_file.read_text()), signal.SIGTERM)
             calls = call_log.read_text(encoding="utf-8").splitlines()
             return result, calls
 
