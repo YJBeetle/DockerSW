@@ -308,7 +308,7 @@ export_cad_assets:
 
 | 环境变量 | 默认值 | 说明 |
 |---|---|---|
-| `VNC_ENABLE` | `false` | 设为 `true` 时，在现有 Xvfb 桌面上启动 Openbox 与 x11vnc |
+| `VNC_ENABLE` | `false` | 设为 `true` 时，在现有 Xvfb 桌面上启动 Openbox 与 x11vnc，并以可见模式启动 SOLIDWORKS |
 | `VNC_VIEW_ONLY` | `true` | 只允许观看；设为 `false` 后允许远程键盘和鼠标输入，可能干扰自动化 |
 | `VNC_PORT` | `5900` | x11vnc 监听端口 |
 | `VNC_LISTEN` | `0.0.0.0` | x11vnc 在容器内的监听地址 |

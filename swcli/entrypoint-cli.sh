@@ -11,6 +11,7 @@ else
     SWCLID_READY_GRACE="${SWCLID_READY_GRACE:-10}"
     SWCLID_ALLOW_REMOTE="${SWCLID_ALLOW_REMOTE:-false}"
     SWCLID_LOG="${SWCLID_LOG:-/tmp/swclid.log}"
+    VNC_ENABLE="${VNC_ENABLE:-false}"
     SWCLID_HOST="${SWCLI_ENDPOINT%:*}"
     SWCLID_PORT="${SWCLI_ENDPOINT##*:}"
     if [ -z "${SWCLID_HOST}" ] || [ "${SWCLID_HOST}" = "${SWCLI_ENDPOINT}" ] || \
@@ -31,6 +32,14 @@ else
         0|false|no|off) ;;
         *)
             echo "[DockerSW][ERROR] SWCLID_ALLOW_REMOTE 必须是 true/false、1/0、yes/no 或 on/off，当前值: ${SWCLID_ALLOW_REMOTE}" >&2
+            exit 1
+            ;;
+    esac
+    case "${VNC_ENABLE,,}" in
+        1|true|yes|on) SWCLID_SERVE_ARGS+=(--visible) ;;
+        0|false|no|off) ;;
+        *)
+            echo "[DockerSW][ERROR] VNC_ENABLE 必须是 true/false、1/0、yes/no 或 on/off，当前值: ${VNC_ENABLE}" >&2
             exit 1
             ;;
     esac

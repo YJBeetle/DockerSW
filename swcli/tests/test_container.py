@@ -214,6 +214,12 @@ class EntrypointTests(unittest.TestCase):
         self.assertIn('SWCLID_ALLOW_REMOTE="${SWCLID_ALLOW_REMOTE:-false}"', entrypoint)
         self.assertIn('SWCLID_SERVE_ARGS+=(--allow-remote)', entrypoint)
 
+    def test_cli_entrypoint_makes_solidworks_visible_when_vnc_is_enabled(self):
+        entrypoint = CLI_ENTRYPOINT.read_text(encoding="utf-8")
+        self.assertIn('VNC_ENABLE="${VNC_ENABLE:-false}"', entrypoint)
+        self.assertIn('case "${VNC_ENABLE,,}" in', entrypoint)
+        self.assertIn('SWCLID_SERVE_ARGS+=(--visible)', entrypoint)
+
     def test_delivery_chains_runtime_then_cli_entrypoint(self):
         delivery = (PROJECT_ROOT / "swcli" / "Dockerfile.delivery").read_text(
             encoding="utf-8"
