@@ -241,7 +241,8 @@ docker run --rm \
 
 DockerSW 镜像使用 Linux Python 运行 `sw-cli` 协议客户端，只在 Wine Windows
 Python 中运行 daemon 与 COM worker。容器入口会在检测到已安装的 SOLIDWORKS
-后执行 `sw-cli daemon serve` 并等待 daemon 就绪；Linux 薄入口只负责选择对应的
+后显式执行一次 `sw-cli daemon start`；该命令自身会等待 daemon 与 SOLIDWORKS
+就绪，已经运行时则幂等复用，不会重复启动。Linux 薄入口只负责选择对应的
 Python 环境，typed 命令中的 Linux 路径由 `sw-cli` 客户端在已知的路径字段（如
 `document.open` 的 `path`、`document.export` 的 `output`、`part.create-box`
 的 `--template`）上调用 `SWCLI_PATH_TRANSLATE_CMD` 指向的 helper 转成 Wine
@@ -266,10 +267,15 @@ sw-cli document close --json
 这些问题时返回结构化 warnings；业务 CI 应使用 `--strict`，在生成正式产物前
 要求源文档已保存、已重建且导出过程不改变其状态。
 
-`sw-preinstalled:*cli` 与 `sw-executable:*cli` 启动时会直接执行
-`sw-cli daemon serve`，并等待 SOLIDWORKS 完成初始化后才执行容器命令。daemon 通过 Wine
+`sw-preinstalled:*cli` 与 `sw-executable:*cli` 启动时会显式执行
+`sw-cli daemon start`，并等待 SOLIDWORKS 完成初始化后才执行容器命令。daemon 通过 Wine
 已验证的 `DispatchEx` 激活路径创建独占实例，并在单一 COM worker 中串行执行
-请求；同一容器内的后续命令复用该实例，容器退出时统一清理。
+请求；默认使用隐藏模式且绝不会自动添加 `--attach-existing`。同一容器内的后续命令
+复用该实例。若启动失败，入口会输出 `daemon start --json` 的完整错误并停止执行用户命令。
+
+SWCLI payload 直接从父仓库锁定的 `swcli/SWCLI` 源码复制到 `/opt/swcli`，不会安装或
+调用旧版 SWCLI wheel。Linux 客户端和 Wine Windows daemon 都通过 `PYTHONPATH` 优先加载
+这份源码，因此镜像运行行为与子模块提交一致。
 
 ### 4. CI/CD 流水线集成示例 (GitLab CI)
 
@@ -325,11 +331,10 @@ docker run --rm \
 
 daemon 通过 `DispatchEx` 创建独占 SOLIDWORKS 实例后，会等待官方
 `StartupProcessCompleted` 状态再开始接收请求。已安装 SOLIDWORKS 的 `-cli` 镜像会在
-entrypoint 中预热 daemon，后续调用通过本地回环协议复用同一个实例；若 daemon
-意外退出，typed `sw-cli` 命令会明确失败，由容器生命周期层处理恢复。SOLIDWORKS
-启动等待上限默认为 120 秒，随后保留 10 秒健康探测余量，分别可通过
-`SWCLID_START_TIMEOUT` 和 `SWCLID_READY_GRACE` 调整；单次导出请求默认仍有独立的
-600 秒超时。
+entrypoint 中通过 `sw-cli daemon start` 预热 daemon，后续调用通过本地回环协议复用
+同一个实例；若 daemon 意外退出，typed `sw-cli document` / `part` 命令会返回
+`DaemonUnavailable`，不会隐式重启或退回直接 COM。SOLIDWORKS 启动等待上限默认为
+120 秒，可通过 `SWCLID_START_TIMEOUT` 调整；单次导出请求默认仍有独立的 600 秒超时。
 缺少 SOLIDWORKS 或 SWCLI 的默认/运行时镜像只记录跳过原因，不会因预热条件
 不完整而启动失败。
 
@@ -339,9 +344,9 @@ entrypoint 中预热 daemon，后续调用通过本地回环协议复用同一�
 |---|---|---|
 | `SWCLI_ENDPOINT` | `127.0.0.1:18495` | SWCLI daemon 本地协议端点 |
 | `SWCLID_START_TIMEOUT` | `120` | daemon 与 SOLIDWORKS 就绪等待秒数 |
-| `SWCLID_READY_GRACE` | `10` | SOLIDWORKS 启动期限后的健康探测余量（秒） |
-| `SWCLID_ALLOW_REMOTE` | `false` | 显式允许 daemon 监听非回环地址；不提供认证，只能用于可信网络或安全隧道 |
-| `SWCLID_LOG` | `/tmp/swclid.log` | daemon 启动与运行日志 |
+
+容器自动启动只支持本地端点。对外暴露 daemon 属于显式部署行为，应直接运行
+`sw-cli daemon serve --allow-remote`，并置于可信网络边界或认证隧道之后。
 
 ### 许可服务配置 (License)
 

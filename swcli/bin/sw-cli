@@ -15,6 +15,10 @@ export SWCLI_PATH_TRANSLATE_CMD=/usr/local/bin/linux-to-wine-path
 
 ARGS=("$@")
 
+if [ "${#ARGS[@]}" -ge 1 ] && [ "${ARGS[0]}" = "daemon" ]; then
+    export SWCLI_HOST_PLATFORM="${SWCLI_HOST_PLATFORM:-linux-wine}"
+fi
+
 if [ "${#ARGS[@]}" -ge 2 ] && [ "${ARGS[0]} ${ARGS[1]}" = "daemon serve" ] && \
    [[ " ${ARGS[*]} " != *" --host-platform "* ]]; then
     ARGS=("daemon" "serve" "--host-platform" "linux-wine" "${ARGS[@]:2}")

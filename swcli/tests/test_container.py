@@ -73,6 +73,10 @@ class RuntimeWrapperTests(unittest.TestCase):
             invocation,
         )
 
+    def test_daemon_start_marks_child_host_as_linux_wine(self):
+        invocation = self._run_with_fake_wine(["daemon", "start", "--json"])
+        self.assertIn("HOST_PLATFORM=linux-wine", invocation)
+
     def test_daemon_serve_marks_docker_host_as_linux_wine(self):
         invocation = self._run_with_fake_wine(["daemon", "serve", "--port", "19000"])
         self.assertIn(
@@ -105,7 +109,8 @@ class RuntimeWrapperTests(unittest.TestCase):
             wine = binary_dir / "wine"
             wine.write_text(
                 "#!/usr/bin/env bash\n"
-                f"printf 'wine: PYTHONPATH=%s %s\\n' \"$PYTHONPATH\" \"$*\" > '{wine_log}'\n",
+                f"printf 'wine: PYTHONPATH=%s %s HOST_PLATFORM=%s\\n' "
+                f"\"$PYTHONPATH\" \"$*\" \"$SWCLI_HOST_PLATFORM\" > '{wine_log}'\n",
                 encoding="utf-8",
             )
             wine.chmod(0o755)
@@ -196,29 +201,89 @@ class EntrypointTests(unittest.TestCase):
     def test_cli_entrypoint_eagerly_starts_daemon_for_installed_solidworks(self):
         entrypoint = CLI_ENTRYPOINT.read_text(encoding="utf-8")
         self.assertIn('[ "${SOLIDWORKS_INSTALLED:-false}" != true ]', entrypoint)
-        self.assertIn("SWCLID_SERVE_ARGS=(", entrypoint)
-        self.assertIn('nohup sw-cli "${SWCLID_SERVE_ARGS[@]}"', entrypoint)
-        self.assertIn("sw-cli daemon status", entrypoint)
+        self.assertIn("SWCLID_START_ARGS=(", entrypoint)
+        self.assertIn("daemon start", entrypoint)
+        self.assertIn('sw-cli "${SWCLID_START_ARGS[@]}"', entrypoint)
         self.assertIn('--endpoint "${SWCLI_ENDPOINT}"', entrypoint)
         self.assertIn("当前镜像未安装 SOLIDWORKS", entrypoint)
-        self.assertNotIn("SWCLID_AUTO_START", entrypoint)
+        self.assertNotIn("daemon serve", entrypoint)
+        self.assertNotIn("--attach-existing", entrypoint)
 
-    def test_cli_entrypoint_has_a_bounded_daemon_readiness_grace_period(self):
+    def test_cli_entrypoint_delegates_readiness_to_daemon_start(self):
         entrypoint = CLI_ENTRYPOINT.read_text(encoding="utf-8")
-        self.assertIn('SWCLID_READY_GRACE="${SWCLID_READY_GRACE:-10}"', entrypoint)
-        self.assertIn("SWCLID_READY_DEADLINE=$((SECONDS +", entrypoint)
-        self.assertIn('timeout "${probe_timeout}s" sw-cli daemon status', entrypoint)
-
-    def test_cli_entrypoint_requires_explicit_remote_daemon_opt_in(self):
-        entrypoint = CLI_ENTRYPOINT.read_text(encoding="utf-8")
-        self.assertIn('SWCLID_ALLOW_REMOTE="${SWCLID_ALLOW_REMOTE:-false}"', entrypoint)
-        self.assertIn('SWCLID_SERVE_ARGS+=(--allow-remote)', entrypoint)
+        self.assertIn('--startup-timeout "${SWCLID_START_TIMEOUT}"', entrypoint)
+        self.assertNotIn("SWCLID_READY_GRACE", entrypoint)
+        self.assertNotIn("daemon status", entrypoint)
 
     def test_cli_entrypoint_makes_solidworks_visible_when_vnc_is_enabled(self):
         entrypoint = CLI_ENTRYPOINT.read_text(encoding="utf-8")
         self.assertIn('VNC_ENABLE="${VNC_ENABLE:-false}"', entrypoint)
-        self.assertIn('case "${VNC_ENABLE,,}" in', entrypoint)
-        self.assertIn('SWCLID_SERVE_ARGS+=(--visible)', entrypoint)
+        self.assertIn('case "${VNC_ENABLE}" in', entrypoint)
+        self.assertIn('SWCLID_START_ARGS+=(--visible)', entrypoint)
+
+    def test_cli_entrypoint_starts_once_before_typed_command(self):
+        result, calls = self._run_cli_entrypoint()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(
+            calls[0],
+            "daemon start --endpoint 127.0.0.1:18495 --startup-timeout 1 --json",
+        )
+        self.assertEqual(calls[1], "document list --json")
+        self.assertNotIn("--attach-existing", calls[0])
+        self.assertIn("SWCLI daemon 已就绪", result.stdout)
+
+    def test_cli_entrypoint_adds_visible_only_when_vnc_is_enabled(self):
+        result, calls = self._run_cli_entrypoint(vnc_enable="true")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--visible", calls[0])
+        self.assertNotIn("--attach-existing", calls[0])
+
+    def test_cli_entrypoint_surfaces_startup_failure_and_stops(self):
+        result, calls = self._run_cli_entrypoint(start_failure=True)
+        self.assertEqual(result.returncode, 7)
+        self.assertEqual(len(calls), 1)
+        self.assertIn("SWCLI daemon 或 SOLIDWORKS 启动失败", result.stderr)
+        self.assertIn("WorkerStartupError", result.stderr)
+
+    def _run_cli_entrypoint(self, *, vnc_enable="false", start_failure=False):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            fake_sw_cli = root / "sw-cli"
+            call_log = root / "calls.log"
+            fake_sw_cli.write_text(
+                "#!/usr/bin/env bash\n"
+                "printf '%s\\n' \"$*\" >> \"$SWCLI_TEST_CALL_LOG\"\n"
+                "if [ \"${1:-} ${2:-}\" = 'daemon start' ]; then\n"
+                "  if [ \"${SWCLI_TEST_START_FAILURE:-false}\" = true ]; then\n"
+                "    printf '%s\\n' "
+                "'{\"success\":false,\"error\":{\"code\":\"WorkerStartupError\",\"message\":\"startup failed\"}}'\n"
+                "    exit 7\n"
+                "  fi\n"
+                "  printf '%s\\n' '{\"success\":true,\"result\":{\"started\":true}}'\n"
+                "fi\n",
+                encoding="utf-8",
+            )
+            fake_sw_cli.chmod(0o755)
+            environment = dict(os.environ)
+            environment.update(
+                {
+                    "PATH": f"{root}:{environment['PATH']}",
+                    "SOLIDWORKS_INSTALLED": "true",
+                    "SWCLID_START_TIMEOUT": "1",
+                    "VNC_ENABLE": vnc_enable,
+                    "SWCLI_TEST_CALL_LOG": str(call_log),
+                    "SWCLI_TEST_START_FAILURE": "true" if start_failure else "false",
+                }
+            )
+            result = subprocess.run(
+                [str(CLI_ENTRYPOINT), "sw-cli", "document", "list", "--json"],
+                capture_output=True,
+                text=True,
+                env=environment,
+            )
+            calls = call_log.read_text(encoding="utf-8").splitlines()
+            return result, calls
 
     def test_delivery_chains_runtime_then_cli_entrypoint(self):
         delivery = (PROJECT_ROOT / "swcli" / "Dockerfile.delivery").read_text(

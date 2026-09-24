@@ -8,67 +8,34 @@ if [ "${SOLIDWORKS_INSTALLED:-false}" != true ]; then
 else
     SWCLI_ENDPOINT="${SWCLI_ENDPOINT:-127.0.0.1:18495}"
     SWCLID_START_TIMEOUT="${SWCLID_START_TIMEOUT:-120}"
-    SWCLID_READY_GRACE="${SWCLID_READY_GRACE:-10}"
-    SWCLID_ALLOW_REMOTE="${SWCLID_ALLOW_REMOTE:-false}"
-    SWCLID_LOG="${SWCLID_LOG:-/tmp/swclid.log}"
     VNC_ENABLE="${VNC_ENABLE:-false}"
-    SWCLID_HOST="${SWCLI_ENDPOINT%:*}"
-    SWCLID_PORT="${SWCLI_ENDPOINT##*:}"
-    if [ -z "${SWCLID_HOST}" ] || [ "${SWCLID_HOST}" = "${SWCLI_ENDPOINT}" ] || \
-       ! [[ "${SWCLID_PORT}" =~ ^[0-9]+$ ]] || \
-       ! [[ "${SWCLID_START_TIMEOUT}" =~ ^[0-9]+$ ]] || \
-       ! [[ "${SWCLID_READY_GRACE}" =~ ^[0-9]+$ ]]; then
-        echo "[DockerSW][ERROR] SWCLI_ENDPOINT 必须为 HOST:PORT，SWCLID_START_TIMEOUT 和 SWCLID_READY_GRACE 必须为整数" >&2
+    if ! [[ "${SWCLID_START_TIMEOUT}" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+        echo "[DockerSW][ERROR] SWCLID_START_TIMEOUT 必须是非负数，当前值: ${SWCLID_START_TIMEOUT}" >&2
         exit 1
     fi
-    SWCLID_SERVE_ARGS=(
-        daemon serve
-        --host "${SWCLID_HOST}"
-        --port "${SWCLID_PORT}"
+    SWCLID_START_ARGS=(
+        daemon start
+        --endpoint "${SWCLI_ENDPOINT}"
         --startup-timeout "${SWCLID_START_TIMEOUT}"
+        --json
     )
-    case "${SWCLID_ALLOW_REMOTE,,}" in
-        1|true|yes|on) SWCLID_SERVE_ARGS+=(--allow-remote) ;;
-        0|false|no|off) ;;
-        *)
-            echo "[DockerSW][ERROR] SWCLID_ALLOW_REMOTE 必须是 true/false、1/0、yes/no 或 on/off，当前值: ${SWCLID_ALLOW_REMOTE}" >&2
-            exit 1
-            ;;
-    esac
-    case "${VNC_ENABLE,,}" in
-        1|true|yes|on) SWCLID_SERVE_ARGS+=(--visible) ;;
-        0|false|no|off) ;;
+    case "${VNC_ENABLE}" in
+        1|true|TRUE|True|yes|YES|Yes|on|ON|On) SWCLID_START_ARGS+=(--visible) ;;
+        0|false|FALSE|False|no|NO|No|off|OFF|Off) ;;
         *)
             echo "[DockerSW][ERROR] VNC_ENABLE 必须是 true/false、1/0、yes/no 或 on/off，当前值: ${VNC_ENABLE}" >&2
             exit 1
             ;;
     esac
     echo "[DockerSW] 正在启动并等待 SWCLI daemon 与 SOLIDWORKS 就绪..."
-    nohup sw-cli "${SWCLID_SERVE_ARGS[@]}" \
-        >"${SWCLID_LOG}" 2>&1 &
-    SWCLID_PID=$!
-    SWCLID_READY=false
-    SWCLID_READY_DEADLINE=$((SECONDS + SWCLID_START_TIMEOUT + SWCLID_READY_GRACE))
-    while ((SECONDS < SWCLID_READY_DEADLINE)); do
-        remaining=$((SWCLID_READY_DEADLINE - SECONDS))
-        probe_timeout=3
-        if ((remaining < probe_timeout)); then
-            probe_timeout=${remaining}
-        fi
-        if timeout "${probe_timeout}s" sw-cli daemon status \
-            --endpoint "${SWCLI_ENDPOINT}" --json >/dev/null 2>&1; then
-            SWCLID_READY=true
-            break
-        fi
-        kill -0 "${SWCLID_PID}" 2>/dev/null || break
-        sleep 1
-    done
-    if [ "${SWCLID_READY}" != true ]; then
-        echo "[DockerSW][ERROR] SWCLI daemon 未在期限内就绪，请检查 ${SWCLID_LOG}" >&2
-        tail -n 100 "${SWCLID_LOG}" >&2 || true
-        exit 1
+    if SWCLID_START_RESULT="$(sw-cli "${SWCLID_START_ARGS[@]}" 2>&1)"; then
+        echo "[DockerSW] SWCLI daemon 已就绪: ${SWCLI_ENDPOINT}"
+    else
+        SWCLID_START_EXIT=$?
+        echo "[DockerSW][ERROR] SWCLI daemon 或 SOLIDWORKS 启动失败:" >&2
+        printf '%s\n' "${SWCLID_START_RESULT}" >&2
+        exit "${SWCLID_START_EXIT}"
     fi
-    echo "[DockerSW] SWCLI daemon 已就绪: ${SWCLI_ENDPOINT}"
 fi
 
 if [ "$#" -gt 0 ]; then

@@ -60,6 +60,18 @@ class ImageLayeringTests(unittest.TestCase):
         ):
             self.assertFalse((PROJECT_ROOT / removed_path).exists())
 
+    def test_swcli_payload_runs_the_pinned_source_instead_of_an_installed_wheel(self) -> None:
+        payload = self.read("swcli/Dockerfile")
+        wrapper = self.read("swcli/bin/sw-cli")
+        wine_setup = self.read("runtime/init_wineprefix.sh")
+
+        self.assertIn("COPY --link swcli/SWCLI/ /opt/swcli/", payload)
+        self.assertNotIn("pip install", payload)
+        self.assertIn('SWCLI_SOURCE="${SWCLI_SOURCE:-/opt/swcli/src}"', wrapper)
+        self.assertIn('PYTHONPATH="${WINDOWS_SWCLI_SOURCE}"', wrapper)
+        self.assertIn('PYTHONPATH="${SWCLI_SOURCE}${PYTHONPATH:+:${PYTHONPATH}}"', wrapper)
+        self.assertNotRegex(wine_setup, r"pip install[^\n]*\bswcli\b")
+
     def test_sw_install_stays_in_runtime_image(self) -> None:
         runtime = self.read("runtime/Dockerfile")
         payload = self.read("swcli/Dockerfile")
