@@ -30,8 +30,16 @@ else
     echo "[DockerSW] 正在启动并等待 SWCLI daemon 与 SOLIDWORKS 就绪..."
     SWCLID_START_OUTPUT="$(mktemp "${TMPDIR:-/tmp}/swclid-start.XXXXXX")"
     if sw-cli "${SWCLID_START_ARGS[@]}" >"${SWCLID_START_OUTPUT}" 2>&1; then
-        rm -f "${SWCLID_START_OUTPUT}"
-        echo "[DockerSW] SWCLI daemon 已就绪: ${SWCLI_ENDPOINT}"
+        if jq -e '.success == true and .result.health.host_connected == true' \
+            "${SWCLID_START_OUTPUT}" >/dev/null; then
+            rm -f "${SWCLID_START_OUTPUT}"
+            echo "[DockerSW] SWCLI daemon 与 SOLIDWORKS 已就绪: ${SWCLI_ENDPOINT}"
+        else
+            echo "[DockerSW][ERROR] SWCLI daemon 已响应，但 SOLIDWORKS 宿主未连接:" >&2
+            cat "${SWCLID_START_OUTPUT}" >&2
+            rm -f "${SWCLID_START_OUTPUT}"
+            exit 1
+        fi
     else
         SWCLID_START_EXIT=$?
         echo "[DockerSW][ERROR] SWCLI daemon 或 SOLIDWORKS 启动失败:" >&2

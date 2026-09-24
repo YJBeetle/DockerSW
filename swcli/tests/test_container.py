@@ -233,7 +233,7 @@ class EntrypointTests(unittest.TestCase):
         )
         self.assertEqual(calls[1], "document list --json")
         self.assertNotIn("--attach-existing", calls[0])
-        self.assertIn("SWCLI daemon 已就绪", result.stdout)
+        self.assertIn("SWCLI daemon 与 SOLIDWORKS 已就绪", result.stdout)
 
     def test_cli_entrypoint_adds_visible_only_when_vnc_is_enabled(self):
         result, calls = self._run_cli_entrypoint(vnc_enable="true")
@@ -248,6 +248,13 @@ class EntrypointTests(unittest.TestCase):
         self.assertIn("SWCLI daemon 或 SOLIDWORKS 启动失败", result.stderr)
         self.assertIn("WorkerStartupError", result.stderr)
 
+    def test_cli_entrypoint_rejects_existing_daemon_with_disconnected_host(self):
+        result, calls = self._run_cli_entrypoint(host_connected=False)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(len(calls), 1)
+        self.assertIn("SOLIDWORKS 宿主未连接", result.stderr)
+        self.assertIn('"host_connected":false', result.stderr)
+
     def test_cli_entrypoint_does_not_wait_for_daemon_descendant_stdout(self):
         started_at = time.monotonic()
         result, calls = self._run_cli_entrypoint(hold_start_output=True)
@@ -257,7 +264,12 @@ class EntrypointTests(unittest.TestCase):
         self.assertLess(elapsed, 3.0)
 
     def _run_cli_entrypoint(
-        self, *, vnc_enable="false", start_failure=False, hold_start_output=False
+        self,
+        *,
+        vnc_enable="false",
+        start_failure=False,
+        hold_start_output=False,
+        host_connected=True,
     ):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -277,7 +289,9 @@ class EntrypointTests(unittest.TestCase):
                 "    sleep 30 &\n"
                 "    printf '%s\\n' \"$!\" > \"$SWCLI_TEST_DESCENDANT_PID_FILE\"\n"
                 "  fi\n"
-                "  printf '%s\\n' '{\"success\":true,\"result\":{\"started\":true}}'\n"
+                "  printf '%s\\n' "
+                "\"{\\\"success\\\":true,\\\"result\\\":{\\\"started\\\":true,"
+                "\\\"health\\\":{\\\"host_connected\\\":${SWCLI_TEST_HOST_CONNECTED}}}}\"\n"
                 "fi\n",
                 encoding="utf-8",
             )
@@ -293,6 +307,7 @@ class EntrypointTests(unittest.TestCase):
                     "SWCLI_TEST_START_FAILURE": "true" if start_failure else "false",
                     "SWCLI_TEST_HOLD_START_OUTPUT": "true" if hold_start_output else "false",
                     "SWCLI_TEST_DESCENDANT_PID_FILE": str(descendant_pid_file),
+                    "SWCLI_TEST_HOST_CONNECTED": "true" if host_connected else "false",
                 }
             )
             try:

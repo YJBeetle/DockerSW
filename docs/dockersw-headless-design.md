@@ -69,7 +69,7 @@ swcli-payload
    - **本地自启许可模式（按需）**：在私有构建期内置或运行时挂载到 `SW_FLEXNET_DIR`（默认 `/opt/SolidWorks_Flexnet_Server`），只要目录下存在 `lmgrd.exe` 与许可文件即自动在后台拉起守护并等待端口就绪；
 7. **命令生命周期与构建支持**：
    - 支持 `--init-only` 参数，在 Docker 构建期刷新并持久化 Wine 注册表后干净退出；
-   - 同时检测到 SOLIDWORKS 与 SWCLI 时，默认通过 `sw-cli daemon serve` 启动并等待 daemon 与 COM worker 就绪；任一组件缺失的默认/运行时镜像自动跳过；
+   - 检测到 SOLIDWORKS 的 `-cli` 镜像通过一次幂等的 `sw-cli daemon start --json` 显式启动服务；只有响应中的 `result.health.host_connected=true` 才执行用户命令，任一组件缺失的默认/运行时镜像自动跳过；
    - 支持透明传递任意执行命令（如 `sw-cli`、`sw-install` 或 `bash`）。
 
 ### 3.2 官方介质安装引擎 (`sw-install`)
@@ -103,10 +103,11 @@ swcli-payload
    - manifest、`.REND.SLDASM -> GLB` 及输出命名属于具体项目的 CI 配置，不进入 SWCLI；
    - DockerSW 只提供 daemon 预热、容器生命周期适配以及指向翻译 helper 的环境变量，不再解析 CLI 参数位置；
 3. **常驻 daemon 与 Wine COM worker**：
-   - `sw-preinstalled:*cli` 与 `sw-executable:*cli` 的 entrypoint 默认执行 `sw-cli daemon serve` 并等待就绪，后续调用通过 `127.0.0.1` 回环端点复用同一个实例；
-   - daemon 默认拒绝监听非回环地址；DockerSW 只有在 `SWCLID_ALLOW_REMOTE=true` 时才传入显式放行参数，该参数不提供认证，必须配合可信网络边界或安全隧道；
-   - entrypoint 将 SOLIDWORKS 启动期限与健康探测余量纳入同一个总 deadline，避免一次阻塞探测让容器启动无限超期；
-   - Docker 中由 entrypoint 负责 daemon 生命周期；typed 命令只连接已有服务，daemon 意外退出时明确失败；
+   - `sw-preinstalled:*cli` 与 `sw-executable:*cli` 的 entrypoint 默认执行一次 `sw-cli daemon start --json`；该命令自身等待 daemon 与 COM worker 就绪，已有健康实例时幂等复用，不重复启动；
+   - 自动启动只使用本地回环端点、独占隐藏实例，绝不自动传入 `--attach-existing`；`VNC_ENABLE=true` 时才显式增加 `--visible`；
+   - 非回环监听不属于默认容器入口契约；需要远程服务时应显式运行 `sw-cli daemon serve --allow-remote`，并配合可信网络边界或认证隧道；
+   - `SWCLID_START_TIMEOUT` 直接交给 `daemon start` 作为 SOLIDWORKS 就绪期限，不再维护第二套状态轮询或健康探测余量；入口解析启动 JSON，并要求 `result.health.host_connected=true`；
+   - Docker 中由 entrypoint 负责 daemon 生命周期；typed 命令只连接已有服务，daemon 意外退出时返回 `DaemonUnavailable`，不会隐式启动或回退到直接 COM；
    - daemon 使用 `win32com.client.DispatchEx("SldWorks.Application")` 获取独占实例，规避 Wine 下 `GetActiveObject` 对直接启动进程的不可靠行为；
    - 按官方 `StartupProcessCompleted` 状态等待启动加载完成，再开放协议端点，避免 COM 已返回但启动插件尚未就绪的竞态；
    - supervisor 与 COM worker 分进程，worker 在单一 COM apartment 中串行执行全部请求；调用超时后会连同未知状态的 SOLIDWORKS 进程树一起替换；
