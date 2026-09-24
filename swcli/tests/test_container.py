@@ -242,10 +242,13 @@ class EntrypointTests(unittest.TestCase):
         self.assertNotIn("--attach-existing", calls[0])
 
     def test_cli_entrypoint_surfaces_startup_failure_and_stops(self):
-        result, calls = self._run_cli_entrypoint(start_failure=True)
+        result, calls = self._run_cli_entrypoint(
+            start_failure=True, start_warning=True
+        )
         self.assertEqual(result.returncode, 7)
         self.assertEqual(len(calls), 1)
         self.assertIn("SWCLI daemon 或 SOLIDWORKS 启动失败", result.stderr)
+        self.assertIn("field __ImageBase warning", result.stderr)
         self.assertIn("WorkerStartupError", result.stderr)
 
     def test_cli_entrypoint_rejects_existing_daemon_with_disconnected_host(self):
@@ -254,6 +257,13 @@ class EntrypointTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertIn("SOLIDWORKS 宿主未连接", result.stderr)
         self.assertIn('"host_connected":false', result.stderr)
+
+    def test_cli_entrypoint_keeps_runtime_stderr_out_of_start_json(self):
+        result, calls = self._run_cli_entrypoint(start_warning=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(calls), 2)
+        self.assertNotIn("__ImageBase", result.stderr)
+        self.assertIn("SWCLI daemon 与 SOLIDWORKS 已就绪", result.stdout)
 
     def test_cli_entrypoint_does_not_wait_for_daemon_descendant_stdout(self):
         started_at = time.monotonic()
@@ -268,6 +278,7 @@ class EntrypointTests(unittest.TestCase):
         *,
         vnc_enable="false",
         start_failure=False,
+        start_warning=False,
         hold_start_output=False,
         host_connected=True,
     ):
@@ -280,6 +291,9 @@ class EntrypointTests(unittest.TestCase):
                 "#!/usr/bin/env bash\n"
                 "printf '%s\\n' \"$*\" >> \"$SWCLI_TEST_CALL_LOG\"\n"
                 "if [ \"${1:-} ${2:-}\" = 'daemon start' ]; then\n"
+                "  if [ \"${SWCLI_TEST_START_WARNING:-false}\" = true ]; then\n"
+                "    printf '%s\\n' 'field __ImageBase warning' >&2\n"
+                "  fi\n"
                 "  if [ \"${SWCLI_TEST_START_FAILURE:-false}\" = true ]; then\n"
                 "    printf '%s\\n' "
                 "'{\"success\":false,\"error\":{\"code\":\"WorkerStartupError\",\"message\":\"startup failed\"}}'\n"
@@ -305,6 +319,7 @@ class EntrypointTests(unittest.TestCase):
                     "VNC_ENABLE": vnc_enable,
                     "SWCLI_TEST_CALL_LOG": str(call_log),
                     "SWCLI_TEST_START_FAILURE": "true" if start_failure else "false",
+                    "SWCLI_TEST_START_WARNING": "true" if start_warning else "false",
                     "SWCLI_TEST_HOLD_START_OUTPUT": "true" if hold_start_output else "false",
                     "SWCLI_TEST_DESCENDANT_PID_FILE": str(descendant_pid_file),
                     "SWCLI_TEST_HOST_CONNECTED": "true" if host_connected else "false",
