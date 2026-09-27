@@ -16,6 +16,7 @@ DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、�
 
 - **可复现的公开运行时**：Ubuntu 22.04、Wine 11.16、Wine-Mono 11.3.0、Xvfb、Windows Python 3.11 与 pywin32。
 - **可审阅的 Wine 图形修复**：从校验过 SHA-256 的 Wine 11.16 源码构建配对的 `ntdll.so` / `win32u.so`，修复 24-bit DIB 离屏 OpenGL 渲染，不在运行时修改 ELF 机器码。
+- **可用的 VNC 交互界面**：为 `sldworks.exe` 定向修复重复鼠标捕获通知，使 PropertyManager 顶部的确认与取消按钮可正常操作。
 - **完整安装链**：检查介质布局，安装 VC++ 运行库与官方 Login Manager，再执行 SOLIDWORKS 主 MSI，并验证 MSI 产生的主程序 COM 注册。
 - **Wine COM 兼容修复**：包含与 MacSW 对齐的 x86 stdcall、`RegistrationServices`、x86/x64 托管 RegAsm 与 `stdole` 修复，并验证 Login Manager 的真实托管 COM 注册。
 - **中文界面字体回退**：使用 Noto Sans CJK SC 为 Windows 逻辑界面字体补充中文，不主动替换工程图指定的 Arial、Times New Roman、宋体或微软雅黑等字体。

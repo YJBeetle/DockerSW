@@ -33,6 +33,18 @@ class WinePatchBuildTests(unittest.TestCase):
                 f"/opt/wine-devel/lib/wine/x86_64-unix/{module}", dockerfile
             )
 
+    def test_solidworks_capture_fix_is_explicitly_scoped(self) -> None:
+        patch = (
+            PATCH_ROOT / "0002-win32u-no-capture-resend.patch"
+        ).read_text(encoding="utf-8")
+        registry = (RUNTIME_ROOT / "registry" / "headless_tweaks.reg").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("previous != hwnd || !compat_no_capture_resend", patch)
+        self.assertIn("WINE_NOCAPTURERESEND", patch)
+        self.assertIn('"sldworks.exe"="WINE_NOCAPTURERESEND"', registry)
+
     def test_runtime_binary_rewriter_is_removed(self) -> None:
         self.assertFalse((RUNTIME_ROOT / "patch_win32u.pl").exists())
         for relative_path in (

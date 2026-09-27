@@ -132,7 +132,10 @@ DockerSW 保留不依赖旧 `sw-daemon` 的人类监看能力。设置 `VNC_ENAB
 1. **Wine 11.x 24-bit DIB 离屏 OpenGL 渲染修复**：
    - *问题*：Xvfb 默认屏幕深度为 24bpp，Wine 11.x 的 `win32u.so` 在处理 24-bit DIB 时缺乏像素格式转换支持，导致离屏 OpenGL 交换缓冲失败，SOLIDWORKS 导出包含 3D 内容的模型或渲染时产生全黑图或抛出内存段错误。
    - *方案*：对固定 SHA-256 的 Wine 11.16 源码应用可审阅的 LGPL 源码补丁，按 DIB 位深选择 `GL_BGR` / `GL_BGRA` 并使用真实 `biHeight`；在 Ubuntu 22.04 构建阶段成对产出 `ntdll.so` 与 `win32u.so`，彻底恢复 OpenGL 离屏绘图能力，同时避免依赖易漂移的机器码偏移。
-2. **Wine-Mono 托管 COM 注册与 CCW 补丁**：
+2. **PropertyManager 鼠标捕获兼容修复**：
+   - *问题*：Wine 对同一窗口重复 `SetCapture` 时重发 `WM_CAPTURECHANGED`，使 SOLIDWORKS 左侧面板顶部的确认与取消按钮错误释放鼠标捕获；
+   - *方案*：源码补丁提供 `WINE_NOCAPTURERESEND` AppCompat 标志，并只对 `sldworks.exe` 启用，不改变其他 Windows 程序的捕获语义。
+3. **Wine-Mono 托管 COM 注册与 CCW 补丁**：
    - *问题*：SOLIDWORKS 大量依赖 .NET 互操作及官方 Login Manager，Wine-Mono 原生环境在注册 CCW 接口或释放接口引用计数时可能触发断言中断。
    - *方案*：集成 MacSW 验证补丁体系，并结合 `patch_wine_mono.pl` 修正 CCW release 断言，使托管 COM 在无头容器中稳定运转。
 

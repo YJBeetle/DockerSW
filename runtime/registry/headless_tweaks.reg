@@ -16,3 +16,8 @@ Windows Registry Editor Version 5.00
 "vcruntime140_1"="native,builtin"
 "vcomp140"="native,builtin"
 "mfc140u"="native,builtin"
+
+; SOLIDWORKS PropertyManager 会对同一窗口重复 SetCapture。Windows 不会因此
+; 向同一窗口重发 WM_CAPTURECHANGED；Wine 默认会，导致确认/取消按钮失去鼠标捕获。
+[HKEY_CURRENT_USER\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers]
+"sldworks.exe"="WINE_NOCAPTURERESEND"
