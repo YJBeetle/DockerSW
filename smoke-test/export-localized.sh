@@ -8,6 +8,29 @@ expected_language="${SW_SOLIDWORKS_LANGUAGE:?SW_SOLIDWORKS_LANGUAGE is required}
 
 test -d "${workspace}/Program Files/SOLIDWORKS/lang/${language_directory}"
 
+font_substitutes="$(
+    wine reg query \
+        'HKLM\Software\Microsoft\Windows NT\CurrentVersion\FontSubstitutes' \
+        /v 'MS Shell Dlg'
+)"
+grep -Eq 'MS Shell Dlg[[:space:]]+REG_SZ[[:space:]]+Tahoma' \
+    <<<"${font_substitutes}" || {
+        echo 'Localized image did not preserve MS Shell Dlg -> Tahoma.' >&2
+        printf '%s\n' "${font_substitutes}" >&2
+        exit 1
+    }
+
+tahoma_links="$(
+    wine reg query \
+        'HKLM\Software\Microsoft\Windows NT\CurrentVersion\FontLink\SystemLink' \
+        /v Tahoma
+)"
+grep -Fq 'NotoSansCJK-Regular.ttc,Noto Sans CJK SC' <<<"${tahoma_links}" || {
+    echo 'Localized image did not preserve the Noto Sans CJK SC UI fallback.' >&2
+    printf '%s\n' "${tahoma_links}" >&2
+    exit 1
+}
+
 status_json="$(sw-cli daemon status --json)"
 actual_language="$(
     python3 -c 'import json, sys; print(json.load(sys.stdin)["result"]["host"]["language"])' \

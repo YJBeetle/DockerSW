@@ -36,6 +36,7 @@ RUN --mount=type=bind,from=sw-language,target=/mnt/sw-language \
     fi; \
     test -d "/root/.wine/drive_c/Program Files/SOLIDWORKS/lang/${SW_LANGUAGE_DIRECTORY}"; \
     /usr/local/lib/sw-runtime/configure_ui_fonts.sh; \
+    wineserver -k; \
     timeout --foreground 30 wineserver -w; \
     rm -rf /var/log/sw-install
 

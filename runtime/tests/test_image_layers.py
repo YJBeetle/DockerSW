@@ -285,6 +285,13 @@ class ImageLayeringTests(unittest.TestCase):
                 "/usr/local/lib/sw-runtime/configure_ui_fonts.sh"
             ),
         )
+        font_configuration = language_dockerfile.index(
+            "/usr/local/lib/sw-runtime/configure_ui_fonts.sh"
+        )
+        self.assertLess(
+            font_configuration,
+            language_dockerfile.index("wineserver -k", font_configuration),
+        )
         self.assertIn("LANG=${SW_POSIX_LOCALE}.UTF-8", language_dockerfile)
         self.assertNotIn("ADDLOCAL", language_dockerfile)
         self.assertIn(
@@ -295,6 +302,11 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn("${SW_IMAGE_SHA_TAG}-${language_tag}-cli", workflow)
         self.assertIn(":latest-${language_tag}", workflow)
         self.assertIn(":latest-${language_tag}-cli", workflow)
+
+        localized_smoke = self.read("smoke-test/export-localized.sh")
+        self.assertIn("FontSubstitutes", localized_smoke)
+        self.assertIn("MS Shell Dlg", localized_smoke)
+        self.assertIn("NotoSansCJK-Regular.ttc,Noto Sans CJK SC", localized_smoke)
 
     def test_supported_language_tags_are_unique(self) -> None:
         rows = []
