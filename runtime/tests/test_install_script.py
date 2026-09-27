@@ -11,27 +11,6 @@ INSTALLER = RUNTIME_ROOT / "bin" / "sw-install"
 
 
 class InstallScriptValidationTests(unittest.TestCase):
-    def derive_release(self, product_version: str) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [
-                "bash",
-                "-c",
-                """
-                function_source="$(sed -n \
-                    '/^solidworks_release_from_product_version()/,/^}/p' "$1")"
-                eval "${function_source}"
-                solidworks_release_from_product_version "$2"
-                """,
-                "bash",
-                str(INSTALLER),
-                product_version,
-            ],
-            cwd=PROJECT_ROOT,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-
     def create_media(
         self,
         root: Path,
@@ -176,40 +155,6 @@ class InstallScriptValidationTests(unittest.TestCase):
         self.assertIn("timeout --foreground 30 wineserver -w", script)
         self.assertIn("SW MESSAGE\\|ERROR\\|", script)
         self.assertNotIn("Tail of ${LOG_DIR}/solidworks-msi.log", script)
-
-    def test_eula_acceptance_is_explicit_and_not_preseeded(self) -> None:
-        script = INSTALLER.read_text(encoding="utf-8")
-        tweaks = (RUNTIME_ROOT / "registry" / "headless_tweaks.reg").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("--accept-eula", script)
-        self.assertIn("ACCEPT_EULA=false", script)
-        self.assertIn('msiinfo export "${MSI_PATH}" Property', script)
-        self.assertIn("solidworks_release_from_product_version", script)
-        self.assertIn(
-            'eula_value="EULA Accepted SP${service_pack_major}.${service_pack_minor}"',
-            script,
-        )
-        self.assertNotIn("EULA Accepted", tweaks)
-        self.assertNotIn("EnableSldLoginManager", tweaks)
-
-    def test_product_version_maps_internal_update_code_to_service_pack(self) -> None:
-        cases = {
-            "32.100.5048": "2024\t0\t0\n",
-            "33.150.0053": "2025\t5\t0\n",
-            "34.132.0140": "2026\t3\t2\n",
-        }
-        for product_version, expected in cases.items():
-            with self.subTest(product_version=product_version):
-                result = self.derive_release(product_version)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(result.stdout, expected)
-
-    def test_product_version_rejects_non_core_msi_update_codes(self) -> None:
-        for product_version in ("33.50.0053", "33.200.0001", "invalid"):
-            with self.subTest(product_version=product_version):
-                result = self.derive_release(product_version)
-                self.assertNotEqual(result.returncode, 0)
 
     def test_solidworks_com_registration_comes_from_the_official_msi(self) -> None:
         script = INSTALLER.read_text(encoding="utf-8")

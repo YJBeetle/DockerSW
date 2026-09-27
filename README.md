@@ -18,7 +18,6 @@ DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、�
 - **完整安装链**：检查介质布局，安装 VC++ 运行库与官方 Login Manager，再执行 SOLIDWORKS 主 MSI，并验证 MSI 产生的主程序 COM 注册。
 - **Wine COM 兼容修复**：包含与 MacSW 对齐的 x86 stdcall、`RegistrationServices`、x86/x64 托管 RegAsm 与 `stdole` 修复，并验证 Login Manager 的真实托管 COM 注册。
 - **中文界面字体回退**：使用 Noto Sans CJK SC 为 Windows 逻辑界面字体补充中文，不主动替换工程图指定的 Arial、Times New Roman、宋体或微软雅黑等字体。
-- **显式 EULA 处理**：仅在调用者传入 `--accept-eula` 后，才根据 MSI 版本写入对应的接受标记；公共运行时不预置接受状态。
 - **无头自动化导出**：
   - `.SLDPRT` / `.SLDASM` 导出为 `.STEP`；
   - `.SLDDRW` 导出为 `.PDF` 与 `.DWG`；
@@ -82,23 +81,12 @@ docker run --rm \
   sw-install --media /private-media/SOLIDWORKS.iso --validate-only
 ```
 
-### 2. 显式接受 EULA 并安装
-
-无人值守安装时，需要由实际安装者明确作出接受决定：
+### 2. 安装
 
 ```bash
 sw-install \
-  --media /private-media/SOLIDWORKS.iso \
-  --accept-eula
+  --media /private-media/SOLIDWORKS.iso
 ```
-
-`--accept-eula` 的语义如下：
-
-- 传入该参数即表示调用者确认自己或所属组织已经阅读并接受该安装介质所适用的 SOLIDWORKS 最终用户许可协议；
-- 脚本会读取主 MSI 的 `ProductVersion`，将内部更新码（例如 `33.150.0053` 中的 `150`）转换为产品年份与 Service Pack（`2025 SP5.0`），并在当前 Wine 用户注册表中写入对应的 EULA 接受标记；
-- 未传入该参数时，脚本不会写入任何 EULA 接受标记，介质自身仍可能要求交互确认或拒绝继续安装；
-- 该参数不会下载软件、授予许可证、配置序列号，也不能替代调用者审阅和遵守实际协议；
-- 出于需要显式确认的考虑，`--accept-eula` **没有环境变量等价项**。
 
 脚本随后会准备固定版本的 Wine-Mono COM 环境，安装 VC++ 与官方 Login Manager，验证真实托管 COM 注册，执行主 MSI，确认 `SLDWORKS.exe` 已产生，并检查 `SldWorks.Application`、`LocalServer32`、`VersionIndependentProgID` 和 TypeLib 均由 MSI 正确注册。无头容器不需要 SOLIDWORKS Resource Monitor；安装完成后，脚本会将主程序同目录的 `sldProcMon.exe` 重命名为 `sldProcMon.exe.disable`，避免它随 SOLIDWORKS 启动并产生额外窗口，同时保留原文件以便诊断或手工恢复。安装日志默认写入权限受限的 `/var/log/sw-install`；日志可能包含 MSI 属性或序列号，应仅保存在可信私有环境。
 
@@ -124,7 +112,6 @@ sw-install \
 | `--property NAME=VALUE` | `SW_MSI_PROPERTIES_FILE` | 空 | 追加 MSI 属性；文件格式为每行一个 `NAME=VALUE` |
 | `--log-dir PATH` | `SW_INSTALL_LOG_DIR` | `/var/log/sw-install` | 权限受限的安装日志目录 |
 | `--timeout SECONDS` | `SW_INSTALL_TIMEOUT` | `10800` | 每个长时间安装步骤的超时秒数 |
-| `--accept-eula` | 无 | 关闭 | 显式确认接受适用 EULA，并写入由介质版本推导的标记 |
 | `--validate-only` | 无 | 关闭 | 只提取并校验介质，不运行 Wine |
 | 无 | `SW_INSTALL_WPF_THEMES` | `true` | 是否从官方 .NET 4.8 包提取所需 WPF 主题组件 |
 | 无 | `WINEPREFIX` | `/root/.wine` | 安装结果所在的 Wine 前缀 |

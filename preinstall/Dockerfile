@@ -21,7 +21,6 @@ RUN --mount=type=bind,from=sw-data,target=/mnt/sw-media/swwi/data \
     SW_LICENSE_SERVER="${SW_LICENSE_SERVER}" \
     sw-install \
         --media /mnt/sw-media \
-        --accept-eula \
         --log-dir /var/log/sw-install && \
     sw_program_dir="/root/.wine/drive_c/Program Files/SOLIDWORKS" && \
     test -d "${sw_program_dir}" && \

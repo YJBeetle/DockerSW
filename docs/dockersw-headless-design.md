@@ -6,7 +6,7 @@
 
 1. **轻量纯粹**：专注提供无头执行与 COM 消息循环保障，确保高可靠、无弹窗阻塞的 CAD 文件批量自动化导出；
 2. **安全合规的分层解耦架构**：
-   - **公开运行时（`ghcr.io/yjbeetle/sw-runtime`）**：不包含任何 SOLIDWORKS 专有商业二进制文件、安装介质、序列号或许可服务器，也不预置 EULA 接受状态。默认标签提供固定版本验证的 Wine 64-bit、Wine-Mono、托管 COM 补丁、OpenGL 24-bit DIB 离屏渲染修复、Xvfb、Linux/Windows Python 环境与 `sw-install`；对应 `-cli` 标签额外加入 SWCLI；
+   - **公开运行时（`ghcr.io/yjbeetle/sw-runtime`）**：不包含任何 SOLIDWORKS 专有商业二进制文件、安装介质、序列号或许可服务器。默认标签提供固定版本验证的 Wine 64-bit、Wine-Mono、托管 COM 补丁、OpenGL 24-bit DIB 离屏渲染修复、Xvfb、Linux/Windows Python 环境与 `sw-install`；对应 `-cli` 标签额外加入 SWCLI；
    - **私有企业环境（下游构建与执行）**：使用者在自身可信基础设施中，通过合法取得的安装介质，使用 `sw-install` 执行官方静默安装并构建企业私有预安装镜像（`sw-preinstalled`），接入局域网浮动许可进行生产导出；
    - **默认镜像 / CLI payload 解耦交付**：`sw-runtime`、`sw-preinstalled`、`sw-executable` 固化低频变化的环境、安装与测试状态且不含 SWCLI；独立 `swcli-payload` 只包含当前 SWCLI 与 DockerSW 运行脚本；同一个通用 Delivery Dockerfile 将 payload 链接为对应的 `-cli` 变体；
 3. **开箱即用的自动化导出**：由 GitLab CI / GitHub Actions 直接组合 SWCLI 的 typed `document open/export/close` 原子操作，支持 `.SLDPRT`/`.SLDASM` 导出 `.STEP`、`.SLDDRW` 导出 `.PDF` 和 `.DWG`、渲染装配体导出 `.GLB`；文件选择和命名规则归属具体 CI，不进入通用 CLI。
@@ -80,15 +80,11 @@ swcli-payload
    - 支持已挂载的 ISO 介质目录或已解压目录；
    - 验证关键核心组件完备性：主安装包 MSI、VC++ 运行库、.NET 4.8 框架以及 `swloginmgr/SOLIDWORKS Login Manager.msi`；
    - 提供 `--validate-only` 模式，用于在无头 CI 中仅做介质合法性校验；
-2. **严格明确的 EULA 确认模型**：
-   - 遵循版权与法律边界规范，公开运行时不预设任何 EULA 接受标记；
-   - 必须由调用者显式传入 `--accept-eula` 参数（**不设环境变量以强制显式确认**）；
-   - 自动解析主 MSI 的 `ProductVersion`，计算对应产品年份与 Service Pack，在 Wine 注册表中动态写入官方接受键值；
-3. **真实 COM 环境与登录组件安装**：
+2. **真实 COM 环境与登录组件安装**：
    - 静默安装官方 Login Manager，确保真实托管 COM 接口注入注册表；
    - 静默调用主程序 MSI 执行安装，依赖官方 MSI 安装脚本生成完整的 `SldWorks.Application`、`LocalServer32`、TypeLib 及 ProgID 注册；
    - 安装完成后自动运行健全性检查：验证 `SLDWORKS.exe` 文件存在且关键 COM 注册表节点齐全；
-4. **私有镜像构建隔离**：
+3. **私有镜像构建隔离**：
    - 配合 BuildKit 挂载机制（`--mount=type=bind`），安装介质在镜像构建完成后不会残留在任何镜像层中，保证产物整洁。
 
 ### 3.3 SWCLI 与 CI 导出组合 (`sw-cli`)
@@ -145,6 +141,6 @@ DockerSW 保留不依赖旧 `sw-daemon` 的人类监看能力。设置 `VNC_ENAB
 ## 5. 规格检查与验证规范
 
 - [x] **架构一致性**：公开基础镜像 `sw-runtime` 与私有安装镜像 `sw-preinstalled` 职责彻底分离；
-- [x] **版权合规性**：公开仓库无任何商业软件实体与许可凭据，EULA 坚持调用方显式确认原则；
+- [x] **版权合规性**：公开仓库无任何商业软件实体与许可凭据；
 - [x] **命名规范性**：全局统一使用标准命令名 `sw-install` 与 `sw-cli`，环境变量全项目对齐（`SW_INSTALL_DIR`, `SW_LICENSE_SERVER`, `SW_FLEXNET_DIR`）；
 - [x] **运行健壮性**：无头环境具备 Xvfb、OpenGL 24-bit 离屏渲染与 Wine-Mono 托管 COM 的三重稳定性保障。

@@ -29,7 +29,6 @@ RUN dpkg --add-architecture i386 && \
         libgl1-mesa-dri \
         mesa-utils \
         cabextract \
-        msitools \
         p7zip-full \
         zstd \
         procps \
