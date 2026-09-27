@@ -229,6 +229,16 @@ class InstallScriptValidationTests(unittest.TestCase):
         self.assertIn(
             "/usr/local/lib/sw-runtime/configure_ui_fonts.sh", init_script
         )
+        entrypoint = (RUNTIME_ROOT / "entrypoint.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "/usr/local/lib/sw-runtime/configure_ui_fonts.sh", entrypoint
+        )
+        self.assertLess(
+            entrypoint.index("/usr/local/lib/sw-runtime/configure_ui_fonts.sh"),
+            entrypoint.index('C_SW_TARGET="${WINEPREFIX}/drive_c/Program Files/SOLIDWORKS"'),
+        )
         self.assertIn("NotoSansCJK-Regular.ttc,Noto Sans CJK SC", font_script)
         self.assertIn("/v 'MS Shell Dlg'", font_script)
         self.assertIn("/v 'MS Shell Dlg 2'", font_script)

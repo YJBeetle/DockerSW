@@ -7,19 +7,19 @@ SYSTEM_LINK_KEY='HKLM\Software\Microsoft\Windows NT\CurrentVersion\FontLink\Syst
 NOTO_LINK='NotoSansCJK-Regular.ttc,Noto Sans CJK SC'
 
 font_registry="$(wine reg query "${FONTS_KEY}" /s 2>/dev/null)" \
-    || { echo '[DockerSW Build][ERROR] 无法读取 Wine 字体注册表' >&2; exit 1; }
+    || { echo '[DockerSW][ERROR] 无法读取 Wine 字体注册表' >&2; exit 1; }
 printf '%s\n' "${font_registry}" | grep -Fq 'NotoSansCJK-Regular.ttc' \
-    || { echo '[DockerSW Build][ERROR] Wine 未登记 Noto Sans CJK 字体' >&2; exit 1; }
+    || { echo '[DockerSW][ERROR] Wine 未登记 Noto Sans CJK 字体' >&2; exit 1; }
 
 tahoma_query="$(wine reg query "${SYSTEM_LINK_KEY}" /v Tahoma 2>/dev/null)" \
-    || { echo '[DockerSW Build][ERROR] 无法读取 Wine 的 Tahoma 字体链接' >&2; exit 1; }
+    || { echo '[DockerSW][ERROR] 无法读取 Wine 的 Tahoma 字体链接' >&2; exit 1; }
 tahoma_links="$(
     printf '%s\n' "${tahoma_query}" \
         | sed -nE 's/.*REG_MULTI_SZ[[:space:]]+(.*)$/\1/p' \
         | head -n 1
 )"
 [ -n "${tahoma_links}" ] \
-    || { echo '[DockerSW Build][ERROR] Wine 的 Tahoma 字体链接为空' >&2; exit 1; }
+    || { echo '[DockerSW][ERROR] Wine 的 Tahoma 字体链接为空' >&2; exit 1; }
 
 case "${tahoma_links}" in
     "${NOTO_LINK}"|"${NOTO_LINK}\\0"*) ;;
@@ -35,6 +35,6 @@ wine reg add "${SYSTEM_LINK_KEY}" /v Tahoma /t REG_MULTI_SZ /d "${tahoma_links}"
 
 verified_link="$(wine reg query "${SYSTEM_LINK_KEY}" /v Tahoma 2>/dev/null)"
 printf '%s\n' "${verified_link}" | grep -Fq "${NOTO_LINK}" \
-    || { echo '[DockerSW Build][ERROR] Noto 界面字体链接写入后校验失败' >&2; exit 1; }
+    || { echo '[DockerSW][ERROR] Noto 界面字体链接写入后校验失败' >&2; exit 1; }
 
-echo '[DockerSW Build] 已配置 Noto Sans CJK SC 作为 Windows 界面的中文缺字回退。'
+echo '[DockerSW] 已配置 Noto Sans CJK SC 作为 Windows 界面的中文缺字回退。'

@@ -91,6 +91,12 @@ fi
 echo "[DockerSW] 正在校验 Wine-Mono stdcall 与托管 COM 注册组件..."
 /usr/local/lib/sw-runtime/prepare_managed_com.sh
 
+# Wine 会在语言包安装后的首次进程启动中重新生成系统字体别名。构建层内的
+# 注册表值因此不能作为最终状态；必须在默认入口中、启动 SOLIDWORKS 之前
+# 幂等恢复 DockerSW 的界面字体策略。
+echo "[DockerSW] 正在配置 Windows 界面字体回退..."
+/usr/local/lib/sw-runtime/configure_ui_fonts.sh
+
 # 4. 验证 SolidWorks 主程序目录
 C_SW_TARGET="${WINEPREFIX}/drive_c/Program Files/SOLIDWORKS"
 if [ -f "${C_SW_TARGET}/SLDWORKS.exe" ]; then
