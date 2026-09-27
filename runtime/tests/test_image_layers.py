@@ -275,6 +275,16 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn("wine msiexec /i", language_dockerfile)
         self.assertIn("/qb", language_dockerfile)
         self.assertIn("localedef -i", language_dockerfile)
+        self.assertIn(
+            "/usr/local/lib/sw-runtime/configure_ui_fonts.sh",
+            language_dockerfile,
+        )
+        self.assertLess(
+            language_dockerfile.index("wine msiexec /i"),
+            language_dockerfile.index(
+                "/usr/local/lib/sw-runtime/configure_ui_fonts.sh"
+            ),
+        )
         self.assertIn("LANG=${SW_POSIX_LOCALE}.UTF-8", language_dockerfile)
         self.assertNotIn("ADDLOCAL", language_dockerfile)
         self.assertIn(
