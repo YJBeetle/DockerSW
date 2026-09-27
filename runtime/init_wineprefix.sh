@@ -53,6 +53,7 @@ fi
 # 类定义由使用者提供的官方 MSI 注册，公共运行时不预造这些映射。
 echo "[INFO] 导入无头运行时注册表配置..."
 wine regedit /S /mnt/runtime/registry/headless_tweaks.reg
+/usr/local/lib/sw-runtime/configure_ui_fonts.sh
 wineserver -w
 
 # 5. 静默安装 64 位 Windows Python 3.11

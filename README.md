@@ -17,6 +17,7 @@ DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、�
 - **可复现的公开运行时**：Ubuntu 22.04、Wine 11.16、Wine-Mono 11.3.0、Xvfb、Windows Python 3.11 与 pywin32。
 - **完整安装链**：检查介质布局，安装 VC++ 运行库与官方 Login Manager，再执行 SOLIDWORKS 主 MSI，并验证 MSI 产生的主程序 COM 注册。
 - **Wine COM 兼容修复**：包含与 MacSW 对齐的 x86 stdcall、`RegistrationServices`、x86/x64 托管 RegAsm 与 `stdole` 修复，并验证 Login Manager 的真实托管 COM 注册。
+- **中文界面字体回退**：使用 Noto Sans CJK SC 为 Windows 逻辑界面字体补充中文，不主动替换工程图指定的 Arial、Times New Roman、宋体或微软雅黑等字体。
 - **显式 EULA 处理**：仅在调用者传入 `--accept-eula` 后，才根据 MSI 版本写入对应的接受标记；公共运行时不预置接受状态。
 - **无头自动化导出**：
   - `.SLDPRT` / `.SLDASM` 导出为 `.STEP`；
@@ -140,6 +141,8 @@ sw-install \
 - `ghcr.io/yjbeetle/sw-executable:latest-zh-cn-cli`
 
 语言资源在核心 SOLIDWORKS 安装完成后，以独立 MSI 层加入；该层同时生成对应 UTF-8 locale，并通过 `LANG`/`LC_ALL` 让 Wine 中的 SOLIDWORKS 选择该语言。同一语言镜像同时供默认版本与 `-cli` 变体复用，不会重新安装 SOLIDWORKS。语言 MSI 只在对应缓存缺失时从 ISO 读取。每个本地化 `sw-executable:*cli` 会通过 COM 核对实际界面语言，并导出一个 STEP 文件后才晋升可变 tag。
+
+基础运行时只将 `MS Shell Dlg` 与 `MS Shell Dlg 2` 归到 Tahoma，并把 Noto Sans CJK SC 放在 Tahoma 的缺字回退链首位；不会配置 `SimSun → Noto`、`Arial → Noto` 或其他工程字体替换。项目若要求工程图文字的字宽、换行和标注布局与设计环境严格一致，应在 SOLIDWORKS 启动前自行安装图纸实际使用且已合法取得的字体；缺少原字体时，任何替代字体都无法保证排版完全一致。
 
 手动运行工作流时，`languages` 接受逗号分隔的语言 tag，或使用 `all` 构建全部官方语言：
 

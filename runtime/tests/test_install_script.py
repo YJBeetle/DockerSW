@@ -270,6 +270,31 @@ class InstallScriptValidationTests(unittest.TestCase):
         )
         self.assertIn("        jq \\", dockerfile.splitlines())
 
+    def test_runtime_configures_noto_for_ui_without_replacing_drawing_fonts(self) -> None:
+        dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(encoding="utf-8")
+        init_script = (RUNTIME_ROOT / "init_wineprefix.sh").read_text(
+            encoding="utf-8"
+        )
+        font_script = (RUNTIME_ROOT / "configure_ui_fonts.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("        fonts-noto-cjk \\", dockerfile.splitlines())
+        self.assertIn("configure_ui_fonts.sh", dockerfile)
+        self.assertIn(
+            "/usr/local/lib/sw-runtime/configure_ui_fonts.sh", init_script
+        )
+        self.assertIn("NotoSansCJK-Regular.ttc,Noto Sans CJK SC", font_script)
+        self.assertIn("/v 'MS Shell Dlg'", font_script)
+        self.assertIn("/v 'MS Shell Dlg 2'", font_script)
+        for drawing_font in (
+            "/v Arial",
+            "/v 'Times New Roman'",
+            "/v SimSun",
+            "/v 'Microsoft YaHei'",
+        ):
+            self.assertNotIn(drawing_font, font_script)
+
     def test_optional_vnc_monitoring_is_owned_by_the_runtime_entrypoint(self) -> None:
         dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(
             encoding="utf-8"

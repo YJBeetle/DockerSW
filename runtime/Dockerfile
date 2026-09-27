@@ -46,6 +46,7 @@ RUN dpkg --add-architecture i386 && \
 # 与 MacSW 已验证环境保持 Wine 11.16 / Wine-Mono 11.3.0 一致，但不引入
 # 仅适用于 macOS 的 winemac/win32u 补丁。
 COPY runtime/managed_com.env /opt/sw-runtime/managed_com.env
+COPY --chmod=755 runtime/configure_ui_fonts.sh /usr/local/lib/sw-runtime/configure_ui_fonts.sh
 COPY --chmod=755 runtime/prepare_managed_com.sh /usr/local/lib/sw-runtime/prepare_managed_com.sh
 COPY --chmod=755 runtime/patch_win32u.pl /usr/local/lib/sw-runtime/patch_win32u.pl
 COPY --chmod=755 runtime/patch_wine_mono.pl /usr/local/lib/sw-runtime/patch_wine_mono.pl
