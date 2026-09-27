@@ -288,6 +288,8 @@ class ImageLayeringTests(unittest.TestCase):
         font_configuration = language_dockerfile.index(
             "/usr/local/lib/sw-runtime/configure_ui_fonts.sh"
         )
+        post_install_boot = language_dockerfile.index("wine cmd /c ver")
+        self.assertLess(post_install_boot, font_configuration)
         self.assertLess(
             font_configuration,
             language_dockerfile.index("wineserver -k", font_configuration),
