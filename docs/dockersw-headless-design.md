@@ -135,7 +135,10 @@ DockerSW 保留不依赖旧 `sw-daemon` 的人类监看能力。设置 `VNC_ENAB
 2. **PropertyManager 鼠标捕获兼容修复**：
    - *问题*：Wine 对同一窗口重复 `SetCapture` 时重发 `WM_CAPTURECHANGED`，使 SOLIDWORKS 左侧面板顶部的确认与取消按钮错误释放鼠标捕获；
    - *方案*：源码补丁提供 `WINE_NOCAPTURERESEND` AppCompat 标志，并只对 `sldworks.exe` 启用，不改变其他 Windows 程序的捕获语义。
-3. **Wine-Mono 托管 COM 注册与 CCW 补丁**：
+3. **PropertyManager 子窗口布局兼容修复**：
+   - *问题*：Wine 处理 Windows 本应忽略的真实子窗口 `HWND_TOPMOST` / `HWND_NOTOPMOST` 请求，导致面板分组标题在反复布局中被挤压至不可见；
+   - *方案*：只忽略具有非桌面父窗口的纯 `WS_CHILD` 置顶请求；保留 `SWP_NOZORDER`、`WS_POPUP` 与桌面父窗口语义，避免破坏 `ComboLBox` 下拉框。
+4. **Wine-Mono 托管 COM 注册与 CCW 补丁**：
    - *问题*：SOLIDWORKS 大量依赖 .NET 互操作及官方 Login Manager，Wine-Mono 原生环境在注册 CCW 接口或释放接口引用计数时可能触发断言中断。
    - *方案*：集成 MacSW 验证补丁体系，并结合 `patch_wine_mono.pl` 修正 CCW release 断言，使托管 COM 在无头容器中稳定运转。
 

@@ -45,6 +45,16 @@ class WinePatchBuildTests(unittest.TestCase):
         self.assertIn("WINE_NOCAPTURERESEND", patch)
         self.assertIn('"sldworks.exe"="WINE_NOCAPTURERESEND"', registry)
 
+    def test_real_child_topmost_fix_preserves_desktop_combo_windows(self) -> None:
+        patch = (
+            PATCH_ROOT / "0003-win32u-ignore-child-topmost.patch"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("after == HWND_TOPMOST || after == HWND_NOTOPMOST", patch)
+        self.assertIn("WS_CHILD | WS_POPUP", patch)
+        self.assertIn("parent != get_desktop_window()", patch)
+        self.assertIn("flags & SWP_NOZORDER", patch)
+
     def test_runtime_binary_rewriter_is_removed(self) -> None:
         self.assertFalse((RUNTIME_ROOT / "patch_win32u.pl").exists())
         for relative_path in (
