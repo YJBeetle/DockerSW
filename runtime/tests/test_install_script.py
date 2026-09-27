@@ -162,6 +162,15 @@ class InstallScriptValidationTests(unittest.TestCase):
         self.assertIn(
             'find "${WINEPREFIX}/drive_c" -type f -iname SLDWORKS.exe', script
         )
+        self.assertIn("disable_solidworks_resource_monitor", script)
+        self.assertIn("-iname 'sldProcMon.exe'", script)
+        self.assertIn(
+            'mv -- "${resource_monitor}" "${disabled_resource_monitor}"', script
+        )
+        self.assertLess(
+            script.index("validate_solidworks_com_registration\n"),
+            script.index("disable_solidworks_resource_monitor\n"),
+        )
         self.assertIn('info "Stopping background Wine helpers', script)
         self.assertIn("wineserver -k || true", script)
         self.assertIn("timeout --foreground 30 wineserver -w", script)

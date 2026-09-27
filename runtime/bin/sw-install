@@ -464,6 +464,36 @@ validate_solidworks_com_registration() {
 
 validate_solidworks_com_registration
 
+disable_solidworks_resource_monitor() {
+    local solidworks_directory resource_monitor disabled_resource_monitor
+    solidworks_directory="$(dirname "${SW_EXE}")"
+    resource_monitor="$(
+        find "${solidworks_directory}" -maxdepth 1 -type f -iname 'sldProcMon.exe' -print -quit
+    )"
+
+    if [ -z "${resource_monitor}" ]; then
+        disabled_resource_monitor="$(
+            find "${solidworks_directory}" -maxdepth 1 -type f \
+                -iname 'sldProcMon.exe.disable' -print -quit
+        )"
+        if [ -n "${disabled_resource_monitor}" ]; then
+            info "SOLIDWORKS Resource Monitor is already disabled."
+        else
+            info "SOLIDWORKS Resource Monitor was not installed; no action is required."
+        fi
+        return
+    fi
+
+    disabled_resource_monitor="${resource_monitor}.disable"
+    rm -f -- "${disabled_resource_monitor}"
+    mv -- "${resource_monitor}" "${disabled_resource_monitor}"
+    [ ! -e "${resource_monitor}" ] && [ -s "${disabled_resource_monitor}" ] \
+        || die "could not disable SOLIDWORKS Resource Monitor"
+    info "Disabled SOLIDWORKS Resource Monitor: $(basename "${disabled_resource_monitor}")"
+}
+
+disable_solidworks_resource_monitor
+
 install_wpf_themes() {
     [ "${INSTALL_WPF_THEMES}" = true ] || return
     command -v 7z >/dev/null 2>&1 || die "7z is required to extract WPF themes"

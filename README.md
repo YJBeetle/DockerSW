@@ -99,7 +99,7 @@ sw-install \
 - 该参数不会下载软件、授予许可证、配置序列号，也不能替代调用者审阅和遵守实际协议；
 - 出于需要显式确认的考虑，`--accept-eula` **没有环境变量等价项**。
 
-脚本随后会准备固定版本的 Wine-Mono COM 环境，安装 VC++ 与官方 Login Manager，验证真实托管 COM 注册，执行主 MSI，确认 `SLDWORKS.exe` 已产生，并检查 `SldWorks.Application`、`LocalServer32`、`VersionIndependentProgID` 和 TypeLib 均由 MSI 正确注册。安装日志默认写入权限受限的 `/var/log/sw-install`；日志可能包含 MSI 属性或序列号，应仅保存在可信私有环境。
+脚本随后会准备固定版本的 Wine-Mono COM 环境，安装 VC++ 与官方 Login Manager，验证真实托管 COM 注册，执行主 MSI，确认 `SLDWORKS.exe` 已产生，并检查 `SldWorks.Application`、`LocalServer32`、`VersionIndependentProgID` 和 TypeLib 均由 MSI 正确注册。无头容器不需要 SOLIDWORKS Resource Monitor；安装完成后，脚本会将主程序同目录的 `sldProcMon.exe` 重命名为 `sldProcMon.exe.disable`，避免它随 SOLIDWORKS 启动并产生额外窗口，同时保留原文件以便诊断或手工恢复。安装日志默认写入权限受限的 `/var/log/sw-install`；日志可能包含 MSI 属性或序列号，应仅保存在可信私有环境。
 
 > [!NOTE]
 > 直接在一次性 `docker run --rm` 容器中安装不会保留结果。生产使用应在私有 Dockerfile 中执行安装，或将整个 `WINEPREFIX` 持久化。
