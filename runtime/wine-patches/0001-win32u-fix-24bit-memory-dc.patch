@@ -1,0 +1,11 @@
+diff --git a/dlls/win32u/opengl.c b/dlls/win32u/opengl.c
+--- a/dlls/win32u/opengl.c
++++ b/dlls/win32u/opengl.c
+@@ -1752,3 +1752,4 @@ static BOOL flush_memory_dc( struct opengl_context *context, HDC hdc, BOOL write, void (*flush)(void) )
+-            int width = info->bmiHeader.biWidth, height = info->bmiHeader.biSizeImage / 4 / width;
+-            if (write) funcs->p_glDrawPixels( width, height, GL_BGRA, GL_UNSIGNED_BYTE, bits.ptr );
+-            else funcs->p_glReadPixels( 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, bits.ptr );
++            int width = info->bmiHeader.biWidth, height = abs( info->bmiHeader.biHeight );
++            GLenum format = info->bmiHeader.biBitCount == 24 ? GL_BGR : GL_BGRA;
++            if (write) funcs->p_glDrawPixels( width, height, format, GL_UNSIGNED_BYTE, bits.ptr );
++            else funcs->p_glReadPixels( 0, 0, width, height, format, GL_UNSIGNED_BYTE, bits.ptr );

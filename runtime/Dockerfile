@@ -1,3 +1,93 @@
+# DockerSW: 构建与运行时版本完全一致的 Wine Unix 核心模块。
+# win32u 直接依赖同次构建的 ntdll 私有 ABI，因此必须成对交付，不能只替换
+# 单个 win32u.so。
+FROM ubuntu:22.04 AS wine-unix-builder
+
+ARG WINE_VERSION=11.16
+ARG WINE_SOURCE_SHA256=c66e2090343dcd727f7f7fd2f87ee0bfb0b118790c1d745ab7b8a4c3a4197f2f
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        bison \
+        build-essential \
+        ca-certificates \
+        curl \
+        flex \
+        libegl1-mesa-dev \
+        libfontconfig1-dev \
+        libfreetype6-dev \
+        libgl-dev \
+        libvulkan-dev \
+        libx11-dev \
+        libxcomposite-dev \
+        libxcursor-dev \
+        libxext-dev \
+        libxfixes-dev \
+        libxi-dev \
+        libxinerama-dev \
+        libxkbcommon-dev \
+        libxkbregistry-dev \
+        libxrandr-dev \
+        libxrender-dev \
+        libxxf86vm-dev \
+        patch \
+        pkg-config \
+        xz-utils && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY runtime/wine-patches/*.patch /patches/
+
+RUN mkdir -p /build/source /build/output && \
+    curl -fsSL \
+        "https://dl.winehq.org/wine/source/${WINE_VERSION%%.*}.x/wine-${WINE_VERSION}.tar.xz" \
+        -o /build/wine.tar.xz && \
+    echo "${WINE_SOURCE_SHA256}  /build/wine.tar.xz" | sha256sum -c - && \
+    tar -xf /build/wine.tar.xz -C /build/source --strip-components=1 && \
+    for wine_patch in /patches/*.patch; do \
+        patch --directory=/build/source --strip=1 --dry-run < "${wine_patch}" && \
+        patch --directory=/build/source --strip=1 < "${wine_patch}"; \
+    done && \
+    mkdir /build/obj && \
+    cd /build/obj && \
+    ../source/configure \
+        --enable-win64 \
+        --disable-tests \
+        --without-alsa \
+        --without-capi \
+        --without-cups \
+        --without-dbus \
+        --without-ffmpeg \
+        --without-gettext \
+        --without-gettextpo \
+        --without-gnutls \
+        --without-gphoto \
+        --without-gssapi \
+        --without-gstreamer \
+        --without-inotify \
+        --without-krb5 \
+        --without-netapi \
+        --without-opencl \
+        --without-oss \
+        --without-pcap \
+        --without-pcsclite \
+        --without-pulse \
+        --without-sane \
+        --without-sdl \
+        --without-udev \
+        --without-usb \
+        --without-v4l2 \
+        --without-wayland \
+        --with-fontconfig \
+        --with-freetype \
+        --with-opengl \
+        --with-vulkan \
+        --with-x && \
+    make -j"$(nproc)" dlls/win32u/win32u.so && \
+    strip --strip-unneeded dlls/ntdll/ntdll.so dlls/win32u/win32u.so && \
+    install -m 0644 dlls/ntdll/ntdll.so /build/output/ntdll.so && \
+    install -m 0644 dlls/win32u/win32u.so /build/output/win32u.so
+
 # DockerSW: 无头 SOLIDWORKS Wine 运行时镜像
 FROM ubuntu:22.04 AS sw-runtime
 
@@ -42,13 +132,12 @@ RUN dpkg --add-architecture i386 && \
     rm -rf /var/lib/apt/lists/*
 
 # 2. 复制运行时需要的组件与配置
-# 与 MacSW 已验证环境保持 Wine 11.16 / Wine-Mono 11.3.0 一致，但不引入
-# 仅适用于 macOS 的 winemac/win32u 补丁。
+# 与 MacSW 已验证环境保持 Wine 11.16 / Wine-Mono 11.3.0 一致。
 COPY runtime/managed_com.env /opt/sw-runtime/managed_com.env
 COPY --chmod=755 runtime/configure_ui_fonts.sh /usr/local/lib/sw-runtime/configure_ui_fonts.sh
 COPY --chmod=755 runtime/prepare_managed_com.sh /usr/local/lib/sw-runtime/prepare_managed_com.sh
-COPY --chmod=755 runtime/patch_win32u.pl /usr/local/lib/sw-runtime/patch_win32u.pl
 COPY --chmod=755 runtime/patch_wine_mono.pl /usr/local/lib/sw-runtime/patch_wine_mono.pl
+COPY --from=wine-unix-builder /build/output/ /opt/sw-runtime/wine-unix/
 
 # 3. 安装 Wine、下载 Mono 资产并初始化无头运行环境（合并在单层内执行反向去重，消除 540MB 重复物理占用）
 # 仅绑定挂载本层真正消费的三个源（两个构建脚本 + registry 目录），避免把整个
@@ -65,6 +154,11 @@ RUN --mount=type=bind,source=runtime/fetch_managed_com.sh,target=/mnt/runtime/fe
         "wine-devel=${WINE_PACKAGE_VERSION}" \
         "winehq-devel=${WINE_PACKAGE_VERSION}" && \
     test "$(wine --version)" = "wine-${WINE_VERSION}" && \
+    install -m 0644 /opt/sw-runtime/wine-unix/ntdll.so \
+        /opt/wine-devel/lib/wine/x86_64-unix/ntdll.so && \
+    install -m 0644 /opt/sw-runtime/wine-unix/win32u.so \
+        /opt/wine-devel/lib/wine/x86_64-unix/win32u.so && \
+    rm -rf /opt/sw-runtime/wine-unix && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     bash /mnt/runtime/fetch_managed_com.sh && \

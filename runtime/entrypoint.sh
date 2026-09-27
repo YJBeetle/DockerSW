@@ -44,10 +44,8 @@ echo "========================================================="
 echo "  DockerSW Headless Container (Wine SolidWorks Runtime)  "
 echo "========================================================="
 
-# 0. 自动应用/校验 Wine 11.x OpenGL 24-bit DIB 离屏渲染补丁与 Wine-Mono CCW release assertion 补丁
-if [ -f "/usr/local/lib/sw-runtime/patch_win32u.pl" ]; then
-    perl /usr/local/lib/sw-runtime/patch_win32u.pl >/dev/null 2>&1 || true
-fi
+# 0. 自动应用/校验 Wine-Mono CCW release assertion 补丁。Wine Unix 核心
+# 模块已在镜像构建阶段从固定源码编译并成对安装，不在运行时修改二进制。
 if [ -f "/usr/local/lib/sw-runtime/patch_wine_mono.pl" ]; then
     perl /usr/local/lib/sw-runtime/patch_wine_mono.pl >/dev/null 2>&1 || true
 fi

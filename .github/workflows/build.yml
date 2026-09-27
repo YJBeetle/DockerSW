@@ -66,7 +66,6 @@ jobs:
           bash -n smoke-test/export.sh
           bash -n smoke-test/verify-swcli.sh
           bash -n smoke-test/export-localized.sh
-          perl -c runtime/patch_win32u.pl
           perl -c runtime/patch_wine_mono.pl
 
       - name: Run Logic Tests
@@ -197,8 +196,11 @@ jobs:
           echo "[CI] 验证 3: 测试 Windows Python 3.11 与 pywin32 COM 模块就绪..."
           docker run --rm sw-runtime:local-test wine "C:\\Python311\\python.exe" -c "import win32com.client, pythoncom; print('[HEALTH CHECK OK] Windows Python & pywin32 ready')"
 
-          echo "[CI] 验证 4: 检查 Wine OpenGL 24-bit DIB 补丁已应用..."
-          docker run --rm sw-runtime:local-test perl /usr/local/lib/sw-runtime/patch_win32u.pl
+          echo "[CI] 验证 4: 检查源码构建的 Wine Unix 核心模块已成对安装..."
+          docker run --rm --entrypoint bash sw-runtime:local-test -lc \
+            'test -s /opt/wine-devel/lib/wine/x86_64-unix/ntdll.so && \
+             test -s /opt/wine-devel/lib/wine/x86_64-unix/win32u.so && \
+             test ! -e /usr/local/lib/sw-runtime/patch_win32u.pl'
 
       - name: Push verified sw-runtime image
         if: steps.check-runtime.outputs.exists != 'true'

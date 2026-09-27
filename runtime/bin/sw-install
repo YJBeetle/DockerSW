@@ -477,10 +477,6 @@ install_wpf_themes
 
 chmod -R go-rwx "${LOG_DIR}" 2>/dev/null || true
 
-# 校验并应用 Wine 11.x OpenGL 24-bit DIB 补丁，确保导出着色视图无瑕疵
-if [ -f "/usr/local/lib/sw-runtime/patch_win32u.pl" ]; then
-    perl /usr/local/lib/sw-runtime/patch_win32u.pl >/dev/null 2>&1 || true
-fi
 # 校验并应用 Wine-Mono CCW 释放断言补丁，防止托管 COM 析构或二次释放触发 SIGABRT 崩溃
 if [ -f "/usr/local/lib/sw-runtime/patch_wine_mono.pl" ]; then
     perl /usr/local/lib/sw-runtime/patch_wine_mono.pl >/dev/null 2>&1 || true
