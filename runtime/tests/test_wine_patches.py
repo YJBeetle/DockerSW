@@ -18,6 +18,7 @@ class WinePatchBuildTests(unittest.TestCase):
             dockerfile,
         )
         self.assertIn("COPY runtime/wine-patches/*.patch /patches/", dockerfile)
+        self.assertIn("        gcc-mingw-w64-x86-64 \\", dockerfile.splitlines())
         self.assertIn("patch --directory=/build/source --strip=1 --dry-run", dockerfile)
         self.assertTrue(
             (PATCH_ROOT / "0001-win32u-fix-24bit-memory-dc.patch").is_file()

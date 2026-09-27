@@ -14,6 +14,7 @@ RUN apt-get update && \
         ca-certificates \
         curl \
         flex \
+        gcc-mingw-w64-x86-64 \
         libegl1-mesa-dev \
         libfontconfig1-dev \
         libfreetype6-dev \
