@@ -314,20 +314,52 @@ export_cad_assets:
 
 | 环境变量 | 默认值 | 说明 |
 |---|---|---|
-| `VNC_ENABLE` | `false` | 设为 `true` 时，在现有 Xvfb 桌面上启动 Openbox 与 x11vnc，并以可见模式启动 SOLIDWORKS |
+| `VNC_ENABLE` | `false` | 设为 `true` 时，在现有 Xvfb 桌面上启动 Openbox 与 x11vnc；`-cli` 镜像同时以可见模式启动 SOLIDWORKS |
 | `VNC_VIEW_ONLY` | `true` | 只允许观看；设为 `false` 后允许远程键盘和鼠标输入，可能干扰自动化 |
 | `VNC_PORT` | `5900` | x11vnc 监听端口 |
 | `VNC_LISTEN` | `0.0.0.0` | x11vnc 在容器内的监听地址 |
 | `VNC_PASSWORD` | 空 | 可选 VNC 密码；留空时会打印安全警告 |
 
-默认不会启动 VNC。仅本机监看时，建议通过 `-p 127.0.0.1:5900:5900` 发布端口：
+默认不会启动 VNC。需要在可信局域网内监看时，可以通过 `-p 5900:5900` 发布端口。
+
+不带 SWCLI 的镜像不会自动启动 SOLIDWORKS，可以直接把主程序作为容器命令运行：
 
 ```bash
-docker run --rm \
+podman run --rm \
+  --name dockersw-vnc \
   -e VNC_ENABLE=true \
-  -p 127.0.0.1:5900:5900 \
-  ghcr.io/yjbeetle/sw-executable:latest-cli
+  -e VNC_VIEW_ONLY=false \
+  -e VNC_PASSWORD='000000' \
+  -p 5900:5900 \
+  ghcr.io/yjbeetle/sw-executable:latest-zh-cn \
+  wine "C:\\Program Files\\SOLIDWORKS\\SLDWORKS.exe"
 ```
+
+请将示例密码替换为自己的密码。此时可以通过 VNC 操作 SOLIDWORKS；SOLIDWORKS 退出后
+容器也会退出，并由 `--rm` 删除。带 SWCLI 的镜像由 entrypoint
+启动并管理 SOLIDWORKS；额外使用一个长期运行命令维持容器即可：
+
+```bash
+podman run --rm \
+  --name dockersw-vnc-cli \
+  -e VNC_ENABLE=true \
+  -p 5900:5900 \
+  ghcr.io/yjbeetle/sw-executable:latest-zh-cn-cli \
+  sleep infinity
+```
+
+以上命令同样可将 `podman` 换成 `docker`。`-p 5900:5900` 会在容器宿主机的网络接口
+上发布 VNC 端口，应只在可信网络中使用并配置 `VNC_PASSWORD`。VNC 默认为只读监看；
+需要通过 VNC 操作 SOLIDWORKS 时，还应显式设置 `VNC_VIEW_ONLY=false`。
+
+不希望直接向局域网发布端口时，可改用 `-p 127.0.0.1:5900:5900`，并从其他计算机
+通过 SSH 隧道访问，例如：
+
+```bash
+ssh -L 5900:127.0.0.1:5900 user@container-host
+```
+
+随后让 VNC 客户端连接本机 `127.0.0.1:5900`。
 
 daemon 通过 `DispatchEx` 创建独占 SOLIDWORKS 实例后，会等待官方
 `StartupProcessCompleted` 状态再开始接收请求。已安装 SOLIDWORKS 的 `-cli` 镜像会在
