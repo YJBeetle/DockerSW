@@ -50,7 +50,7 @@ swcli-payload
 容器启动时执行以下标准化自适应与环境保障：
 
 1. **固定源码构建与兼容性补丁**：
-   - 从校验过 SHA-256 的 Wine 11.16 源码构建 `ntdll.so` 与 `win32u.so`，修复 24-bit DIB 下的无头离屏渲染缺陷；两者共享 Wine 私有 ABI，必须在同一个 Ubuntu 22.04 构建阶段成对生成和安装；
+   - 从校验过 SHA-256 的 Wine 11.16 源码构建 `ntdll.so`、`win32u.so`、`winex11.so` 与 `opengl32.so`，修复 24-bit DIB 无头离屏渲染和 GLX 前缓冲缺陷；四者共享 Wine 私有 ABI，必须在同一个 Ubuntu 22.04 构建阶段作为整体生成和安装；
    - 运行时只检测并执行 `/usr/local/lib/sw-runtime/patch_wine_mono.pl`，修补 Wine-Mono CCW (`ComCallableWrapper`) 释放时的断言崩溃；不再原地修改 Wine ELF 机器码；
 2. **Xvfb 无头显示守护**：
    - 检测并拉起 `Xvfb ${DISPLAY:-:99} -screen 0 1024x768x24 -ac +extension GLX +render -noreset`；
@@ -138,7 +138,10 @@ DockerSW 保留不依赖旧 `sw-daemon` 的人类监看能力。设置 `VNC_ENAB
 3. **PropertyManager 子窗口布局兼容修复**：
    - *问题*：Wine 处理 Windows 本应忽略的真实子窗口 `HWND_TOPMOST` / `HWND_NOTOPMOST` 请求，导致面板分组标题在反复布局中被挤压至不可见；
    - *方案*：只忽略具有非桌面父窗口的纯 `WS_CHILD` 置顶请求；保留 `SWP_NOZORDER`、`WS_POPUP` 与桌面父窗口语义，避免破坏 `ComboLBox` 下拉框。
-4. **Wine-Mono 托管 COM 注册与 CCW 补丁**：
+4. **SOLIDWORKS GLX 前缓冲兼容修复**：
+   - *问题*：EGL 模拟前缓冲时会交换未定义的后缓冲；GLX 默认像素格式也不保证保留交换内容，且 on-screen surface 缺少显式完成与 X11 flush，分别表现为模型在第二次点击空白处后消失，以及 Space 视图选择器成为黑块；
+   - *方案*：仅为 `SLDWORKS.exe` 启用 GLX，优先原生 `GLX_SWAP_COPY_OML` 像素格式，并在提交前缓冲内容时执行 `glFinish` 与 `XFlush`。
+5. **Wine-Mono 托管 COM 注册与 CCW 补丁**：
    - *问题*：SOLIDWORKS 大量依赖 .NET 互操作及官方 Login Manager，Wine-Mono 原生环境在注册 CCW 接口或释放接口引用计数时可能触发断言中断。
    - *方案*：集成 MacSW 验证补丁体系，并结合 `patch_wine_mono.pl` 修正 CCW release 断言，使托管 COM 在无头容器中稳定运转。
 

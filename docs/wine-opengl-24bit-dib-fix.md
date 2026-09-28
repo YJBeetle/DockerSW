@@ -67,7 +67,7 @@ GLenum format = info->bmiHeader.biBitCount == 24 ? GL_BGR : GL_BGRA;
 
 这样高度来自 DIB 自身，像素格式也与实际位深一致。补丁不再依赖编译器生成的固定指令、ELF 偏移或特征码。
 
-构建阶段固定并验证 Wine 11.16 源码归档 SHA-256，在 Ubuntu 22.04 中应用补丁后只构建需要的 Unix 核心模块。`win32u.so` 链接并使用 `ntdll.so` 的 Wine 私有 ABI，因此两个模块必须来自同一份源码、同一个配置与同一次构建，并成对覆盖 WineHQ 包中的对应文件。只替换 `win32u.so` 即使版本号相同也不属于受支持的组合。
+构建阶段固定并验证 Wine 11.16 源码归档 SHA-256，在 Ubuntu 22.04 中应用补丁后只构建需要的 Unix 核心模块。`win32u.so`、`winex11.so` 与 `opengl32.so` 均使用 Wine 私有 ABI，因此它们和 `ntdll.so` 必须来自同一份源码、同一个配置与同一次构建，并作为同一 ABI 集合覆盖 WineHQ 包中的对应文件。只替换其中一个模块即使版本号相同也不属于受支持的组合。
 
 ---
 
@@ -91,7 +91,7 @@ GLenum format = info->bmiHeader.biBitCount == 24 ? GL_BGR : GL_BGRA;
 1. **静态与构建测试**：`runtime/tests/test_wine_patches.py`
    - 验证源码版本与归档 SHA-256 固定；
    - 验证源码补丁在构建前先执行 dry-run；
-   - 验证 `ntdll.so` 与 `win32u.so` 成对构建和安装；
+   - 验证 `ntdll.so`、`win32u.so`、`winex11.so` 与 `opengl32.so` 作为同一 ABI 集合构建和安装；
    - 验证旧的运行期二进制改写器已移除。
 2. **端到端 CI 冒烟测试**：
    - GitHub Actions [DockerSW Run 35029214287](https://github.com/YJBeetle/DockerSW/actions/runs/35029214287) 通过；

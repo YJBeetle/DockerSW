@@ -27,7 +27,7 @@ SOLIDWORKS 会对 PropertyManager 内部的真实子窗口请求 `HWND_TOPMOST` 
 - 桌面父窗口不受影响，因此 Windows 下拉框使用的 `ComboLBox` 仍能移动和显示；
 - `WS_POPUP` 窗口不受影响。
 
-## 模型在第二次点击空白处后消失（对应 MacSW 0004）
+## GLX 前缓冲内容丢失（对应 MacSW 0004）
 
 SOLIDWORKS 会使用 OpenGL 前缓冲绘制选择、预选和部分局部界面。在 Wine
 11.16 的 X11/EGL 后端中，前缓冲会映射到后缓冲并通过强制交换模拟。连续两次
@@ -40,7 +40,21 @@ DockerSW 在 `headless_tweaks.reg` 中仅为 `SLDWORKS.exe` 设置
 `X11 Driver\\UseEGL=N`，使用原生支持前缓冲绘制的 GLX 后端。其他 Wine
 程序仍使用默认 EGL 后端。
 
+仅切换到 GLX 仍有两个问题。Wine 采用 GLX 返回的第一个兼容像素格式，但 Xvfb
+可能先返回 swap method 未定义的配置；此时第二次点击空白处仍会把未保留的后缓冲
+显示出来。即使选择了 `GLX_SWAP_COPY_OML`，Space 视图选择器等短暂前缓冲内容在
+VNC 中仍可能只显示为黑块，因为 Wine 对 on-screen surface 没有执行完成与 X11
+flush。
+
+`0004-winex11-flush-front-buffer.patch` 因此包含两项 X11 源码修复：
+
+- 枚举 on-screen pixel format 时优先提供原生 `GLX_SWAP_COPY_OML` 配置；
+- 提交前缓冲内容时对 on-screen 与 offscreen surface 都执行 `glFinish` 和 `XFlush`。
+
+由于 `winex11.so`、`opengl32.so`、`win32u.so` 和 `ntdll.so` 使用 Wine 私有 ABI，
+四个模块从同一份源码、同一个配置与同一次构建中产生，并作为整体安装。
+
 在相同镜像、同一模型和相同操作下验证：EGL 第一次点击清除选择，第二次点击后
-只剩阴影；GLX 连续点击后实体保持显示。这里与 MacSW 保留相同的问题编号
-`0004`，但由于平台驱动不同，DockerSW 的实现是应用级运行时设置，而不是
-`winemac.drv` 源码补丁。
+只剩阴影；仅优先 swap-copy 后模型不再消失，但 Space 选择器仍是黑块；加入显式
+flush 后，模型、视图选择器及透明基准面均能显示。这里与 MacSW 保留相同的问题
+编号 `0004`，但实现位于 `winex11.drv`。

@@ -1,0 +1,72 @@
+diff --git a/dlls/winex11.drv/opengl.c b/dlls/winex11.drv/opengl.c
+--- a/dlls/winex11.drv/opengl.c
++++ b/dlls/winex11.drv/opengl.c
+@@ -785,7 +785,7 @@ static UINT x11drv_init_pixel_formats( UINT *onscreen_count )
+ {
+     struct glx_pixel_format *list;
+     int size = 0, onscreen_size = 0;
+-    int fmt_id, nCfgs, i, run;
++    int fmt_id, nCfgs, i, run, swap_method;
+     GLXFBConfig* cfgs;
+     XVisualInfo *visinfo;
+ 
+@@ -800,16 +800,28 @@ static UINT x11drv_init_pixel_formats( UINT *onscreen_count )
+ 
+     /* Fill the pixel format list. Put onscreen formats at the top and offscreen ones at the bottom.
+      * Do this as GLX doesn't guarantee that the list is sorted */
+-    for(run=0; run < 2; run++)
++    for(run=0; run < 3; run++)
+     {
+         for(i=0; i<nCfgs; i++) {
+             pglXGetFBConfigAttrib(gdi_display, cfgs[i], GLX_FBCONFIG_ID, &fmt_id);
+             visinfo = pglXGetVisualFromFBConfig(gdi_display, cfgs[i]);
+ 
+-            /* The first run we only add onscreen formats (ones which have an associated X Visual).
+-             * The second run we only set offscreen formats. */
+-            if(!run && visinfo)
++            /* Prefer native swap-copy formats for onscreen rendering.  Windows
++             * applications can rely on PFD_SWAP_COPY semantics even when they
++             * don't explicitly request that flag; putting those formats first
++             * lets ChoosePixelFormat select a preserving GLX configuration.
++             * The final run adds offscreen-only formats. */
++            if(run < 2 && visinfo)
+             {
++                BOOL swap_copy = has_extension( glxExtensions, "GLX_OML_swap_method" ) &&
++                    !pglXGetFBConfigAttrib( gdi_display, cfgs[i], GLX_SWAP_METHOD_OML, &swap_method ) &&
++                    swap_method == GLX_SWAP_COPY_OML;
++
++                if ((!run && !swap_copy) || (run == 1 && swap_copy))
++                {
++                    XFree(visinfo);
++                    continue;
++                }
+                 /* We implement child window rendering using offscreen buffers (using composite or an XPixmap).
+                  * The contents is copied to the destination using XCopyArea. For the copying to work
+                  * the depth of the source and destination window should be the same. In general this should
+@@ -844,7 +856,7 @@ static UINT x11drv_init_pixel_formats( UINT *onscreen_count )
+                     size++;
+                     onscreen_size++;
+                 }
+-            } else if(run && !visinfo) {
++            } else if(run == 2 && !visinfo) {
+                 int window_drawable=0;
+                 pglXGetFBConfigAttrib(gdi_display, cfgs[i], GLX_DRAWABLE_TYPE, &window_drawable);
+ 
+@@ -1187,11 +1199,12 @@ static void x11drv_surface_flush( struct opengl_drawable *base, UINT flags )
+     if (flags & GL_FLUSH_INTERVAL) set_swap_interval( gl, base->interval );
+     if (!(flags & GL_FLUSH_PRESENT)) return;
+ 
+-    if (InterlockedCompareExchange( &base->client->offscreen, 0, 0 ))
+-    {
+-        if (!(flags & GL_FLUSH_FINISHED)) funcs->p_glFinish();
+-        XFlush( gdi_display );
+-    }
++    /* SOLIDWORKS uses front-buffer rendering for transient view controls and
++     * selection overlays.  Xvfb may classify the window as on-screen while
++     * still requiring an explicit completion and X11 flush before the front
++     * buffer becomes observable to VNC or the compositor. */
++    if (!(flags & GL_FLUSH_FINISHED)) funcs->p_glFinish();
++    XFlush( gdi_display );
+ 
+     client_surface_present( base->client );
+ }

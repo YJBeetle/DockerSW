@@ -24,12 +24,18 @@ class WinePatchBuildTests(unittest.TestCase):
             (PATCH_ROOT / "0000-win32u-fix-24bit-memory-dc.patch").is_file()
         )
 
-    def test_ntdll_and_win32u_are_built_and_installed_as_a_pair(self) -> None:
+    def test_wine_unix_modules_are_built_and_installed_as_one_abi_set(self) -> None:
         dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(encoding="utf-8")
 
+        build_outputs = {
+            "ntdll.so": "dlls/ntdll/ntdll.so",
+            "win32u.so": "dlls/win32u/win32u.so",
+            "winex11.so": "dlls/winex11.drv/winex11.so",
+            "opengl32.so": "dlls/opengl32/opengl32.so",
+        }
         self.assertIn("make -j\"$(nproc)\" dlls/win32u/win32u.so", dockerfile)
-        for module in ("ntdll.so", "win32u.so"):
-            self.assertIn(f"dlls/{module.removesuffix('.so')}/{module}", dockerfile)
+        for module, build_output in build_outputs.items():
+            self.assertIn(build_output, dockerfile)
             self.assertIn(
                 f"/opt/wine-devel/lib/wine/x86_64-unix/{module}", dockerfile
             )
@@ -47,10 +53,18 @@ class WinePatchBuildTests(unittest.TestCase):
         self.assertIn('"sldworks.exe"="WINE_NOCAPTURERESEND"', registry)
 
     def test_solidworks_uses_glx_for_front_buffer_rendering(self) -> None:
+        patch = (
+            PATCH_ROOT / "0004-winex11-flush-front-buffer.patch"
+        ).read_text(encoding="utf-8")
         registry = (RUNTIME_ROOT / "registry" / "headless_tweaks.reg").read_text(
             encoding="utf-8"
         )
 
+        self.assertIn('has_extension( glxExtensions, "GLX_OML_swap_method" )', patch)
+        self.assertIn("swap_method == GLX_SWAP_COPY_OML", patch)
+        self.assertIn("for(run=0; run < 3; run++)", patch)
+        self.assertIn("if (!(flags & GL_FLUSH_FINISHED)) funcs->p_glFinish();", patch)
+        self.assertIn("XFlush( gdi_display );", patch)
         self.assertIn(
             "[HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\"
             "SLDWORKS.exe\\X11 Driver]",
