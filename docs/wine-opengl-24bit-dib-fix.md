@@ -57,7 +57,7 @@ static void flush_memory_dc( HDC hdc, struct opengl_context *context, BOOL write
 
 ## 3. 源码修复与构建实现
 
-`runtime/wine-patches/0001-win32u-fix-24bit-memory-dc.patch` 直接修改
+`runtime/wine-patches/0000-win32u-fix-24bit-memory-dc.patch` 直接修改
 `flush_memory_dc`：
 
 ```c

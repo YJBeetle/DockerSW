@@ -21,7 +21,7 @@ class WinePatchBuildTests(unittest.TestCase):
         self.assertIn("        gcc-mingw-w64-x86-64 \\", dockerfile.splitlines())
         self.assertIn("patch --directory=/build/source --strip=1 --dry-run", dockerfile)
         self.assertTrue(
-            (PATCH_ROOT / "0001-win32u-fix-24bit-memory-dc.patch").is_file()
+            (PATCH_ROOT / "0000-win32u-fix-24bit-memory-dc.patch").is_file()
         )
 
     def test_ntdll_and_win32u_are_built_and_installed_as_a_pair(self) -> None:
@@ -36,7 +36,7 @@ class WinePatchBuildTests(unittest.TestCase):
 
     def test_solidworks_capture_fix_is_explicitly_scoped(self) -> None:
         patch = (
-            PATCH_ROOT / "0002-win32u-no-capture-resend.patch"
+            PATCH_ROOT / "0003-win32u-no-capture-resend.patch"
         ).read_text(encoding="utf-8")
         registry = (RUNTIME_ROOT / "registry" / "headless_tweaks.reg").read_text(
             encoding="utf-8"
@@ -48,7 +48,7 @@ class WinePatchBuildTests(unittest.TestCase):
 
     def test_real_child_topmost_fix_preserves_desktop_combo_windows(self) -> None:
         patch = (
-            PATCH_ROOT / "0003-win32u-ignore-child-topmost.patch"
+            PATCH_ROOT / "0005-win32u-ignore-child-topmost.patch"
         ).read_text(encoding="utf-8")
 
         self.assertIn("after == HWND_TOPMOST || after == HWND_NOTOPMOST", patch)
