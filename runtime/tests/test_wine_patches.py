@@ -46,6 +46,18 @@ class WinePatchBuildTests(unittest.TestCase):
         self.assertIn("WINE_NOCAPTURERESEND", patch)
         self.assertIn('"sldworks.exe"="WINE_NOCAPTURERESEND"', registry)
 
+    def test_solidworks_uses_glx_for_front_buffer_rendering(self) -> None:
+        registry = (RUNTIME_ROOT / "registry" / "headless_tweaks.reg").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(
+            "[HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\"
+            "SLDWORKS.exe\\X11 Driver]",
+            registry,
+        )
+        self.assertIn('"UseEGL"="N"', registry)
+
     def test_real_child_topmost_fix_preserves_desktop_combo_windows(self) -> None:
         patch = (
             PATCH_ROOT / "0005-win32u-ignore-child-topmost.patch"

@@ -26,3 +26,21 @@ SOLIDWORKS 会对 PropertyManager 内部的真实子窗口请求 `HWND_TOPMOST` 
 - `SWP_NOZORDER` 不受影响；
 - 桌面父窗口不受影响，因此 Windows 下拉框使用的 `ComboLBox` 仍能移动和显示；
 - `WS_POPUP` 窗口不受影响。
+
+## 模型在第二次点击空白处后消失（对应 MacSW 0004）
+
+SOLIDWORKS 会使用 OpenGL 前缓冲绘制选择、预选和部分局部界面。在 Wine
+11.16 的 X11/EGL 后端中，前缓冲会映射到后缓冲并通过强制交换模拟。连续两次
+点击视口空白区域时，第二次交换可能显示尚未完整绘制的后缓冲，画面中实体消失，
+但独立绘制的阴影仍然存在；旋转或悬停触发完整重绘后实体会再次出现。
+
+MacSW 的 `0004-winemac-preserve-front-buffer-flush.patch` 修正的是 macOS
+驱动中的额外缓冲交换。DockerSW 使用 X11 驱动，不能直接套用该源码补丁。
+DockerSW 在 `headless_tweaks.reg` 中仅为 `SLDWORKS.exe` 设置
+`X11 Driver\\UseEGL=N`，使用原生支持前缓冲绘制的 GLX 后端。其他 Wine
+程序仍使用默认 EGL 后端。
+
+在相同镜像、同一模型和相同操作下验证：EGL 第一次点击清除选择，第二次点击后
+只剩阴影；GLX 连续点击后实体保持显示。这里与 MacSW 保留相同的问题编号
+`0004`，但由于平台驱动不同，DockerSW 的实现是应用级运行时设置，而不是
+`winemac.drv` 源码补丁。

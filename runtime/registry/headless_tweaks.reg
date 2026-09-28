@@ -21,3 +21,10 @@ Windows Registry Editor Version 5.00
 ; 向同一窗口重发 WM_CAPTURECHANGED；Wine 默认会，导致确认/取消按钮失去鼠标捕获。
 [HKEY_CURRENT_USER\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers]
 "sldworks.exe"="WINE_NOCAPTURERESEND"
+
+; 对应 MacSW 0004 所处理的前缓冲显示问题。Wine 的 X11/EGL 后端会把
+; SOLIDWORKS 的前缓冲绘制映射到后缓冲并强制交换，连续清除选择时可能把
+; 尚未完整绘制的后缓冲显示出来，表现为模型消失而阴影仍在。X11/GLX 原生
+; 支持前缓冲绘制，因此只为 SOLIDWORKS 禁用 EGL，不影响其他 Windows 程序。
+[HKEY_CURRENT_USER\Software\Wine\AppDefaults\SLDWORKS.exe\X11 Driver]
+"UseEGL"="N"
