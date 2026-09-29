@@ -3,8 +3,6 @@
 # 与 ntdll 成套交付，不能只替换单个 Unix 模块。
 FROM ubuntu:22.04 AS wine-unix-builder
 
-ARG WINE_VERSION=11.16
-ARG WINE_SOURCE_SHA256=c66e2090343dcd727f7f7fd2f87ee0bfb0b118790c1d745ab7b8a4c3a4197f2f
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && \
@@ -37,9 +35,11 @@ RUN apt-get update && \
         xz-utils && \
     rm -rf /var/lib/apt/lists/*
 
+COPY runtime/managed_com.env /build/managed_com.env
 COPY runtime/wine-patches/*.patch /patches/
 
-RUN mkdir -p /build/source /build/output && \
+RUN . /build/managed_com.env && \
+    mkdir -p /build/source /build/output && \
     curl -fsSL \
         "https://dl.winehq.org/wine/source/${WINE_VERSION%%.*}.x/wine-${WINE_VERSION}.tar.xz" \
         -o /build/wine.tar.xz && \

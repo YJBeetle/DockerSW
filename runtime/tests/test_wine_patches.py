@@ -10,19 +10,35 @@ PATCH_ROOT = RUNTIME_ROOT / "wine-patches"
 class WinePatchBuildTests(unittest.TestCase):
     def test_wine_source_and_patch_are_pinned(self) -> None:
         dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(encoding="utf-8")
-
-        self.assertIn("ARG WINE_VERSION=11.16", dockerfile)
-        self.assertIn(
-            "ARG WINE_SOURCE_SHA256="
-            "c66e2090343dcd727f7f7fd2f87ee0bfb0b118790c1d745ab7b8a4c3a4197f2f",
-            dockerfile,
+        version_config = (RUNTIME_ROOT / "managed_com.env").read_text(
+            encoding="utf-8"
         )
+
+        self.assertNotIn("ARG WINE_VERSION", dockerfile)
+        self.assertNotIn("ARG WINE_SOURCE_SHA256", dockerfile)
+        self.assertIn('WINE_VERSION="11.16"', version_config)
+        self.assertIn(
+            'WINE_SOURCE_SHA256="'
+            'c66e2090343dcd727f7f7fd2f87ee0bfb0b118790c1d745ab7b8a4c3a4197f2f"',
+            version_config,
+        )
+        self.assertIn("COPY runtime/managed_com.env /build/managed_com.env", dockerfile)
+        self.assertIn("RUN . /build/managed_com.env &&", dockerfile)
         self.assertIn("COPY runtime/wine-patches/*.patch /patches/", dockerfile)
         self.assertIn("        gcc-mingw-w64-x86-64 \\", dockerfile.splitlines())
         self.assertIn("patch --directory=/build/source --strip=1 --dry-run", dockerfile)
         self.assertTrue(
             (PATCH_ROOT / "0000-win32u-fix-24bit-memory-dc.patch").is_file()
         )
+
+    def test_runtime_smoke_check_uses_the_shared_wine_version(self) -> None:
+        workflow = (PROJECT_ROOT / ".github" / "workflows" / "build.yml").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(". runtime/managed_com.env", workflow)
+        self.assertIn('= "wine-${WINE_VERSION}"', workflow)
+        self.assertNotIn('= "wine-11.16"', workflow)
 
     def test_wine_unix_modules_are_built_and_installed_as_one_abi_set(self) -> None:
         dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(encoding="utf-8")

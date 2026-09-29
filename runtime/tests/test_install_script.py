@@ -185,6 +185,11 @@ class InstallScriptValidationTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn('WINE_VERSION="11.16"', config)
+        self.assertIn('WINE_PACKAGE_VERSION="11.16~jammy-1"', config)
+        self.assertIn(
+            'WINE_SOURCE_SHA256="c66e2090343dcd727f7f7fd2f87ee0bfb0b118790c1d745ab7b8a4c3a4197f2f"',
+            config,
+        )
         self.assertIn('WINE_MONO_VERSION="11.3.0"', config)
         self.assertIn(
             'MONO_PATCH_RELEASE="wine-mono-11.3.0-X86StdcallFix-ComRegistration-v3"',
