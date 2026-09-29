@@ -14,6 +14,22 @@ SOLIDWORKS 的 PropertyManager 会对同一个窗口重复调用 `SetCapture`。
 其他 Windows 程序保持 Wine 原始行为。该补丁与 OpenGL 修复一起在构建阶段进入
 配对的 `ntdll.so` / `win32u.so`，运行时不改写二进制。
 
+## 文档窗口标题按钮风格
+
+SOLIDWORKS 的文档子窗口会同时显示由 Codejock/XTP 绘制的两个按钮，以及由 Wine
+`DefWindowProc` 绘制的最小化、最大化和关闭按钮。Wine 主题启用时，两组按钮分别使用
+主题和经典外观，导致同一标题栏混用两种风格。
+
+DockerSW 在 WinePrefix 初始化时写入：
+
+```text
+HKCU\Software\Microsoft\Windows\CurrentVersion\ThemeManager
+ThemeActive = "0"
+```
+
+关闭 Wine ThemeManager 的活动主题后，五个按钮统一使用经典风格。此项是 WinePrefix
+初始化配置，不需要修改 Wine 绘制代码，也不会在容器每次启动时重复写入。
+
 ## PropertyManager 分组标题与下拉框
 
 SOLIDWORKS 会对 PropertyManager 内部的真实子窗口请求 `HWND_TOPMOST` 或

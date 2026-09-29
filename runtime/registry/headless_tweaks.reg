@@ -22,6 +22,11 @@ Windows Registry Editor Version 5.00
 [HKEY_CURRENT_USER\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers]
 "sldworks.exe"="WINE_NOCAPTURERESEND"
 
+; SOLIDWORKS 的 Codejock 文档窗口按钮与 Wine DefWindowProc 按钮会分别使用
+; 主题和经典绘制，导致同一标题栏出现两套风格。关闭活动主题后统一为经典风格。
+[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\ThemeManager]
+"ThemeActive"="0"
+
 ; X11/GLX provides a real front buffer, which SOLIDWORKS uses for transient
 ; view controls and selection overlays.  Wine's EGL backend emulates it by
 ; swapping an undefined back buffer and can erase the model after a blank click.

@@ -68,6 +68,18 @@ class WinePatchBuildTests(unittest.TestCase):
         self.assertIn("WINE_NOCAPTURERESEND", patch)
         self.assertIn('"sldworks.exe"="WINE_NOCAPTURERESEND"', registry)
 
+    def test_solidworks_document_caption_buttons_use_one_theme(self) -> None:
+        registry = (RUNTIME_ROOT / "registry" / "headless_tweaks.reg").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(
+            "[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\"
+            "CurrentVersion\\ThemeManager]",
+            registry,
+        )
+        self.assertIn('"ThemeActive"="0"', registry)
+
     def test_solidworks_uses_glx_for_front_buffer_rendering(self) -> None:
         patch = (
             PATCH_ROOT / "0004-winex11-flush-front-buffer.patch"
