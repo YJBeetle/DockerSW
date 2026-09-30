@@ -133,6 +133,13 @@ sw-install \
 
 基础运行时只将 `MS Shell Dlg` 与 `MS Shell Dlg 2` 归到 Tahoma，并把 Noto Sans CJK SC 放在 Tahoma 的缺字回退链首位；不会配置 `SimSun → Noto`、`Arial → Noto` 或其他工程字体替换。项目若要求工程图文字的字宽、换行和标注布局与设计环境严格一致，应在 SOLIDWORKS 启动前自行安装图纸实际使用且已合法取得的字体；缺少原字体时，任何替代字体都无法保证排版完全一致。
 
+官方构建流水线从私有 Google Drive 的 `Share/Software/solidworks-fonts` 读取
+SOLIDWORKS 模板和资源使用的宋体、Segoe UI，再从
+`Share/Software/solidworks-custom-fonts` 读取公司设计使用的等线 Light、微软雅黑。
+两组字体都进入 `sw-preinstalled`，由所有语言层和后续镜像继承；字体文件不进入
+公开 Git 仓库。`solidworks-custom-fonts` 保持为 SOLIDWORKS 安装和基础字体之后的
+独立字体层。
+
 手动运行工作流时，`languages` 接受逗号分隔的语言 tag，或使用 `all` 构建全部官方语言：
 
 | Tag | 官方介质目录 | Tag | 官方介质目录 |

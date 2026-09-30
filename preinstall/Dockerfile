@@ -27,4 +27,26 @@ RUN --mount=type=bind,from=sw-data,target=/mnt/sw-media/swwi/data \
     test -f "${sw_program_dir}/SLDWORKS.exe" && \
     rm -rf /var/log/sw-install
 
+# SOLIDWORKS 模板与资源直接引用的基础字体属于预安装环境，所有语言层和
+# 后续可执行镜像均从这里继承。安装脚本与清单只在构建时挂载，不进入镜像。
+RUN --mount=type=bind,source=preinstall/install-fonts.sh,target=/mnt/install-fonts.sh,ro \
+    --mount=type=bind,source=preinstall/font-manifests/solidworks-fonts.tsv,target=/mnt/solidworks-fonts.tsv,ro \
+    --mount=type=bind,from=solidworks-fonts,target=/mnt/solidworks-fonts,ro \
+    bash /mnt/install-fonts.sh \
+        /mnt/solidworks-fonts \
+        /mnt/solidworks-fonts.tsv \
+        solidworks
+
+# 公司设计使用的便利字体同样属于预安装环境，但保持为独立、靠后的字体层。
+RUN --mount=type=bind,source=preinstall/install-fonts.sh,target=/mnt/install-fonts.sh,ro \
+    --mount=type=bind,source=preinstall/font-manifests/solidworks-custom-fonts.tsv,target=/mnt/solidworks-custom-fonts.tsv,ro \
+    --mount=type=bind,from=solidworks-custom-fonts,target=/mnt/solidworks-custom-fonts,ro \
+    bash /mnt/install-fonts.sh \
+        /mnt/solidworks-custom-fonts \
+        /mnt/solidworks-custom-fonts.tsv \
+        solidworks-custom
+
+LABEL io.yjbeetle.dockersw.fonts.solidworks="SimSun, Segoe UI" \
+      io.yjbeetle.dockersw.fonts.custom="DengXian Light, Microsoft YaHei"
+
 ENV SW_LICENSE_SERVER=

@@ -263,6 +263,59 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn("-f smoke-test/Dockerfile", workflow)
         self.assertIn("-f swcli/Dockerfile.delivery", workflow)
 
+    def test_executable_installs_private_fonts_in_separate_late_layers(self) -> None:
+        workflow = self.read(".github/workflows/build.yml")
+        dockerignore = self.read(".dockerignore")
+        preinstalled = self.read("preinstall/Dockerfile")
+        executable = self.read("smoke-test/Dockerfile")
+        installer = self.read("preinstall/install-fonts.sh")
+        solidworks_manifest = self.read(
+            "preinstall/font-manifests/solidworks-fonts.tsv"
+        )
+        custom_manifest = self.read(
+            "preinstall/font-manifests/solidworks-custom-fonts.tsv"
+        )
+
+        self.assertIn("preinstall/fonts", dockerignore)
+        self.assertIn(
+            "Share/Software/solidworks-fonts",
+            workflow,
+        )
+        self.assertIn(
+            "Share/Software/solidworks-custom-fonts",
+            workflow,
+        )
+        self.assertIn(
+            '--build-context "solidworks-fonts=preinstall/fonts/solidworks-fonts"',
+            workflow,
+        )
+        self.assertIn("from=solidworks-fonts", preinstalled)
+        self.assertNotIn("from=solidworks-fonts", executable)
+        self.assertIn(
+            '--build-context "solidworks-custom-fonts='
+            'preinstall/fonts/solidworks-custom-fonts"',
+            workflow,
+        )
+        self.assertIn("from=solidworks-custom-fonts", preinstalled)
+        self.assertNotIn("from=solidworks-custom-fonts", executable)
+        self.assertIn("source=preinstall/install-fonts.sh", preinstalled)
+        for dockerfile in (preinstalled, executable):
+            self.assertNotIn("COPY --chmod=755 preinstall/install-fonts.sh", dockerfile)
+            self.assertNotIn("COPY preinstall/font-manifests/", dockerfile)
+
+        base_layer = preinstalled.index("from=solidworks-fonts")
+        custom_layer = preinstalled.index("from=solidworks-custom-fonts")
+        self.assertLess(preinstalled.index("sw-install"), base_layer)
+        self.assertLess(base_layer, custom_layer)
+        self.assertIn("drive_c/windows/Fonts", installer)
+        self.assertIn("CurrentVersion\\Fonts", installer)
+        self.assertNotIn("FontSubstitutes", installer)
+        self.assertIn("simsun.ttc\tSimSun & NSimSun", solidworks_manifest)
+        self.assertIn("segoeui.ttf\tSegoe UI", solidworks_manifest)
+        self.assertIn("Dengl.ttf\tDengXian Light", custom_manifest)
+        self.assertIn("msyh.ttc\tMicrosoft YaHei", custom_manifest)
+        self.assertNotIn("Simplex", solidworks_manifest + custom_manifest)
+
     def test_localized_default_and_cli_images_are_built(self) -> None:
         workflow = self.read(".github/workflows/build.yml")
         language_dockerfile = self.read("preinstall/Dockerfile.language")

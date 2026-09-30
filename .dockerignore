@@ -4,4 +4,5 @@
 **/*.pyc
 swcli/SWCLI/.git
 preinstall/media
+preinstall/fonts
 smoke-test/assets

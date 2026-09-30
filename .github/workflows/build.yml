@@ -24,6 +24,14 @@ on:
         description: 'Path to activation crack assets inside the Google Drive remote'
         type: string
         default: 'Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/crack'
+      solidworks_fonts_path:
+        description: 'Path to SOLIDWORKS-required fonts inside the Google Drive remote'
+        type: string
+        default: 'Share/Software/solidworks-fonts'
+      solidworks_custom_fonts_path:
+        description: 'Path to company convenience fonts inside the Google Drive remote'
+        type: string
+        default: 'Share/Software/solidworks-custom-fonts'
       languages:
         description: 'Localized image tags to build (comma-separated or all)'
         type: string
@@ -66,6 +74,7 @@ jobs:
           bash -n smoke-test/export.sh
           bash -n smoke-test/verify-swcli.sh
           bash -n smoke-test/export-localized.sh
+          bash -n preinstall/install-fonts.sh
           perl -c runtime/patch_wine_mono.pl
 
       - name: Run Logic Tests
@@ -85,6 +94,8 @@ jobs:
       SW_MEDIA_MOUNT: preinstall/media
       SW_MEDIA_PATH: ${{ inputs.media_path || 'Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/SolidWorks.2025.SP5.0.Premium.DVD.iso' }}
       SW_ASSETS_PATH: ${{ inputs.assets_path || 'Share/Software/DS.SolidWorks.2025.SP5.0.Premium-SSQ/crack' }}
+      SW_FONTS_PATH: ${{ inputs.solidworks_fonts_path || 'Share/Software/solidworks-fonts' }}
+      SW_CUSTOM_FONTS_PATH: ${{ inputs.solidworks_custom_fonts_path || 'Share/Software/solidworks-custom-fonts' }}
       SW_RUNTIME_REPO: ghcr.io/yjbeetle/sw-runtime
       SW_PREINSTALLED_REPO: ghcr.io/yjbeetle/sw-preinstalled
       SW_EXECUTABLE_REPO: ghcr.io/yjbeetle/sw-executable
@@ -559,6 +570,33 @@ jobs:
             exit 1
           }
 
+      - name: Fetch SOLIDWORKS fonts from Google Drive
+        if: steps.check-images.outputs.already_verified != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -rf preinstall/fonts
+          mkdir -p \
+            preinstall/fonts/solidworks-fonts \
+            preinstall/fonts/solidworks-custom-fonts
+
+          echo "[CI fetch] 获取 SOLIDWORKS 基础字体: ${SW_FONTS_PATH}"
+          rclone --config "${RCLONE_CONFIG_FILE}" copy \
+            "gdrive:${SW_FONTS_PATH}" \
+            preinstall/fonts/solidworks-fonts \
+            --progress
+
+          echo "[CI fetch] 获取 SOLIDWORKS 附加字体: ${SW_CUSTOM_FONTS_PATH}"
+          rclone --config "${RCLONE_CONFIG_FILE}" copy \
+            "gdrive:${SW_CUSTOM_FONTS_PATH}" \
+            preinstall/fonts/solidworks-custom-fonts \
+            --progress
+
+          test -s preinstall/fonts/solidworks-fonts/simsun.ttc
+          test -s preinstall/fonts/solidworks-fonts/segoeui.ttf
+          test -s preinstall/fonts/solidworks-custom-fonts/Dengl.ttf
+          test -s preinstall/fonts/solidworks-custom-fonts/msyh.ttc
+
       - name: Build vanilla preinstalled image
         if: steps.check-images.outputs.already_verified != 'true'
         shell: bash
@@ -580,6 +618,8 @@ jobs:
               --build-context "sw-login=preinstall/media/swloginmgr" \
               --build-context "sw-vcredist=preinstall/media/PreReqs/VCRedist17" \
               --build-context "sw-dotnet=preinstall/media/PreReqs/dotNetFx" \
+              --build-context "solidworks-fonts=preinstall/fonts/solidworks-fonts" \
+              --build-context "solidworks-custom-fonts=preinstall/fonts/solidworks-custom-fonts" \
               --build-arg "RUNTIME_IMAGE=${SW_RUNTIME_IMAGE}" \
               --build-arg "SW_SERIAL_SOLIDWORKS=${SW_SERIAL_SOLIDWORKS}" \
               --cache-from "type=registry,ref=${SW_PREINSTALLED_REPO}:buildcache-image" \
@@ -877,6 +917,7 @@ jobs:
             docker rm -f "sw-language-smoke-${GITHUB_RUN_ID}-${language_tag}" >/dev/null 2>&1 || true
           done < "${SW_LANGUAGE_PLAN}" 2>/dev/null || true
           rm -rf smoke-test/assets
+          rm -rf preinstall/fonts
           sudo umount "${SW_MEDIA_MOUNT}" 2>/dev/null || true
           fusermount3 -u "${GDRIVE_MOUNT}" 2>/dev/null || \
             sudo umount "${GDRIVE_MOUNT}" 2>/dev/null || true
