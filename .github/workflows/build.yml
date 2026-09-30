@@ -571,7 +571,9 @@ jobs:
           }
 
       - name: Fetch SOLIDWORKS fonts from Google Drive
-        if: steps.check-images.outputs.already_verified != 'true'
+        if: >-
+          steps.check-images.outputs.already_verified != 'true' &&
+          steps.check-installed.outputs.exists != 'true'
         shell: bash
         run: |
           set -Eeuo pipefail

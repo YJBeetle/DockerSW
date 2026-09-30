@@ -285,6 +285,15 @@ class ImageLayeringTests(unittest.TestCase):
             "Share/Software/solidworks-custom-fonts",
             workflow,
         )
+        font_fetch = workflow.index(
+            "- name: Fetch SOLIDWORKS fonts from Google Drive"
+        )
+        font_build = workflow.index("- name: Build vanilla preinstalled image")
+        font_fetch_step = workflow[font_fetch:font_build]
+        self.assertIn(
+            "steps.check-installed.outputs.exists != 'true'",
+            font_fetch_step,
+        )
         self.assertIn(
             '--build-context "solidworks-fonts=preinstall/fonts/solidworks-fonts"',
             workflow,
