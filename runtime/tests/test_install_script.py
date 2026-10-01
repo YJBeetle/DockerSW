@@ -255,6 +255,28 @@ class InstallScriptValidationTests(unittest.TestCase):
         ):
             self.assertNotIn(drawing_font, font_script)
 
+    def test_ui_font_validation_accepts_large_registry_output(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            wine = root / "wine"
+            wine.write_text(
+                "#!/usr/bin/env bash\n"
+                "if [[ \"$*\" == *'/s' ]]; then\n"
+                "  echo NotoSansCJK-Regular.ttc\n"
+                "  head -c 262144 /dev/zero | tr '\\0' x\n"
+                "elif [ \"$1 $2\" = 'reg query' ]; then\n"
+                "  echo 'Tahoma REG_MULTI_SZ NotoSansCJK-Regular.ttc,Noto Sans CJK SC'\n"
+                "fi\n"
+            )
+            wine.chmod(0o755)
+            result = subprocess.run(
+                ["bash", str(RUNTIME_ROOT / "configure_ui_fonts.sh")],
+                env={**os.environ, "PATH": f"{root}:{os.environ['PATH']}"},
+                text=True, capture_output=True, timeout=10,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("已配置 Noto Sans CJK SC", result.stdout)
+
     def test_optional_vnc_monitoring_is_owned_by_the_runtime_entrypoint(self) -> None:
         dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(
             encoding="utf-8"
