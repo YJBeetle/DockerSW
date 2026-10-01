@@ -7,7 +7,7 @@ if [ "${SOLIDWORKS_INSTALLED:-false}" != true ]; then
     echo "[DockerSW] 当前镜像未安装 SOLIDWORKS，跳过 SWCLI daemon 预热"
 else
     SWCLI_ENDPOINT="${SWCLI_ENDPOINT:-127.0.0.1:18495}"
-    SWCLID_START_TIMEOUT="${SWCLID_START_TIMEOUT:-120}"
+    SWCLID_START_TIMEOUT="${SWCLID_START_TIMEOUT:-300}"
     VNC_ENABLE="${VNC_ENABLE:-false}"
     if ! [[ "${SWCLID_START_TIMEOUT}" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
         echo "[DockerSW][ERROR] SWCLID_START_TIMEOUT 必须是非负数，当前值: ${SWCLID_START_TIMEOUT}" >&2

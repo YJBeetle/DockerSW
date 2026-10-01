@@ -102,9 +102,9 @@ swcli-payload
    - `sw-preinstalled:*cli` 与 `sw-executable:*cli` 的 entrypoint 默认执行一次 `sw-cli daemon start --json`；该命令自身等待 daemon 与 COM worker 就绪，已有健康实例时幂等复用，不重复启动；
    - 自动启动只使用本地回环端点、独占隐藏实例，绝不自动传入 `--attach-existing`；`VNC_ENABLE=true` 时才显式增加 `--visible`；
    - 非回环监听不属于默认容器入口契约；需要远程服务时应显式运行 `sw-cli daemon serve --allow-remote`，并配合可信网络边界或认证隧道；
-   - `SWCLID_START_TIMEOUT` 直接交给 `daemon start` 作为 SOLIDWORKS 就绪期限，不再维护第二套状态轮询或健康探测余量；入口解析启动 JSON，并要求 `result.health.host_connected=true`；
+   - `SWCLID_START_TIMEOUT` 默认 300 秒，直接交给 `daemon start` 作为 SOLIDWORKS 就绪期限，以容纳高 I/O 负载下的冷启动；入口解析启动 JSON，并要求 `result.health.host_connected=true`；
    - Docker 中由 entrypoint 负责 daemon 生命周期；typed 命令只连接已有服务，daemon 意外退出时返回 `DaemonUnavailable`，不会隐式启动或回退到直接 COM；
-   - daemon 使用 `win32com.client.DispatchEx("SldWorks.Application")` 获取独占实例，规避 Wine 下 `GetActiveObject` 对直接启动进程的不可靠行为；
+   - daemon 只调用一次 `win32com.client.DispatchEx("SldWorks.Application")` 创建独占实例；Wine 返回启动期 `REGDB_E_CLASSNOTREG` 后等待该次启动的 active COM 对象，禁止重复激活以免派生多个进程；
    - 按官方 `StartupProcessCompleted` 状态等待启动加载完成，再开放协议端点，避免 COM 已返回但启动插件尚未就绪的竞态；
    - supervisor 与 COM worker 分进程，worker 在单一 COM apartment 中串行执行全部请求；调用超时后会连同未知状态的 SOLIDWORKS 进程树一起替换；
    - DockerSW 仅负责 Linux/Wine 路径转换、daemon 预热和容器生命周期，协议、worker 与 typed operations 均由 SWCLI 拥有；
