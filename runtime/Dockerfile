@@ -1,6 +1,7 @@
 # DockerSW: 构建与运行时版本完全一致的 Wine Unix 核心模块。
 # win32u、winex11 和 opengl32 直接依赖同次构建的 Wine 私有 ABI，因此必须
 # 与 ntdll 成套交付，不能只替换单个 Unix 模块。
+# 同版本 x64 combase.dll 负责 SOLIDWORKS 专用的 COM 激活注册等待。
 FROM ubuntu:22.04 AS wine-unix-builder
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -84,12 +85,14 @@ RUN . /build/managed_com.env && \
         --with-opengl \
         --with-vulkan \
         --with-x && \
-    make -j"$(nproc)" dlls/win32u/win32u.so dlls/winex11.drv/winex11.so dlls/opengl32/opengl32.so && \
+    make -j"$(nproc)" dlls/win32u/win32u.so dlls/winex11.drv/winex11.so dlls/opengl32/opengl32.so dlls/combase/x86_64-windows/combase.dll && \
     strip --strip-unneeded dlls/ntdll/ntdll.so dlls/win32u/win32u.so dlls/winex11.drv/winex11.so dlls/opengl32/opengl32.so && \
+    x86_64-w64-mingw32-strip --strip-debug dlls/combase/x86_64-windows/combase.dll && \
     install -m 0644 dlls/ntdll/ntdll.so /build/output/ntdll.so && \
     install -m 0644 dlls/win32u/win32u.so /build/output/win32u.so && \
     install -m 0644 dlls/winex11.drv/winex11.so /build/output/winex11.so && \
-    install -m 0644 dlls/opengl32/opengl32.so /build/output/opengl32.so
+    install -m 0644 dlls/opengl32/opengl32.so /build/output/opengl32.so && \
+    install -m 0644 dlls/combase/x86_64-windows/combase.dll /build/output/combase.dll
 
 # DockerSW: 无头 SOLIDWORKS Wine 运行时镜像
 FROM ubuntu:22.04 AS sw-runtime
@@ -165,6 +168,8 @@ RUN --mount=type=bind,source=runtime/fetch_managed_com.sh,target=/mnt/runtime/fe
         /opt/wine-devel/lib/wine/x86_64-unix/winex11.so && \
     install -m 0644 /opt/sw-runtime/wine-unix/opengl32.so \
         /opt/wine-devel/lib/wine/x86_64-unix/opengl32.so && \
+    install -m 0644 /opt/sw-runtime/wine-unix/combase.dll \
+        /opt/wine-devel/lib/wine/x86_64-windows/combase.dll && \
     rm -rf /opt/sw-runtime/wine-unix && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \

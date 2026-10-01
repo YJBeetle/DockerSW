@@ -1,4 +1,7 @@
 import unittest
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 
 
@@ -8,6 +11,63 @@ PATCH_ROOT = RUNTIME_ROOT / "wine-patches"
 
 
 class WinePatchBuildTests(unittest.TestCase):
+    def test_com_activation_module_is_delivered(self) -> None:
+        dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(encoding="utf-8")
+        self.assertIn("dlls/combase/x86_64-windows/combase.dll", dockerfile)
+        self.assertIn("/opt/wine-devel/lib/wine/x86_64-windows/combase.dll", dockerfile)
+
+    @unittest.skipUnless(shutil.which("cc"), "C compiler required")
+    def test_com_activation_timeout_is_scoped_and_validated(self) -> None:
+        patch = (PATCH_ROOT / "0007-combase-wait-solidworks-registration.patch").read_text()
+        additions = "\n".join(line[1:] for line in patch.splitlines()
+                              if line.startswith("+") and not line.startswith("+++"))
+        helper = additions[:additions.index("    const unsigned int MAXTRIES")]
+        source = r'''
+#include <assert.h>
+#include <string.h>
+#include <wchar.h>
+typedef unsigned int DWORD;
+typedef int BOOL;
+typedef wchar_t WCHAR;
+typedef struct { unsigned int a; unsigned short b,c; unsigned char d[8]; } GUID;
+typedef const GUID *REFCLSID;
+#define FALSE 0
+#define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
+#define max(a,b) ((a)>(b)?(a):(b))
+#define IsEqualGUID(a,b) (!memcmp(a,b,sizeof(GUID)))
+static const WCHAR *setting;
+static DWORD GetEnvironmentVariableW(const WCHAR *name, WCHAR *out, DWORD size) {
+    assert(!wcscmp(name,L"WINE_SOLIDWORKS_STARTUP_TIMEOUT"));
+    if (!setting) return 0;
+    if (wcslen(setting)>=size) return wcslen(setting)+1;
+    wcscpy(out,setting); return wcslen(setting);
+}
+''' + helper + r'''
+int main(void) {
+    const GUID sw={0x6af263bb,0xeb9f,0x4176,{0x89,0xe9,0x4f,0x89,0x2e,0xb0,0xca,0x3d}};
+    const GUID other={0};
+    assert(local_server_wait_seconds(&sw)==300);
+    assert(local_server_wait_seconds(&other)==30);
+    setting=L"120"; assert(local_server_wait_seconds(&sw)==120);
+    setting=L"0"; assert(local_server_wait_seconds(&sw)==1);
+    setting=L"12.01"; assert(local_server_wait_seconds(&sw)==13);
+    setting=L"12.00"; assert(local_server_wait_seconds(&sw)==12);
+    setting=L"3600"; assert(local_server_wait_seconds(&sw)==3600);
+    const WCHAR *invalid[]={L"-1",L"abc",L"12s",L".5",L"12.",L"3600.1",L"3601",
+        L"99999999999999999999999999999999999999999999999999999999999999999999"};
+    for (unsigned int i=0;i<ARRAY_SIZE(invalid);i++) {
+        setting=invalid[i]; assert(local_server_wait_seconds(&sw)==30);
+    }
+    setting=L"300"; assert(local_server_wait_seconds(&other)==30);
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "timeout.c").write_text(source)
+            subprocess.run(["cc", "-std=c99", "-Wall", "-Werror", str(root / "timeout.c"),
+                            "-o", str(root / "timeout")], check=True, capture_output=True)
+            subprocess.run([str(root / "timeout")], check=True)
+
     def test_wine_source_and_patch_are_pinned(self) -> None:
         dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(encoding="utf-8")
         version_config = (RUNTIME_ROOT / "managed_com.env").read_text(
