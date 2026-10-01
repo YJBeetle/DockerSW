@@ -281,6 +281,7 @@ class EntrypointTests(unittest.TestCase):
         start_warning=False,
         hold_start_output=False,
         host_connected=True,
+        startup_timeout="1",
     ):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -291,6 +292,7 @@ class EntrypointTests(unittest.TestCase):
                 "#!/usr/bin/env bash\n"
                 "printf '%s\\n' \"$*\" >> \"$SWCLI_TEST_CALL_LOG\"\n"
                 "if [ \"${1:-} ${2:-}\" = 'daemon start' ]; then\n"
+                "  test \"$WINE_SOLIDWORKS_STARTUP_TIMEOUT\" = \"$SWCLID_START_TIMEOUT\" || exit 9\n"
                 "  if [ \"${SWCLI_TEST_START_WARNING:-false}\" = true ]; then\n"
                 "    printf '%s\\n' 'field __ImageBase warning' >&2\n"
                 "  fi\n"
@@ -315,7 +317,7 @@ class EntrypointTests(unittest.TestCase):
                 {
                     "PATH": f"{root}:{environment['PATH']}",
                     "SOLIDWORKS_INSTALLED": "true",
-                    "SWCLID_START_TIMEOUT": "1",
+                    "SWCLID_START_TIMEOUT": startup_timeout,
                     "VNC_ENABLE": vnc_enable,
                     "SWCLI_TEST_CALL_LOG": str(call_log),
                     "SWCLI_TEST_START_FAILURE": "true" if start_failure else "false",
@@ -336,8 +338,27 @@ class EntrypointTests(unittest.TestCase):
             finally:
                 if descendant_pid_file.exists():
                     os.kill(int(descendant_pid_file.read_text()), signal.SIGTERM)
-            calls = call_log.read_text(encoding="utf-8").splitlines()
+            calls = (
+                call_log.read_text(encoding="utf-8").splitlines()
+                if call_log.exists() else []
+            )
             return result, calls
+
+    def test_startup_timeout_rejects_invalid_wine_registration_wait(self):
+        for value in ("-1", "3601", "NaN", "invalid"):
+            with self.subTest(value=value):
+                result, calls = self._run_cli_entrypoint(startup_timeout=value)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("0–3600", result.stderr)
+                self.assertEqual(calls, [])
+
+    def test_startup_timeout_preserves_valid_fractional_and_boundary_values(self):
+        for value in ("0", "0.5", "3600"):
+            with self.subTest(value=value):
+                result, calls = self._run_cli_entrypoint(startup_timeout=value)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f"--startup-timeout {value}", calls[0])
+                self.assertEqual(len(calls), 2)
 
     def test_delivery_chains_runtime_then_cli_entrypoint(self):
         delivery = (PROJECT_ROOT / "swcli" / "Dockerfile.delivery").read_text(

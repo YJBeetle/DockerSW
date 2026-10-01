@@ -365,7 +365,10 @@ daemon 通过 `DispatchEx` 创建独占 SOLIDWORKS 实例后，会等待官方
 entrypoint 中通过 `sw-cli daemon start` 预热 daemon，后续调用通过本地回环协议复用
 同一个实例；若 daemon 意外退出，typed `sw-cli document` / `part` 命令会返回
 `DaemonUnavailable`，不会隐式重启或退回直接 COM。SOLIDWORKS 启动等待上限默认为
-300 秒，可通过 `SWCLID_START_TIMEOUT` 调整，以容纳机械盘或高 I/O 负载下的冷启动；单次导出请求默认仍有独立的 600 秒超时。
+300 秒，可通过 `SWCLID_START_TIMEOUT` 调整，以容纳机械盘或高 I/O 负载下的冷启动。
+入口同时将这个值交给 Wine 的 SOLIDWORKS 专用 COM 注册等待，避免 Wine 内部
+默认 30 秒等待先到期；不会重复启动实例或在激活失败后转而等待 ROT。
+单次导出请求默认仍有独立的 600 秒超时。
 缺少 SOLIDWORKS 或 SWCLI 的默认/运行时镜像只记录跳过原因，不会因预热条件
 不完整而启动失败。
 
@@ -374,7 +377,7 @@ entrypoint 中通过 `sw-cli daemon start` 预热 daemon，后续调用通过本
 | 环境变量 | 默认值 | 说明 |
 |---|---|---|
 | `SWCLI_ENDPOINT` | `127.0.0.1:18495` | SWCLI daemon 本地协议端点 |
-| `SWCLID_START_TIMEOUT` | `300` | daemon 与 SOLIDWORKS 就绪等待秒数 |
+| `SWCLID_START_TIMEOUT` | `300` | daemon 与 SOLIDWORKS 就绪等待秒数，范围 0–3600；同时控制 Wine 的 COM 注册等待 |
 
 容器自动启动只支持本地端点。对外暴露 daemon 属于显式部署行为，应直接运行
 `sw-cli daemon serve --allow-remote`，并置于可信网络边界或认证隧道之后。

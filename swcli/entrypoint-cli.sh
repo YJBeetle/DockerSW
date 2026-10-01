@@ -9,10 +9,14 @@ else
     SWCLI_ENDPOINT="${SWCLI_ENDPOINT:-127.0.0.1:18495}"
     SWCLID_START_TIMEOUT="${SWCLID_START_TIMEOUT:-300}"
     VNC_ENABLE="${VNC_ENABLE:-false}"
-    if ! [[ "${SWCLID_START_TIMEOUT}" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
-        echo "[DockerSW][ERROR] SWCLID_START_TIMEOUT 必须是非负数，当前值: ${SWCLID_START_TIMEOUT}" >&2
+    if ! [[ "${SWCLID_START_TIMEOUT}" =~ ^[0-9]+([.][0-9]+)?$ ]] || \
+        ! jq -en --arg value "${SWCLID_START_TIMEOUT}" \
+            '$value | tonumber | . <= 3600' >/dev/null; then
+        echo "[DockerSW][ERROR] SWCLID_START_TIMEOUT 必须是 0–3600 秒的非负数，当前值: ${SWCLID_START_TIMEOUT}" >&2
         exit 1
     fi
+    # Wine 的 COM 激活必须等到同一次启动注册 class factory；外层延长等待不够。
+    export WINE_SOLIDWORKS_STARTUP_TIMEOUT="${SWCLID_START_TIMEOUT}"
     SWCLID_START_ARGS=(
         daemon start
         --endpoint "${SWCLI_ENDPOINT}"

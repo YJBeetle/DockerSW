@@ -50,7 +50,7 @@ swcli-payload
 容器启动时执行以下标准化自适应与环境保障：
 
 1. **固定源码构建与兼容性补丁**：
-   - 从校验过 SHA-256 的 Wine 11.16 源码构建 `ntdll.so`、`win32u.so`、`winex11.so` 与 `opengl32.so`，修复 24-bit DIB 无头离屏渲染和 GLX 前缓冲缺陷；四者共享 Wine 私有 ABI，必须在同一个 Ubuntu 22.04 构建阶段作为整体生成和安装；
+   - 从校验过 SHA-256 的 Wine 11.16 源码构建 `ntdll.so`、`win32u.so`、`winex11.so` 与 `opengl32.so`，修复 24-bit DIB 无头离屏渲染和 GLX 前缓冲缺陷；四者共享 Wine 私有 ABI，必须在同一个 Ubuntu 22.04 构建阶段作为整体生成和安装；同一构建阶段还生成 x64 `combase.dll`，修复 SOLIDWORKS 慢启动的 COM 注册等待，编译工具不进入成品镜像；
    - 运行时只检测并执行 `/usr/local/lib/sw-runtime/patch_wine_mono.pl`，修补 Wine-Mono CCW (`ComCallableWrapper`) 释放时的断言崩溃；不再原地修改 Wine ELF 机器码；
 2. **Xvfb 无头显示守护**：
    - 检测并拉起 `Xvfb ${DISPLAY:-:99} -screen 0 1024x768x24 -ac +extension GLX +render -noreset`；
@@ -104,7 +104,8 @@ swcli-payload
    - 非回环监听不属于默认容器入口契约；需要远程服务时应显式运行 `sw-cli daemon serve --allow-remote`，并配合可信网络边界或认证隧道；
    - `SWCLID_START_TIMEOUT` 默认 300 秒，直接交给 `daemon start` 作为 SOLIDWORKS 就绪期限，以容纳高 I/O 负载下的冷启动；入口解析启动 JSON，并要求 `result.health.host_connected=true`；
    - Docker 中由 entrypoint 负责 daemon 生命周期；typed 命令只连接已有服务，daemon 意外退出时返回 `DaemonUnavailable`，不会隐式启动或回退到直接 COM；
-   - daemon 只调用一次 `win32com.client.DispatchEx("SldWorks.Application")` 创建独占实例；Wine 返回启动期 `REGDB_E_CLASSNOTREG` 后等待该次启动的 active COM 对象，禁止重复激活以免派生多个进程；
+   - daemon 只调用一次 `win32com.client.DispatchEx("SldWorks.Application")` 创建独占实例，激活失败时直接报告错误，不进行 ROT 恢复或重复激活。Wine 补丁 `0007-combase-wait-solidworks-registration.patch` 在同一次激活内部等待 SOLIDWORKS class factory 注册；入口将 `SWCLID_START_TIMEOUT` 传入 `WINE_SOLIDWORKS_STARTUP_TIMEOUT`，小数秒向上取整；
+   - `0007` 只匹配 SOLIDWORKS CLSID `{6af263bb-eb9f-4176-89e9-4f892eb0ca3d}`，不改变其他 COM 类的默认 30 秒等待。独立使用 Wine 时该类默认等待 300 秒，环境变量可配置 0–3600 秒（最少一个轮询周期）；非法配置回退到 30 秒；
    - 按官方 `StartupProcessCompleted` 状态等待启动加载完成，再开放协议端点，避免 COM 已返回但启动插件尚未就绪的竞态；
    - supervisor 与 COM worker 分进程，worker 在单一 COM apartment 中串行执行全部请求；调用超时后会连同未知状态的 SOLIDWORKS 进程树一起替换；
    - DockerSW 仅负责 Linux/Wine 路径转换、daemon 预热和容器生命周期，协议、worker 与 typed operations 均由 SWCLI 拥有；
@@ -118,6 +119,24 @@ swcli-payload
    - 在启动 SOLIDWORKS 前完成缺失输入、目标冲突和覆盖策略预检；
    - 每个文档执行 typed open/export/close，关闭失败时中止后续项目；
    - 产物必须通过非空和文件签名验证；任一失败返回退出码 `1`。
+
+### 慢启动方案验证（2026-10-01）
+
+在 NAS 的实际 Docker 环境，基于 `sw-executable:2025-zh-cn-cli` 的
+`sha256:bdd26870b8ccdc1f62fdc961d75dbf797c5af4b24fdd8b9ec3d81b6451683f92`
+隔离测试容器替换同版本源码编译的 `combase.dll`、入口和 SWCLI worker：
+
+- 全新实例分别注入 45 秒（两轮）及 60 秒启动暂停后恢复，均成功就绪；
+  最终 SWCLI 移除 ROT 回退的版本也通过，宿主为单实例、独占、隐藏模式。
+- 启动期限设为 10 秒并暂停宿主时，入口非零退出并报告 COM 错误与日志路径；
+  下游用户命令没有执行。未启动 daemon 的真实文档命令返回 `DaemonUnavailable`。
+- 原版 Wine 直接启动 `SLDWORKS.exe -Embedding` 后，90 秒 ROT 轮询仍不可用；
+  普通启动可以被 ROT 找到，但停在许可协议弹窗，启动完成状态为 false。
+  因此不将“先启动再附加”替换为默认无交互启动路径。
+- 曾在失败后重启的测试容器注入 60 秒暂停，宿主随后退出；这轮不计为通过。
+  后续全新容器的 60 秒验证通过，不能把重启状态与全新启动的证据混用。
+
+这些是隔离容器的模块覆盖测试，不等同于完整成品镜像构建、GitHub CI 通过或镜像晋升。
 
 ---
 
