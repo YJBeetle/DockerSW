@@ -276,6 +276,10 @@ SWCLI payload 直接从父仓库锁定的 `swcli/SWCLI` 源码复制到 `/opt/sw
 调用旧版 SWCLI wheel。Linux 客户端和 Wine Windows daemon 都通过 `PYTHONPATH` 优先加载
 这份源码，因此镜像运行行为与子模块提交一致。
 
+Schema 校验依赖在 payload 构建时分别按 Linux Python 3.10 与 Windows
+Python 3.11 打包到 `/opt/swcli-deps/linux` 和 `/opt/swcli-deps/windows`，包装入口
+为各自解释器设置对应依赖路径，因此仅更新 SWCLI 不需要重建 SOLIDWORKS 安装层。
+
 ### 4. CI/CD 流水线集成示例 (GitLab CI)
 
 在私有 GitLab Runner 中使用 `sw-preinstalled:*cli` 镜像导出 CAD 产物。源文件到目标

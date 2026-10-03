@@ -66,10 +66,12 @@ class ImageLayeringTests(unittest.TestCase):
         wine_setup = self.read("runtime/init_wineprefix.sh")
 
         self.assertIn("COPY --link swcli/SWCLI/ /opt/swcli/", payload)
-        self.assertNotIn("pip install", payload)
+        self.assertIn("--target /deps/linux 'jsonschema>=4.18'", payload)
+        self.assertIn("--target /deps/windows 'jsonschema>=4.18'", payload)
+        self.assertNotRegex(payload, r"pip install[^\n]*\bswcli\b")
         self.assertIn('SWCLI_SOURCE="${SWCLI_SOURCE:-/opt/swcli/src}"', wrapper)
-        self.assertIn('PYTHONPATH="${WINDOWS_SWCLI_SOURCE}"', wrapper)
-        self.assertIn('PYTHONPATH="${SWCLI_SOURCE}${PYTHONPATH:+:${PYTHONPATH}}"', wrapper)
+        self.assertIn('PYTHONPATH="${WINDOWS_SWCLI_SOURCE};${WINDOWS_SWCLI_DEPS}"', wrapper)
+        self.assertIn('PYTHONPATH="${SWCLI_SOURCE}:${SWCLI_DEPS}/linux${PYTHONPATH:+:${PYTHONPATH}}"', wrapper)
         self.assertNotRegex(wine_setup, r"pip install[^\n]*\bswcli\b")
 
     def test_sw_install_stays_in_runtime_image(self) -> None:

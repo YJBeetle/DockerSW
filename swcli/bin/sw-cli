@@ -9,6 +9,7 @@ set -euo pipefail
 # never needs to know which arguments are paths.
 WIN_PYTHON="${SWCLI_WINDOWS_PYTHON:-C:\\Python311\\python.exe}"
 SWCLI_SOURCE="${SWCLI_SOURCE:-/opt/swcli/src}"
+SWCLI_DEPS="${SWCLI_DEPS:-/opt/swcli-deps}"
 SWCLI_ENDPOINT="${SWCLI_ENDPOINT:-127.0.0.1:18495}"
 export SWCLI_ENDPOINT
 export SWCLI_PATH_TRANSLATE_CMD=/usr/local/bin/linux-to-wine-path
@@ -27,9 +28,10 @@ fi
 if [ "${#ARGS[@]}" -ge 1 ] && \
    { [ "${ARGS[0]}" = "doctor" ] || [ "${ARGS[0]}" = "daemon" ]; }; then
     WINDOWS_SWCLI_SOURCE="$(winepath -w "${SWCLI_SOURCE}")"
-    exec env PYTHONPATH="${WINDOWS_SWCLI_SOURCE}" \
+    WINDOWS_SWCLI_DEPS="$(winepath -w "${SWCLI_DEPS}/windows")"
+    exec env PYTHONPATH="${WINDOWS_SWCLI_SOURCE};${WINDOWS_SWCLI_DEPS}" \
         wine "${WIN_PYTHON}" -m swcli "${ARGS[@]}"
 fi
 
-exec env PYTHONPATH="${SWCLI_SOURCE}${PYTHONPATH:+:${PYTHONPATH}}" \
+exec env PYTHONPATH="${SWCLI_SOURCE}:${SWCLI_DEPS}/linux${PYTHONPATH:+:${PYTHONPATH}}" \
     python3 -m swcli "${ARGS[@]}"
