@@ -8,6 +8,21 @@ assembly_path="${workspace}/Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/
 # The client validates this response against capabilities.schema.json.
 sw-cli capabilities --json
 
+# Unsaved documents have no path: their handles must still remain distinct.
+created_a="$(sw-cli document create --type part --json)"
+created_b="$(sw-cli document create --json)"
+printf '%s\n' "${created_a}" "${created_b}"
+created_a_id="$(printf '%s' "${created_a}" | jq -er \
+    'select(.created == true and .document.path == "" and .document.type == 1) | .document.document_id')"
+printf '%s' "${created_b}" | jq -e --arg first "${created_a_id}" \
+    '.created == true and .document.path == "" and .document.type == 1
+     and .document.document_id != $first' >/dev/null || {
+    echo "New unsaved parts did not receive distinct document handles" >&2
+    exit 1
+}
+sw-cli document close --document "${created_a_id}" --discard --json
+sw-cli document close --discard --json
+
 part_json="$(sw-cli document open "${part_path}" --json)"
 printf '%s\n' "${part_json}"
 part_id="$(printf '%s' "${part_json}" | jq -er '.document.document_id')"
