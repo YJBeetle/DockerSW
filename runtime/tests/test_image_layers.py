@@ -125,6 +125,8 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn("document list --json", verification_script)
         self.assertIn("swcli-smoke-multi-document.STEP", verification_script)
         self.assertIn('sw-cli feature extrude "${sketch_id}"', verification_script)
+        self.assertIn('sw-cli sketch circle --plane "${plane}"', verification_script)
+        self.assertIn(".geometry_verification.complete_circle == true", verification_script)
         self.assertIn('sw-cli document save-as "${native_path}"', verification_script)
         self.assertIn(".file_verification.minimum_size_valid == true", verification_script)
         self.assertIn("--session smoke-reopen document open", verification_script)

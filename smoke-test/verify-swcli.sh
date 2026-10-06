@@ -52,6 +52,31 @@ for plane in front top right; do
         exit 1
     }
 done
+for plane in front top right; do
+    circle_json="$(sw-cli sketch circle --plane "${plane}" --radius-mm 8 \
+        --center-x-mm 120 --center-y-mm 20 --document "${created_a_id}" --json)"
+    printf '%s\n' "${circle_json}"
+    printf '%s' "${circle_json}" | jq -e \
+        '.geometry_verification.passed == true
+         and .geometry_verification.complete_circle == true
+         and .geometry_verification.profile_segment_count == 1
+         and .editing == false
+         and .document.active == false and .document.current == false' >/dev/null || {
+        echo "Circle on ${plane} failed native geometry or foreground checks" >&2
+        exit 1
+    }
+    sketch_id="$(printf '%s' "${circle_json}" | jq -er '.sketch.sketch_id')"
+    extrusion_json="$(sw-cli feature extrude "${sketch_id}" --depth-mm 20 --no-merge \
+        --document "${created_a_id}" --json)"
+    printf '%s\n' "${extrusion_json}"
+    printf '%s' "${extrusion_json}" | jq -e \
+        '.geometry_verification.passed == true
+         and .geometry_verification.actual_merge == false
+         and .document.active == false and .document.current == false' >/dev/null || {
+        echo "Circle extrusion on ${plane} failed native definition checks" >&2
+        exit 1
+    }
+done
 created_b_id="$(printf '%s' "${created_b}" | jq -er '.document.document_id')"
 sw-cli document inspect --json | jq -e --arg id "${created_b_id}" \
     '.document.document_id == $id
