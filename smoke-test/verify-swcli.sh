@@ -20,6 +20,31 @@ printf '%s' "${created_b}" | jq -e --arg first "${created_a_id}" \
     echo "New unsaved parts did not receive distinct document handles" >&2
     exit 1
 }
+
+# Create geometry in background part A; every operation must restore part B.
+# These sketches are discarded and do not change the six published artifacts.
+for plane in front top right; do
+    rectangle_json="$(sw-cli sketch rectangle --plane "${plane}" \
+        --width-mm 100 --height-mm 50 --center-x-mm 10 --center-y-mm 20 \
+        --document "${created_a_id}" --json)"
+    printf '%s\n' "${rectangle_json}"
+    printf '%s' "${rectangle_json}" | jq -e --arg plane "${plane}" \
+        '.plane == $plane and .coordinate_system == "sketch-local"
+         and .editing == false and .geometry_verification.passed == true
+         and .geometry_verification.profile_segment_count == 4
+         and (.sketch.sketch_id | test("^s-[a-z0-9]{6}$"))
+         and .document.active == false and .document.current == false' >/dev/null || {
+        echo "Rectangle on ${plane} failed geometry or foreground restoration checks" >&2
+        exit 1
+    }
+done
+created_b_id="$(printf '%s' "${created_b}" | jq -er '.document.document_id')"
+sw-cli document inspect --json | jq -e --arg id "${created_b_id}" \
+    '.document.document_id == $id
+     and .document.active == true and .document.current == true' >/dev/null || {
+    echo "The foreground part was not restored after rectangle creation" >&2
+    exit 1
+}
 sw-cli document close --document "${created_a_id}" --discard --json
 sw-cli document close --discard --json
 
