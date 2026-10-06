@@ -98,6 +98,15 @@ for plane in front top right; do
             echo "Absorbed sketch observation lost native owner identity or changed foreground" >&2
             exit 1
         }
+        if denied_json="$(sw-cli feature cut-extrude "${hole_id}" --depth-mm 20 \
+            --document "${created_a_id}" --json 2>&1)"; then
+            echo "An absorbed cut profile was reused to create another feature" >&2
+            exit 1
+        fi
+        printf '%s' "${denied_json}" | jq -e '.error.type == "SketchUnavailable"' >/dev/null || {
+            echo "Absorbed cut profile failed for an unexpected reason: ${denied_json}" >&2
+            exit 1
+        }
     fi
 done
 for plane in front top right; do
@@ -186,6 +195,31 @@ sw-cli --session smoke-reverse feature cut-extrude "${sketch_id}" --depth-mm 10 
     exit 1
 }
 sw-cli --session smoke-reverse document close --discard --json
+
+# Native rejection is also evidence: a nonintersecting profile cannot be a cut.
+sw-cli --session smoke-cut-failure document create --json
+rectangle_json="$(sw-cli --session smoke-cut-failure sketch rectangle --plane front \
+    --width-mm 40 --height-mm 30 --json)"
+sketch_id="$(printf '%s' "${rectangle_json}" | jq -er '.sketch.sketch_id')"
+sw-cli --session smoke-cut-failure feature extrude "${sketch_id}" --depth-mm 10 --json
+circle_json="$(sw-cli --session smoke-cut-failure sketch circle --plane front \
+    --radius-mm 2 --center-x-mm 1000 --json)"
+sketch_id="$(printf '%s' "${circle_json}" | jq -er '.sketch.sketch_id')"
+if denied_json="$(sw-cli --session smoke-cut-failure feature cut-extrude \
+    "${sketch_id}" --depth-mm 10 --json 2>&1)"; then
+    echo "A nonintersecting profile was reported as a successful cut" >&2
+    exit 1
+fi
+printf '%s' "${denied_json}" | jq -e '.error.type == "CutExtrusionFailed"' >/dev/null || {
+    echo "Nonintersecting cut failed for an unexpected reason: ${denied_json}" >&2
+    exit 1
+}
+sw-cli --session smoke-cut-failure document measure --json | jq -e \
+    '.metrics.solid_body_count == 1 and ((.metrics.volume_mm3 - 12000) | fabs) < 0.00001' >/dev/null || {
+    echo "Nonintersecting cut failure changed the measured solid" >&2
+    exit 1
+}
+sw-cli --session smoke-cut-failure document close --discard --json
 
 sw-cli document inspect --json | jq -e --arg id "${created_b_id}" \
     '.document.document_id == $id and .document.current == true' >/dev/null || {
