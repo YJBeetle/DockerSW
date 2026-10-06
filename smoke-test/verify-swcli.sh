@@ -60,6 +60,21 @@ for plane in front top right; do
             echo "First extrusion failed native volume or surface-area checks" >&2
             exit 1
         }
+        hole_json="$(sw-cli sketch circle --plane front --radius-mm 4 \
+            --center-x-mm 10 --center-y-mm 20 --document "${created_a_id}" --json)"
+        hole_id="$(printf '%s' "${hole_json}" | jq -er '.sketch.sketch_id')"
+        cut_json="$(sw-cli feature cut-extrude "${hole_id}" --depth-mm 20 \
+            --document "${created_a_id}" --json)"
+        printf '%s\n' "${hole_json}" "${cut_json}"
+        printf '%s' "${cut_json}" | jq -e --argjson pi 3.141592653589793 \
+            '.geometry_verification.passed == true
+             and .geometry_verification.actual_reverse == false
+             and ((.geometry_verification.volume_removed_mm3 - (320 * $pi)) | fabs) < 0.00001
+             and ((.measurement_after.surface_area_mm2 - (16000 + 128 * $pi)) | fabs) < 0.00001
+             and .document.active == false and .document.current == false' >/dev/null || {
+            echo "Blind cut failed native direction, hole geometry or foreground checks" >&2
+            exit 1
+        }
     fi
 done
 for plane in front top right; do
@@ -131,6 +146,24 @@ sw-cli --session smoke-reopen document measure --json | \
     exit 1
 }
 sw-cli --session smoke-reopen document close --discard --json
+
+# --reverse means opposite the sketch normal for both bosses and cuts.
+sw-cli --session smoke-reverse document create --json
+rectangle_json="$(sw-cli --session smoke-reverse sketch rectangle --plane front \
+    --width-mm 40 --height-mm 30 --json)"
+sketch_id="$(printf '%s' "${rectangle_json}" | jq -er '.sketch.sketch_id')"
+sw-cli --session smoke-reverse feature extrude "${sketch_id}" --depth-mm 10 --reverse --json
+circle_json="$(sw-cli --session smoke-reverse sketch circle --plane front --radius-mm 3 --json)"
+sketch_id="$(printf '%s' "${circle_json}" | jq -er '.sketch.sketch_id')"
+sw-cli --session smoke-reverse feature cut-extrude "${sketch_id}" --depth-mm 10 --reverse --json | \
+    jq -e --argjson pi 3.141592653589793 \
+        '.geometry_verification.passed == true and .geometry_verification.actual_reverse == true
+         and ((.geometry_verification.volume_removed_mm3 - (90 * $pi)) | fabs) < 0.00001' >/dev/null || {
+    echo "Reverse cut did not remove the expected material against the sketch normal" >&2
+    exit 1
+}
+sw-cli --session smoke-reverse document close --discard --json
+
 sw-cli document inspect --json | jq -e --arg id "${created_b_id}" \
     '.document.document_id == $id and .document.current == true' >/dev/null || {
     echo "Independent reopen session changed the original session current" >&2
