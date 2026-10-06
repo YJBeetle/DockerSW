@@ -22,7 +22,7 @@ printf '%s' "${created_b}" | jq -e --arg first "${created_a_id}" \
 }
 
 # Create geometry in background part A; every operation must restore part B.
-# These sketches are discarded and do not change the six published artifacts.
+# The additional native model stays outside the six published artifacts.
 for plane in front top right; do
     rectangle_json="$(sw-cli sketch rectangle --plane "${plane}" \
         --width-mm 100 --height-mm 50 --center-x-mm 10 --center-y-mm 20 \
@@ -37,15 +37,59 @@ for plane in front top right; do
         echo "Rectangle on ${plane} failed geometry or foreground restoration checks" >&2
         exit 1
     }
+    sketch_id="$(printf '%s' "${rectangle_json}" | jq -er '.sketch.sketch_id')"
+    extrusion_json="$(sw-cli feature extrude "${sketch_id}" --depth-mm 20 \
+        --document "${created_a_id}" --json)"
+    printf '%s\n' "${extrusion_json}"
+    printf '%s' "${extrusion_json}" | jq -e \
+        '.geometry_verification.passed == true
+         and .geometry_verification.actual_depth_mm == 20
+         and .geometry_verification.actual_reverse == false
+         and .geometry_verification.actual_merge == true
+         and .bodies.count > 0
+         and .document.active == false and .document.current == false' >/dev/null || {
+        echo "Extrusion on ${plane} failed native definition or foreground checks" >&2
+        exit 1
+    }
 done
 created_b_id="$(printf '%s' "${created_b}" | jq -er '.document.document_id')"
 sw-cli document inspect --json | jq -e --arg id "${created_b_id}" \
     '.document.document_id == $id
      and .document.active == true and .document.current == true' >/dev/null || {
-    echo "The foreground part was not restored after rectangle creation" >&2
+    echo "The foreground part was not restored after modeling" >&2
     exit 1
 }
+native_path=/tmp/swcli-smoke-generic.SLDPRT
+saved_json="$(sw-cli document save-as "${native_path}" \
+    --document "${created_a_id}" --json)"
+printf '%s\n' "${saved_json}"
+printf '%s' "${saved_json}" | jq -e --arg id "${created_a_id}" \
+    '.document.document_id == $id and .document.modified == false
+     and .document.active == false and .document.current == false
+     and .file_verification.minimum_size_valid == true' >/dev/null || {
+    echo "Native save-as lost document identity or left an invalid state" >&2
+    exit 1
+}
+test -s "${native_path}"
+body_count="$(printf '%s' "${extrusion_json}" | jq -er '.bodies.count')"
 sw-cli document close --document "${created_a_id}" --discard --json
+sw-cli --session smoke-reopen document open "${native_path}" --read-only --json
+sw-cli --session smoke-reopen document inspect --detail structure --json | \
+    jq -e --argjson count "${body_count}" '.structure.bodies.count == $count' >/dev/null || {
+    echo "Native save/reopen changed solid body count" >&2
+    exit 1
+}
+sw-cli --session smoke-reopen document diagnose --json | \
+    jq -e '.diagnostics.healthy == true and .needs_rebuild == 0' >/dev/null || {
+    echo "Reopened native model failed rebuild or feature diagnosis" >&2
+    exit 1
+}
+sw-cli --session smoke-reopen document close --discard --json
+sw-cli document inspect --json | jq -e --arg id "${created_b_id}" \
+    '.document.document_id == $id and .document.current == true' >/dev/null || {
+    echo "Independent reopen session changed the original session current" >&2
+    exit 1
+}
 sw-cli document close --discard --json
 
 part_json="$(sw-cli document open "${part_path}" --json)"

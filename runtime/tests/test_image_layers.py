@@ -124,6 +124,12 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn("document lease release", verification_script)
         self.assertIn("document list --json", verification_script)
         self.assertIn("swcli-smoke-multi-document.STEP", verification_script)
+        self.assertIn('sw-cli feature extrude "${sketch_id}"', verification_script)
+        self.assertIn('sw-cli document save-as "${native_path}"', verification_script)
+        self.assertIn(".file_verification.minimum_size_valid == true", verification_script)
+        self.assertIn("--session smoke-reopen document open", verification_script)
+        self.assertIn(".structure.bodies.count == $count", verification_script)
+        self.assertIn(".diagnostics.healthy == true and .needs_rebuild == 0", verification_script)
 
         workflow = self.read(".github/workflows/build.yml")
         self.assertIn("smoke-test/verify-swcli.sh", workflow)

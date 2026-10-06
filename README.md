@@ -401,8 +401,9 @@ entrypoint 中通过 `sw-cli daemon start` 预热 daemon，后续调用通过本
 STEP、PDF、DWG 产物。业务项目可以直接参考 `export.sh`，替换源文件、输出路径与
 格式规则。随后 [`smoke-test/verify-swcli.sh`](smoke-test/verify-swcli.sh) 会在同一真实
 SOLIDWORKS 会话中验证 capabilities Schema、更新戳、多文档切换和 lease 互斥，
-并在新建的未保存后台零件上验证三个基准面的矩形草图及前台恢复；这些临时草图
-会直接丢弃，不改变 6 个正式产物的计数。只有
+并在新建的后台零件上验证三个基准面的矩形草图、定深拉伸与前台恢复，再执行
+原生另存为、关闭重开、实体数量与重建诊断检查；这个额外模型留在临时目录，
+不改变 6 个正式产物的计数。只有
 这些门禁全部通过后，流水线才会晋升镜像。
 
 ## 测试
