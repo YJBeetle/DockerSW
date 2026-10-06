@@ -63,6 +63,17 @@ for plane in front top right; do
         hole_json="$(sw-cli sketch circle --plane front --radius-mm 4 \
             --center-x-mm 10 --center-y-mm 20 --document "${created_a_id}" --json)"
         hole_id="$(printf '%s' "${hole_json}" | jq -er '.sketch.sketch_id')"
+        hole_stamp="$(printf '%s' "${hole_json}" | jq -er '.document.update_stamp')"
+        sw-cli --session smoke-observer sketch inspect "${hole_id}" \
+            --document "${created_a_id}" --if-update-stamp "${hole_stamp}" --json | jq -e --argjson stamp "${hole_stamp}" \
+            '.geometry_complete == true and .sketch.absorbed == false and .editing == false
+             and .profile_segment_count == 1 and .segments[0].geometry.complete_circle == true
+             and ((.segments[0].geometry.radius_mm - 4) | fabs) < 0.000001
+             and .document.update_stamp == $stamp
+             and .document.active == false and .document.current == false' >/dev/null || {
+            echo "Read-only circle observation failed geometry or foreground checks" >&2
+            exit 1
+        }
         cut_json="$(sw-cli feature cut-extrude "${hole_id}" --depth-mm 20 \
             --document "${created_a_id}" --json)"
         printf '%s\n' "${hole_json}" "${cut_json}"
@@ -73,6 +84,18 @@ for plane in front top right; do
              and ((.measurement_after.surface_area_mm2 - (16000 + 128 * $pi)) | fabs) < 0.00001
              and .document.active == false and .document.current == false' >/dev/null || {
             echo "Blind cut failed native direction, hole geometry or foreground checks" >&2
+            exit 1
+        }
+        cut_name="$(printf '%s' "${cut_json}" | jq -er '.feature.name')"
+        cut_stamp="$(printf '%s' "${cut_json}" | jq -er '.document.update_stamp')"
+        sw-cli --session smoke-observer sketch inspect "${hole_id}" \
+            --document "${created_a_id}" --if-update-stamp "${cut_stamp}" --json | \
+            jq -e --arg owner "${cut_name}" --argjson stamp "${cut_stamp}" \
+            '.sketch.absorbed == true and .sketch.owner.name == $owner
+             and .geometry_complete == true and .editing == false
+             and .document.update_stamp == $stamp
+             and .document.active == false and .document.current == false' >/dev/null || {
+            echo "Absorbed sketch observation lost native owner identity or changed foreground" >&2
             exit 1
         }
     fi

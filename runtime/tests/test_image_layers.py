@@ -130,6 +130,8 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn('sw-cli feature cut-extrude "${hole_id}"', verification_script)
         self.assertIn(".geometry_verification.volume_removed_mm3", verification_script)
         self.assertIn("--session smoke-reverse feature cut-extrude", verification_script)
+        self.assertIn('--session smoke-observer sketch inspect "${hole_id}"', verification_script)
+        self.assertIn(".sketch.owner.name == $owner", verification_script)
         self.assertIn('sw-cli document save-as "${native_path}"', verification_script)
         self.assertIn(".file_verification.minimum_size_valid == true", verification_script)
         self.assertIn("--session smoke-reopen document open", verification_script)
