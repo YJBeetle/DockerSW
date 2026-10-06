@@ -131,6 +131,10 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn(".file_verification.minimum_size_valid == true", verification_script)
         self.assertIn("--session smoke-reopen document open", verification_script)
         self.assertIn(".structure.bodies.count == $count", verification_script)
+        self.assertIn('sw-cli document measure --document "${created_a_id}"', verification_script)
+        self.assertIn(".metrics.volume_mm3 - 100000", verification_script)
+        self.assertIn(".metrics.surface_area_mm2 - 16000", verification_script)
+        self.assertIn("--session smoke-reopen document measure", verification_script)
         self.assertIn(".diagnostics.healthy == true and .needs_rebuild == 0", verification_script)
 
         workflow = self.read(".github/workflows/build.yml")

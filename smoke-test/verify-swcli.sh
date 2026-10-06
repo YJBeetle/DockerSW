@@ -51,6 +51,16 @@ for plane in front top right; do
         echo "Extrusion on ${plane} failed native definition or foreground checks" >&2
         exit 1
     }
+    if [[ "${plane}" == front ]]; then
+        sw-cli document measure --document "${created_a_id}" --json | jq -e \
+            '.metrics.solid_body_count == 1
+             and ((.metrics.volume_mm3 - 100000) | fabs) < 0.00001
+             and ((.metrics.surface_area_mm2 - 16000) | fabs) < 0.00001
+             and .document.active == false and .document.current == false' >/dev/null || {
+            echo "First extrusion failed native volume or surface-area checks" >&2
+            exit 1
+        }
+    fi
 done
 for plane in front top right; do
     circle_json="$(sw-cli sketch circle --plane "${plane}" --radius-mm 8 \
@@ -85,6 +95,10 @@ sw-cli document inspect --json | jq -e --arg id "${created_b_id}" \
     exit 1
 }
 native_path=/tmp/swcli-smoke-generic.SLDPRT
+measurement_json="$(sw-cli document measure --document "${created_a_id}" --json)"
+printf '%s\n' "${measurement_json}"
+volume="$(printf '%s' "${measurement_json}" | jq -er '.metrics.volume_mm3')"
+area="$(printf '%s' "${measurement_json}" | jq -er '.metrics.surface_area_mm2')"
 saved_json="$(sw-cli document save-as "${native_path}" \
     --document "${created_a_id}" --json)"
 printf '%s\n' "${saved_json}"
@@ -107,6 +121,13 @@ sw-cli --session smoke-reopen document inspect --detail structure --json | \
 sw-cli --session smoke-reopen document diagnose --json | \
     jq -e '.diagnostics.healthy == true and .needs_rebuild == 0' >/dev/null || {
     echo "Reopened native model failed rebuild or feature diagnosis" >&2
+    exit 1
+}
+sw-cli --session smoke-reopen document measure --json | \
+    jq -e --argjson volume "${volume}" --argjson area "${area}" \
+    '((.metrics.volume_mm3 - $volume) | fabs) <= ($volume * 0.000000001 + 0.00001)
+     and ((.metrics.surface_area_mm2 - $area) | fabs) <= ($area * 0.000000001 + 0.00001)' >/dev/null || {
+    echo "Native save/reopen changed measured volume or surface area" >&2
     exit 1
 }
 sw-cli --session smoke-reopen document close --discard --json
