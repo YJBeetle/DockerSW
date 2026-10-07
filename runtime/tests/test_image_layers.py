@@ -109,14 +109,16 @@ class ImageLayeringTests(unittest.TestCase):
             self.assertNotIn("/usr/local/bin/swclid", self.read(relative_path))
 
         export_script = self.read("smoke-test/export.sh")
-        self.assertIn("sw-cli daemon stop --json", export_script)
+        self.assertNotIn("sw-cli daemon", export_script)
         self.assertNotIn("\nswclid ", export_script)
 
     def test_real_export_smoke_test_covers_protocol_and_concurrency_gates(self) -> None:
         export_script = self.read("smoke-test/export.sh")
         verification_script = self.read("smoke-test/verify-swcli.sh")
+        driving_script = self.read("smoke-test/verify-driving.sh")
 
-        self.assertIn("verify-swcli.sh", export_script)
+        self.assertNotIn("verify-swcli.sh", export_script)
+        self.assertNotIn("verify-driving", export_script)
         self.assertIn("sw-cli capabilities --json", verification_script)
         self.assertIn(".document.update_stamp != null", verification_script)
         self.assertIn("document lease acquire", verification_script)
@@ -144,14 +146,21 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn(".metrics.surface_area_mm2 - 16000", verification_script)
         self.assertIn("--session smoke-reopen document measure", verification_script)
         self.assertIn(".diagnostics.healthy == true and .needs_rebuild == 0", verification_script)
-        self.assertIn("verify-driving-dimensions.py", verification_script)
-        self.assertIn("--cli-command /usr/local/bin/sw-cli", verification_script)
-        self.assertIn('--host-output-dir "$(winepath -w', verification_script)
-        self.assertIn("SW_SMOKE_EVIDENCE_DIR", verification_script)
-        self.assertIn('chmod 755 "${dimension_outdir}"', verification_script)
+        self.assertNotIn("verify-driving-dimensions.py", verification_script)
+        self.assertIn("verify-driving-dimensions.py", driving_script)
+        self.assertIn("--cli-command /usr/local/bin/sw-cli", driving_script)
+        self.assertIn('--host-output-dir "$(winepath -w', driving_script)
+        self.assertIn("SW_SMOKE_EVIDENCE_DIR", driving_script)
+        self.assertIn('chmod 755 "${dimension_outdir}"', driving_script)
+        for script in (export_script, verification_script, driving_script):
+            self.assertNotIn("sw-cli daemon start", script)
+            self.assertNotIn("sw-cli daemon restart", script)
+            self.assertNotIn("sw-cli daemon stop", script)
 
         workflow = self.read(".github/workflows/build.yml")
         self.assertIn("smoke-test/verify-swcli.sh", workflow)
+        self.assertIn("bash -n smoke-test/verify-driving.sh", workflow)
+        self.assertIn("smoke-test/verify-driving.sh", workflow)
         self.assertIn("--env SW_SMOKE_EVIDENCE_DIR=/ci-smoke", workflow)
         expected_outputs = workflow.split("expected_outputs=(", maxsplit=1)[1].split(
             ")", maxsplit=1

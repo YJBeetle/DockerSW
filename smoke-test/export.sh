@@ -32,7 +32,3 @@ sw-cli document open \
     "${workspace}/users/Public/Documents/SOLIDWORKS/SOLIDWORKS 2025/samples/learn/Paper Airplane.SLDPRT" --json
 sw-cli document export "${outdir}/Paper Airplane.STEP" --json
 sw-cli document close --discard --json
-
-bash "$(dirname "${BASH_SOURCE[0]}")/verify-swcli.sh" "${workspace}"
-
-sw-cli daemon stop --json

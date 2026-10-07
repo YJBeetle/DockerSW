@@ -73,6 +73,7 @@ jobs:
           bash -n swcli/bin/*
           bash -n smoke-test/export.sh
           bash -n smoke-test/verify-swcli.sh
+          bash -n smoke-test/verify-driving.sh
           bash -n smoke-test/export-localized.sh
           bash -n preinstall/install-fonts.sh
           perl -c runtime/patch_wine_mono.pl
@@ -750,7 +751,8 @@ jobs:
           done < "${SW_LANGUAGE_BUILD_PLAN}"
 
       - name: Smoke test real SOLIDWORKS exports
-        if: steps.check-images.outputs.already_verified != 'true'
+        id: smoke-exports
+        if: success() && steps.check-images.outputs.already_verified != 'true'
         shell: bash
         timeout-minutes: 10
         run: |
@@ -765,7 +767,8 @@ jobs:
           mkdir -p "${output_dir}"
           docker rm -f "${smoke_container}" >/dev/null 2>&1 || true
 
-          docker run \
+          # Keep the same container and COM session for all three smoke phases.
+          docker run -d \
             --name "${smoke_container}" \
             --env SW_SMOKE_EVIDENCE_DIR=/ci-smoke \
             --env SWCLID_VISIBLE=true \
@@ -773,8 +776,46 @@ jobs:
             --mount "type=bind,source=${smoke_root},target=/ci-smoke" \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/export.sh,target=/opt/dockersw-smoke/export.sh,readonly" \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/verify-swcli.sh,target=/opt/dockersw-smoke/verify-swcli.sh,readonly" \
+            --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/verify-driving.sh,target=/opt/dockersw-smoke/verify-driving.sh,readonly" \
             "${SW_EXECUTABLE_CLI_IMAGE}" \
-            bash /opt/dockersw-smoke/export.sh 2>&1 \
+            sleep infinity
+
+          status_file="${smoke_root}/startup-status.json"
+          probe_log="${smoke_root}/startup-probe.log"
+          touch "${status_file}" "${probe_log}"
+          startup_deadline=$((SECONDS + 300))
+          ready=false
+          echo "[CI startup] waiting up to 300 seconds for the resident daemon"
+          while [ "${SECONDS}" -lt "${startup_deadline}" ]; do
+            if ! running="$(docker inspect --type container --format '{{.State.Running}}' "${smoke_container}")" \
+                || [ "${running}" != true ]; then
+              echo "DockerSW entrypoint exited before its daemon became ready" >&2
+              exit 1
+            fi
+            remaining=$((startup_deadline - SECONDS))
+            if [ "${remaining}" -le 0 ]; then break; fi
+            if [ "${remaining}" -gt 20 ]; then remaining=20; fi
+            # The leading global option routes this socket-only probe to Linux Python.
+            if timeout --kill-after=2s "${remaining}s" \
+                docker exec "${smoke_container}" sw-cli --request-timeout 2 daemon status --json \
+                >"${status_file}" 2>>"${probe_log}" \
+                && jq -e '.success == true and .result.host_connected == true
+                  and .result.worker_alive == true and .result.recovery_required == false
+                  and .result.host != null' "${status_file}" >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "${ready}" != true ]; then
+            echo "DockerSW daemon did not become healthy within 300 seconds" >&2
+            cat "${status_file}" >&2
+            tail -n 50 "${probe_log}" >&2
+            exit 1
+          fi
+          echo "[CI startup] resident daemon is healthy"
+
+          docker exec "${smoke_container}" bash /opt/dockersw-smoke/export.sh 2>&1 \
             | tee "${log_file}"
 
           expected_outputs=(
@@ -796,6 +837,31 @@ jobs:
           done
           echo "SOLIDWORKS export smoke test passed: ${#expected_outputs[@]} files verified."
 
+      - name: Smoke test SWCLI modeling & protocol
+        id: smoke-generic
+        if: success() && steps.smoke-exports.outcome == 'success'
+        shell: bash
+        timeout-minutes: 10
+        run: |
+          set -Eeuo pipefail
+          smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
+          docker exec "${smoke_container}" \
+            bash /opt/dockersw-smoke/verify-swcli.sh /root/.wine/drive_c 2>&1 \
+            | tee "${smoke_root}/sw-cli-modeling.log"
+
+      - name: Smoke test SWCLI driving dimensions
+        id: smoke-driving
+        if: success() && steps.smoke-generic.outcome == 'success'
+        shell: bash
+        timeout-minutes: 10
+        run: |
+          set -Eeuo pipefail
+          smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
+          docker exec "${smoke_container}" bash /opt/dockersw-smoke/verify-driving.sh 2>&1 \
+            | tee "${smoke_root}/sw-cli-driving.log"
+
       - name: Collect native daemon diagnostics & clean smoke container
         if: always() && steps.check-images.outputs.already_verified != 'true'
         shell: bash
@@ -805,9 +871,17 @@ jobs:
           smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
           native_log=/root/.wine/drive_c/users/root/AppData/Local/SWCLI/logs/daemon.log
           daemon_log="${smoke_root}/daemon.log"
+          startup_log="${smoke_root}/startup.log"
 
           if container_id="$(docker inspect --type container --format '{{.Id}}' "${smoke_container}" 2>/dev/null)" \
               && [ -n "${container_id}" ]; then
+            if mkdir -p "${smoke_root}" \
+                && docker logs --timestamps "${container_id}" >"${startup_log}" 2>&1 \
+                && chmod 0644 "${startup_log}"; then
+              echo "[CI evidence] collected readable container startup log: ${startup_log}"
+            else
+              echo "::warning::Could not collect a readable startup log from ${smoke_container}"
+            fi
             if mkdir -p "${smoke_root}" \
                 && docker cp "${container_id}:${native_log}" "${daemon_log}" \
                 && chmod 0644 "${daemon_log}"; then
@@ -823,7 +897,7 @@ jobs:
           fi
 
       - name: Smoke test localized SOLIDWORKS images
-        if: steps.check-images.outputs.already_verified != 'true'
+        if: success() && steps.smoke-driving.outcome == 'success'
         shell: bash
         timeout-minutes: 30
         run: |
@@ -855,7 +929,7 @@ jobs:
           done < "${SW_LANGUAGE_BUILD_PLAN}"
 
       - name: Publish verified CLI images & promote atomically
-        if: steps.check-images.outputs.already_verified != 'true'
+        if: success() && steps.smoke-driving.outcome == 'success'
         shell: bash
         run: |
           set -Eeuo pipefail
