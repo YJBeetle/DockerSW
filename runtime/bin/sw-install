@@ -166,11 +166,15 @@ else
 fi
 
 VC_INSTALLER="${MEDIA_ROOT}/PreReqs/VCRedist17/VC_redist.x64.exe"
+VBA_INSTALLER="${MEDIA_ROOT}/PreReqs/VBA/vba71.msi"
+VBA_LANGUAGE_INSTALLER="${MEDIA_ROOT}/PreReqs/VBA/vba71_1033.msi"
 LOGIN_MANAGER_INSTALLER="${MEDIA_ROOT}/swloginmgr/SOLIDWORKS Login Manager.msi"
 DOTNET_INSTALLER="${MEDIA_ROOT}/PreReqs/dotNetFx/ndp48-x86-x64-allos-enu.exe"
 TOOLBOX_DIR="${MEDIA_ROOT}/Toolbox"
 [ -s "${MSI_PATH}" ] || die "SOLIDWORKS MSI is empty"
 [ -s "${VC_INSTALLER}" ] || die "official VC++ x64 prerequisite is missing"
+[ -s "${VBA_INSTALLER}" ] || die "official VBA 7.1 runtime MSI is missing: PreReqs/VBA/vba71.msi"
+[ -s "${VBA_LANGUAGE_INSTALLER}" ] || die "official VBA 7.1 English prerequisite MSI is missing: PreReqs/VBA/vba71_1033.msi"
 [ -s "${LOGIN_MANAGER_INSTALLER}" ] || die "official SOLIDWORKS Login Manager MSI is missing"
 [ -s "${DOTNET_INSTALLER}" ] || die "official .NET 4.8 prerequisite is missing"
 [ -d "${TOOLBOX_DIR}" ] \
@@ -298,6 +302,40 @@ for library in "${VC_LIBRARIES[@]}"; do
     find -L "${WINEPREFIX}/drive_c/windows/system32" -maxdepth 1 -iname "${library}.dll" -print -quit | grep -q . \
         || die "VC++ prerequisite completed but ${library}.dll is missing"
 done
+
+install_vba_prerequisites() {
+    local package windows_log common_files runtime_directory relative_path dll_directory dll_path
+    # SOLIDWORKS 2025 requires both official VBA packages, including 1033 for
+    # every interface language. Keep their media directory intact for CABs.
+    for package in "${VBA_INSTALLER}" "${VBA_LANGUAGE_INSTALLER}"; do
+        windows_log="$(winepath -w "${LOG_DIR}/$(basename "${package}" .msi)-install.log")"
+        run_installer "Microsoft VBA 7.1 prerequisite ($(basename "${package}"))" \
+            wine msiexec /i "${package}" /qn /norestart /l*v "${windows_log}"
+        timeout --foreground 300 wineserver -w \
+            || die "wineserver did not settle after VBA prerequisite $(basename "${package}")"
+    done
+
+    # Gate the native (64-bit) Common Files runtime, not a copied DLL or an
+    # x86 fallback. File presence does not prove SOLIDWORKS initialized VBA.
+    common_files="${WINEPREFIX}/drive_c/Program Files/Common Files"
+    [ -d "${common_files}" ] \
+        || die "VBA installation completed but native Common Files is missing"
+    runtime_directory="$(find -L "${common_files}" -type d -ipath '*/Microsoft Shared/VBA/VBA7.1' -print -quit)"
+    [ -n "${runtime_directory}" ] \
+        || die "VBA installation completed but the native VBA7.1 runtime directory is missing"
+    for relative_path in VBE7.DLL 1033/VBE7INTL.DLL; do
+        dll_directory="${runtime_directory}/$(dirname "${relative_path}")"
+        dll_path=""
+        if [ -d "${dll_directory}" ]; then
+            dll_path="$(find -L "${dll_directory}" -maxdepth 1 -type f -iname "$(basename "${relative_path}")" -print -quit)"
+        fi
+        [ -n "${dll_path}" ] && [ -s "${dll_path}" ] \
+            || die "VBA installation completed but required native runtime DLL is missing: ${relative_path}"
+    done
+    info "Verified official VBA 7.1 runtime and English resource DLLs."
+}
+
+install_vba_prerequisites
 
 LOGIN_MANAGER_LOG_WINDOWS="$(winepath -w "${LOG_DIR}/login-manager-install.log")"
 run_installer "SOLIDWORKS Login Manager MSI" \

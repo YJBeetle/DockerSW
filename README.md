@@ -17,7 +17,7 @@ DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、�
 - **可复现的公开运行时**：Ubuntu 22.04、Wine 11.16、Wine-Mono 11.3.0、Xvfb、Windows Python 3.11 与 pywin32。
 - **可审阅的 Wine 图形修复**：从校验过 SHA-256 的 Wine 11.16 源码构建同一 ABI 集合的 `ntdll.so`、`win32u.so`、`winex11.so` 与 `opengl32.so`，修复 24-bit DIB 离屏渲染及 GLX 前缓冲显示，不在运行时修改 ELF 机器码。
 - **可用的 VNC 交互界面**：为 `sldworks.exe` 定向修复重复鼠标捕获通知，并对齐 Windows 的真实子窗口置顶语义，使 PropertyManager 顶部按钮、分组标题和下拉框可正常操作。
-- **完整安装链**：检查介质布局，安装 VC++ 运行库与官方 Login Manager，再执行 SOLIDWORKS 主 MSI，并验证 MSI 产生的主程序 COM 注册。
+- **完整安装链**：检查介质布局，安装 VC++、官方 VBA 7.1 运行库及英文资源与 Login Manager，再执行 SOLIDWORKS 主 MSI，并验证 MSI 产生的主程序 COM 注册。
 - **Wine COM 兼容修复**：包含与 MacSW 对齐的 x86 stdcall、`RegistrationServices`、x86/x64 托管 RegAsm 与 `stdole` 修复，并验证 Login Manager 的真实托管 COM 注册。
 - **中文界面字体回退**：使用 Noto Sans CJK SC 为 Windows 逻辑界面字体补充中文，不主动替换工程图指定的 Arial、Times New Roman、宋体或微软雅黑等字体。
 - **无头自动化导出**：
@@ -72,7 +72,7 @@ GHCR 只保留 `sw-runtime`、`sw-preinstalled`、`sw-executable` 三个 package
 
 ### 1. 校验安装介质
 
-`sw-install` 接受挂载好的 ISO 目录或已解压目录。完整介质至少需要包含主 MSI 及配套 CAB、根目录 `Toolbox` 压缩包、VC++ x64 运行库、.NET 4.8 安装包及 `swloginmgr/SOLIDWORKS Login Manager.msi`。
+`sw-install` 接受挂载好的 ISO 目录或已解压目录。完整介质至少需要包含主 MSI 及配套 CAB、根目录 `Toolbox` 压缩包、VC++ x64 运行库、完整的 `PreReqs/VBA` 目录（`vba71.msi`、`vba71_1033.msi` 及配套 CAB）、.NET 4.8 安装包及 `swloginmgr/SOLIDWORKS Login Manager.msi`。根据 [SOLIDWORKS 2025 安装与管理指南](https://files.solidworks.com/Supportfiles/SW_Installation_Guide/2025/English/install_guide.pdf) 的先决组件部署说明，VBA 7.1 英文资源包在所有界面语言下都需要安装；这里使用官方 MSI，不合成 VBA 注册表项，也不通过仅复制 DLL 替代安装。
 
 可以先只校验介质，不启动 Wine 或安装任何组件：
 
@@ -90,7 +90,7 @@ sw-install \
   --media /private-media/SOLIDWORKS.iso
 ```
 
-脚本随后会准备固定版本的 Wine-Mono COM 环境，安装 VC++ 与官方 Login Manager，验证真实托管 COM 注册，执行主 MSI，确认 `SLDWORKS.exe` 已产生，并检查 `SldWorks.Application`、`LocalServer32`、`VersionIndependentProgID` 和 TypeLib 均由 MSI 正确注册。无头容器不需要 SOLIDWORKS Resource Monitor；安装完成后，脚本会将主程序同目录的 `sldProcMon.exe` 重命名为 `sldProcMon.exe.disable`，避免它随 SOLIDWORKS 启动并产生额外窗口，同时保留原文件以便诊断或手工恢复。安装日志默认写入权限受限的 `/var/log/sw-install`；日志可能包含 MSI 属性或序列号，应仅保存在可信私有环境。
+脚本随后会准备固定版本的 Wine-Mono COM 环境，安装 VC++，依次安装官方 `vba71.msi` 与 `vba71_1033.msi`，等待各步骤结束并检查原生 Common Files 中的 `VBE7.DLL` 和 `1033/VBE7INTL.DLL`，再安装官方 Login Manager、验证真实托管 COM 注册并执行主 MSI。DLL 存在仅证明前置文件已落盘，SOLIDWORKS 实际初始化 VBA 和建模能力仍需真实冒烟测试验证。脚本还会确认 `SLDWORKS.exe` 已产生，并检查 `SldWorks.Application`、`LocalServer32`、`VersionIndependentProgID` 和 TypeLib 均由 MSI 正确注册。无头容器不需要 SOLIDWORKS Resource Monitor；安装完成后，脚本会将主程序同目录的 `sldProcMon.exe` 重命名为 `sldProcMon.exe.disable`，避免它随 SOLIDWORKS 启动并产生额外窗口，同时保留原文件以便诊断或手工恢复。安装日志默认写入权限受限的 `/var/log/sw-install`；日志可能包含 MSI 属性或序列号，应仅保存在可信私有环境。
 
 > [!NOTE]
 > 直接在一次性 `docker run --rm` 容器中安装不会保留结果。生产使用应在私有 Dockerfile 中执行安装，或将整个 `WINEPREFIX` 持久化。
@@ -99,7 +99,7 @@ sw-install \
 
 本项目将镜像构建分为三个彼此独立的部分：[`preinstall/Dockerfile`](preinstall/Dockerfile) 只从官方安装介质生成不含 SWCLI 的 SOLIDWORKS 镜像，[`swcli/Dockerfile`](swcli/Dockerfile) 只生成当前 SWCLI 与 DockerSW 适配器组成的 payload，[`swcli/Dockerfile.delivery`](swcli/Dockerfile.delivery) 再把同一 payload 链接到 runtime、preinstalled 与 executable 镜像，生成对应的 `-cli` 变体。这样仅修改 SWCLI 时，不需要重新安装 SOLIDWORKS，也不会改变已有的大体积层。
 
-官方 CI 通过命名 BuildKit context 将 `swwi/data`、`Toolbox`、`swloginmgr` 和必要的先决组件从 `preinstall/media` 只读传给安装阶段；安装完成后介质不会进入镜像层。不要把介质、序列号属性文件、许可文件或生成的安装日志提交到公开仓库。即使使用 BuildKit 临时挂载，也应只在可信私有 Builder 上构建，并按组织策略保护或清理构建缓存。
+官方 CI 通过命名 BuildKit context 将 `swwi/data`、`Toolbox`、`swloginmgr` 和必要的先决组件从 `preinstall/media` 只读传给安装阶段；`sw-vba` 挂载整个 `PreReqs/VBA`，保留官方 CAB 的相对路径。安装完成后介质不会进入镜像层。新增前置安装会改变运行时和预安装配方摘要，旧的安装缓存因此自动失效。不要把介质、序列号属性文件、许可文件或生成的安装日志提交到公开仓库。即使使用 BuildKit 临时挂载，也应只在可信私有 Builder 上构建，并按组织策略保护或清理构建缓存。
 
 如需传入序列号或站点专用 MSI 属性，优先使用 `SW_MSI_PROPERTIES_FILE` 指向私有 CI Secret 文件，不要通过 Dockerfile 的 `ARG`、`ENV` 或公开构建日志传递。
 

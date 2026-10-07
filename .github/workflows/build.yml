@@ -553,6 +553,16 @@ jobs:
 
           sudo mount -o loop,ro,noatime "${iso_path}" "${SW_MEDIA_MOUNT}"
           test -s "${SW_MEDIA_MOUNT}/swwi/data/solidworks.msi"
+          # Language-only rebuilds do not need the core prerequisites. A fresh
+          # installation must receive the complete official VBA directory.
+          if [ "${{ steps.check-installed.outputs.exists }}" != "true" ]; then
+            for package in vba71.msi vba71_1033.msi; do
+              test -s "${SW_MEDIA_MOUNT}/PreReqs/VBA/${package}" || {
+                echo "Missing official VBA prerequisite: PreReqs/VBA/${package}" >&2
+                exit 1
+              }
+            done
+          fi
 
           df -h /
           findmnt --target "${GDRIVE_MOUNT}"
@@ -620,6 +630,7 @@ jobs:
               --build-context "sw-toolbox=preinstall/media/Toolbox" \
               --build-context "sw-login=preinstall/media/swloginmgr" \
               --build-context "sw-vcredist=preinstall/media/PreReqs/VCRedist17" \
+              --build-context "sw-vba=preinstall/media/PreReqs/VBA" \
               --build-context "sw-dotnet=preinstall/media/PreReqs/dotNetFx" \
               --build-context "solidworks-fonts=preinstall/fonts/solidworks-fonts" \
               --build-context "solidworks-custom-fonts=preinstall/fonts/solidworks-custom-fonts" \

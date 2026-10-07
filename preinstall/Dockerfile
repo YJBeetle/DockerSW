@@ -10,12 +10,14 @@ LABEL description="Private SolidWorks headless container with official installat
 ARG SW_SERIAL_SOLIDWORKS=""
 ARG SW_LICENSE_SERVER=""
 
-# 只向 BuildKit 传入安装流程已在真实 MSI 安装中验证过的官方目录。
-# Toolbox 是核心 MSI InstallFinalize 的必需输入；dotNetFx 用于补齐 Wine WPF 主题。
+# 只向 BuildKit 传入安装阶段所需的官方目录。
+# Toolbox 是核心 MSI InstallFinalize 的必需输入；VBA 保留完整官方 MSI/CAB
+# 目录并在主程序前安装；dotNetFx 用于补齐 Wine WPF 主题。
 RUN --mount=type=bind,from=sw-data,target=/mnt/sw-media/swwi/data \
     --mount=type=bind,from=sw-toolbox,target=/mnt/sw-media/Toolbox \
     --mount=type=bind,from=sw-login,target=/mnt/sw-media/swloginmgr \
     --mount=type=bind,from=sw-vcredist,target=/mnt/sw-media/PreReqs/VCRedist17 \
+    --mount=type=bind,from=sw-vba,target=/mnt/sw-media/PreReqs/VBA,ro \
     --mount=type=bind,from=sw-dotnet,target=/mnt/sw-media/PreReqs/dotNetFx \
     SW_SERIAL_SOLIDWORKS="${SW_SERIAL_SOLIDWORKS}" \
     SW_LICENSE_SERVER="${SW_LICENSE_SERVER}" \

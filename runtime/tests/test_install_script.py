@@ -1,5 +1,8 @@
+import json
 import os
+import re
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,6 +18,8 @@ class InstallScriptValidationTests(unittest.TestCase):
         self,
         root: Path,
         include_vc: bool = True,
+        include_vba: bool = True,
+        include_vba_english: bool = True,
         include_login_manager: bool = True,
         include_dotnet: bool = True,
         include_toolbox: bool = True,
@@ -26,6 +31,14 @@ class InstallScriptValidationTests(unittest.TestCase):
             vc = root / "PreReqs" / "VCRedist17" / "VC_redist.x64.exe"
             vc.parent.mkdir(parents=True)
             vc.write_bytes(b"test-vc")
+        for include, filename in (
+            (include_vba, "vba71.msi"),
+            (include_vba_english, "vba71_1033.msi"),
+        ):
+            if include:
+                package = root / "PreReqs" / "VBA" / filename
+                package.parent.mkdir(parents=True, exist_ok=True)
+                package.write_bytes(b"test-vba")
         if include_login_manager:
             login_manager = root / "swloginmgr" / "SOLIDWORKS Login Manager.msi"
             login_manager.parent.mkdir(parents=True)
@@ -80,6 +93,28 @@ class InstallScriptValidationTests(unittest.TestCase):
             result = self.run_validation(media)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("SOLIDWORKS Login Manager MSI is missing", result.stderr)
+
+    def test_rejects_media_without_either_official_vba_package(self) -> None:
+        for filename, options in (
+            ("vba71.msi", {"include_vba": False}),
+            ("vba71_1033.msi", {"include_vba_english": False}),
+        ):
+            with self.subTest(package=filename), tempfile.TemporaryDirectory() as temporary:
+                media = Path(temporary)
+                self.create_media(media, **options)
+                result = self.run_validation(media)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"PreReqs/VBA/{filename}", result.stderr)
+
+    def test_rejects_empty_official_vba_packages(self) -> None:
+        for filename in ("vba71.msi", "vba71_1033.msi"):
+            with self.subTest(package=filename), tempfile.TemporaryDirectory() as temporary:
+                media = Path(temporary)
+                self.create_media(media)
+                (media / "PreReqs" / "VBA" / filename).write_bytes(b"")
+                result = self.run_validation(media)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"PreReqs/VBA/{filename}", result.stderr)
 
     def test_rejects_media_without_dotnet_prerequisite(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -155,6 +190,191 @@ class InstallScriptValidationTests(unittest.TestCase):
         self.assertIn("timeout --foreground 30 wineserver -w", script)
         self.assertIn("SW MESSAGE\\|ERROR\\|", script)
         self.assertNotIn("Tail of ${LOG_DIR}/solidworks-msi.log", script)
+
+    def test_vba_installation_precedes_login_manager_and_core_msi(self) -> None:
+        script = INSTALLER.read_text(encoding="utf-8")
+        self.assertLess(
+            script.index('run_installer "Microsoft VC++ x64 prerequisite"'),
+            script.index("\ninstall_vba_prerequisites\n"),
+        )
+        self.assertLess(
+            script.index("\ninstall_vba_prerequisites\n"),
+            script.index('msiexec /i "${LOGIN_MANAGER_INSTALLER}"'),
+        )
+        self.assertLess(
+            script.index('msiexec /i "${LOGIN_MANAGER_INSTALLER}"'),
+            script.index('msiexec /i "${MSI_PATH}"'),
+        )
+        vba_function = self.extract_function("install_vba_prerequisites")
+        self.assertIn('"${VBA_INSTALLER}" "${VBA_LANGUAGE_INSTALLER}"', vba_function)
+        self.assertNotIn("reg add", vba_function)
+        self.assertNotRegex(vba_function, r"\bcp\b")
+        self.assertNotIn(".msp", vba_function)
+
+    def test_vba_media_context_matches_ci_and_is_read_only(self) -> None:
+        dockerfile = (PROJECT_ROOT / "preinstall" / "Dockerfile").read_text(encoding="utf-8")
+        workflow = (PROJECT_ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
+        self.assertIn(
+            "--mount=type=bind,from=sw-vba,target=/mnt/sw-media/PreReqs/VBA,ro",
+            dockerfile,
+        )
+        self.assertIn('--build-context "sw-vba=preinstall/media/PreReqs/VBA"', workflow)
+        media_checks = workflow.split('sudo mount -o loop,ro,noatime', 1)[1].split(
+            "- name: Fetch test activation assets", 1
+        )[0]
+        self.assertIn("for package in vba71.msi vba71_1033.msi", media_checks)
+        self.assertIn('test -s "${SW_MEDIA_MOUNT}/PreReqs/VBA/${package}"', media_checks)
+        self.assertIn("Missing official VBA prerequisite: PreReqs/VBA/${package}", media_checks)
+        self.assertIn('steps.check-installed.outputs.exists }}" != "true"', media_checks)
+        # The new mounted prerequisite changes the installation recipe digest;
+        # the runtime digest also tracks changes to sw-install.
+        self.assertIn('recipe_digest="$(sha256sum preinstall/Dockerfile', workflow)
+        self.assertIn('"${runtime_digest}" \\\n              "${recipe_digest}"', workflow)
+
+    @staticmethod
+    def extract_function(name: str) -> str:
+        script = INSTALLER.read_text(encoding="utf-8")
+        match = re.search(rf"^{name}\(\) \{{\n.*?^\}}\n", script, re.MULTILINE | re.DOTALL)
+        if match is None:
+            raise AssertionError(f"Installer function not found: {name}")
+        return match.group(0)
+
+    def run_vba_installation(
+        self,
+        root: Path,
+        *,
+        missing_dll: str | None = None,
+        empty_dll: str | None = None,
+        x86_only: bool = False,
+        extra_env: dict[str, str] | None = None,
+    ) -> tuple[subprocess.CompletedProcess[str], list[dict[str, object]]]:
+        media = root / "media with spaces"
+        self.create_media(media)
+        prefix = root / "wine-prefix"
+        program_files = "Program Files (x86)" if x86_only else "Program Files"
+        # Use mixed case to model Windows' case-insensitive installation paths.
+        runtime_directory = (
+            prefix / "drive_c" / program_files / "Common Files" /
+            "microsoft shared" / "VBA" / "VBA7.1"
+        )
+        for relative in ("VBE7.DLL", "1033/VBE7INTL.DLL"):
+            if relative != missing_dll:
+                dll = runtime_directory / relative.lower()
+                dll.parent.mkdir(parents=True, exist_ok=True)
+                dll.write_bytes(b"" if relative == empty_dll else b"test-dll")
+        log_directory = root / "private logs"
+        log_directory.mkdir()
+        binaries = root / "bin"
+        binaries.mkdir()
+        command_log = root / "calls.jsonl"
+        shim = f"#!{sys.executable}\n" + '''
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+program = Path(sys.argv[0]).name
+arguments = sys.argv[1:]
+log_path = Path(os.environ["VBA_TEST_COMMAND_LOG"])
+with log_path.open("a", encoding="utf-8") as stream:
+    stream.write(json.dumps({"program": program, "arguments": arguments}) + "\\n")
+if program == "timeout":
+    if os.environ.get("VBA_TEST_TIMEOUT_PACKAGE") and any(
+        Path(argument).name == os.environ["VBA_TEST_TIMEOUT_PACKAGE"]
+        for argument in arguments
+    ):
+        sys.exit(124)
+    sys.exit(subprocess.run(arguments[2:], check=False).returncode)
+if program == "winepath":
+    print("Z:" + arguments[1].replace("/", "\\\\"))
+elif program == "wine":
+    if Path(arguments[2]).name == os.environ.get("VBA_TEST_FAILED_PACKAGE"):
+        sys.exit(1)
+elif program == "wineserver":
+    calls = [json.loads(line) for line in log_path.read_text().splitlines()]
+    package = next(call["arguments"][2] for call in reversed(calls) if call["program"] == "wine")
+    if Path(package).name == os.environ.get("VBA_TEST_UNSETTLED_PACKAGE"):
+        sys.exit(1)
+'''
+        for name in ("wine", "winepath", "wineserver", "timeout"):
+            binary = binaries / name
+            binary.write_text(shim, encoding="utf-8")
+            binary.chmod(0o755)
+        script = "set -Eeuo pipefail\n" + "\n".join(
+            self.extract_function(name)
+            for name in ("die", "info", "run_installer", "install_vba_prerequisites")
+        ) + "\ninstall_vba_prerequisites\n"
+        environment = {
+            **os.environ,
+            "PATH": f"{binaries}:{os.environ['PATH']}",
+            "LC_ALL": "C",
+            "WINEPREFIX": str(prefix),
+            "VBA_INSTALLER": str(media / "PreReqs" / "VBA" / "vba71.msi"),
+            "VBA_LANGUAGE_INSTALLER": str(media / "PreReqs" / "VBA" / "vba71_1033.msi"),
+            "LOG_DIR": str(log_directory),
+            "INSTALL_TIMEOUT": "17",
+            "VBA_TEST_COMMAND_LOG": str(command_log),
+        }
+        environment.update(extra_env or {})
+        completed = subprocess.run(
+            ["bash", "-c", script], env=environment,
+            text=True, capture_output=True, check=False, timeout=10,
+        )
+        calls = [json.loads(line) for line in command_log.read_text().splitlines()]
+        return completed, calls
+
+    def test_runs_both_vba_packages_with_protected_logs_and_settles_in_order(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result, calls = self.run_vba_installation(Path(temporary))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            commands = [call for call in calls if call["program"] in ("wine", "wineserver")]
+            self.assertEqual([call["program"] for call in commands], ["wine", "wineserver"] * 2)
+            for index, package in enumerate(("vba71.msi", "vba71_1033.msi")):
+                arguments = commands[index * 2]["arguments"]
+                self.assertEqual(arguments[:2], ["msiexec", "/i"])
+                self.assertTrue(arguments[2].endswith(f"/PreReqs/VBA/{package}"))
+                self.assertEqual(arguments[3:6], ["/qn", "/norestart", "/l*v"])
+                self.assertTrue(arguments[6].endswith(f"{package[:-4]}-install.log"))
+                self.assertIn("private logs", arguments[6])
+                self.assertEqual(commands[index * 2 + 1]["arguments"], ["-w"])
+            timeouts = [call["arguments"] for call in calls if call["program"] == "timeout"]
+            self.assertEqual([arguments[:2] for arguments in timeouts], [
+                ["--foreground", "17"], ["--foreground", "300"],
+                ["--foreground", "17"], ["--foreground", "300"],
+            ])
+            self.assertIn("Verified official VBA 7.1", result.stdout)
+
+    def test_vba_failure_or_timeout_stops_before_next_package(self) -> None:
+        for environment, expected_error in (
+            ({"VBA_TEST_FAILED_PACKAGE": "vba71.msi"}, "failed with exit status 1"),
+            ({"VBA_TEST_TIMEOUT_PACKAGE": "vba71.msi"}, "timed out after 17 seconds"),
+            ({"VBA_TEST_UNSETTLED_PACKAGE": "vba71.msi"}, "did not settle after VBA prerequisite vba71.msi"),
+        ):
+            with self.subTest(environment=environment), tempfile.TemporaryDirectory() as temporary:
+                result, calls = self.run_vba_installation(Path(temporary), extra_env=environment)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(expected_error, result.stderr)
+                self.assertFalse(any(
+                    any(Path(argument).name == "vba71_1033.msi" for argument in call["arguments"])
+                    for call in calls
+                ))
+                self.assertNotIn("Verified official VBA 7.1", result.stdout)
+
+    def test_vba_runtime_gate_rejects_missing_or_empty_native_dlls(self) -> None:
+        for relative in ("VBE7.DLL", "1033/VBE7INTL.DLL"):
+            for condition in ("missing_dll", "empty_dll"):
+                with self.subTest(relative=relative, condition=condition), tempfile.TemporaryDirectory() as temporary:
+                    result, _ = self.run_vba_installation(Path(temporary), **{condition: relative})
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(f"required native runtime DLL is missing: {relative}", result.stderr)
+                    self.assertNotIn("Verified official VBA 7.1", result.stdout)
+
+    def test_vba_runtime_gate_does_not_accept_only_x86_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result, _ = self.run_vba_installation(Path(temporary), x86_only=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("native Common Files is missing", result.stderr)
 
     def test_solidworks_com_registration_comes_from_the_official_msi(self) -> None:
         script = INSTALLER.read_text(encoding="utf-8")
