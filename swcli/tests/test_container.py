@@ -220,7 +220,8 @@ class EntrypointTests(unittest.TestCase):
     def test_cli_entrypoint_makes_solidworks_visible_when_vnc_is_enabled(self):
         entrypoint = CLI_ENTRYPOINT.read_text(encoding="utf-8")
         self.assertIn('VNC_ENABLE="${VNC_ENABLE:-false}"', entrypoint)
-        self.assertIn('case "${VNC_ENABLE}" in', entrypoint)
+        self.assertIn('SWCLID_VISIBLE="${SWCLID_VISIBLE:-${VNC_ENABLE}}"', entrypoint)
+        self.assertIn('case "${SWCLID_VISIBLE}" in', entrypoint)
         self.assertIn('SWCLID_START_ARGS+=(--visible)', entrypoint)
 
     def test_cli_entrypoint_starts_once_before_typed_command(self):
@@ -240,6 +241,23 @@ class EntrypointTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--visible", calls[0])
         self.assertNotIn("--attach-existing", calls[0])
+
+    def test_explicit_host_visibility_is_independent_from_vnc(self):
+        for vnc, visible, expected in (
+            ("false", "true", True), ("true", "false", False),
+            ("false", "1", True), ("true", "0", False),
+        ):
+            with self.subTest(vnc=vnc, visible=visible):
+                result, calls = self._run_cli_entrypoint(vnc_enable=vnc, visible=visible)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual("--visible" in calls[0], expected)
+                self.assertNotIn("--attach-existing", calls[0])
+
+    def test_invalid_host_visibility_fails_before_starting(self):
+        result, calls = self._run_cli_entrypoint(visible="invalid")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("SWCLID_VISIBLE", result.stderr)
+        self.assertEqual(calls, [])
 
     def test_cli_entrypoint_surfaces_startup_failure_and_stops(self):
         result, calls = self._run_cli_entrypoint(
@@ -277,6 +295,7 @@ class EntrypointTests(unittest.TestCase):
         self,
         *,
         vnc_enable="false",
+        visible=None,
         start_failure=False,
         start_warning=False,
         hold_start_output=False,
@@ -313,6 +332,7 @@ class EntrypointTests(unittest.TestCase):
             )
             fake_sw_cli.chmod(0o755)
             environment = dict(os.environ)
+            environment.pop("SWCLID_VISIBLE", None)
             environment.update(
                 {
                     "PATH": f"{root}:{environment['PATH']}",
@@ -327,6 +347,8 @@ class EntrypointTests(unittest.TestCase):
                     "SWCLI_TEST_HOST_CONNECTED": "true" if host_connected else "false",
                 }
             )
+            if visible is not None:
+                environment["SWCLID_VISIBLE"] = visible
             try:
                 result = subprocess.run(
                     [str(CLI_ENTRYPOINT), "sw-cli", "document", "list", "--json"],

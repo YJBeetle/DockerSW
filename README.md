@@ -382,6 +382,7 @@ entrypoint 中通过 `sw-cli daemon start` 预热 daemon，后续调用通过本
 |---|---|---|
 | `SWCLI_ENDPOINT` | `127.0.0.1:18495` | SWCLI daemon 本地协议端点 |
 | `SWCLID_START_TIMEOUT` | `300` | daemon 与 SOLIDWORKS 就绪等待秒数，范围 0–3600；同时控制 Wine 的 COM 注册等待 |
+| `SWCLID_VISIBLE` | 跟随 `VNC_ENABLE` | 独立控制 SOLIDWORKS 窗口是否显示在 Xvfb 桌面；设为 `true` 不会启动 VNC 或开放端口 |
 
 容器自动启动只支持本地端点。对外暴露 daemon 属于显式部署行为，应直接运行
 `sw-cli daemon serve --allow-remote`，并置于可信网络边界或认证隧道之后。

@@ -9,6 +9,7 @@ else
     SWCLI_ENDPOINT="${SWCLI_ENDPOINT:-127.0.0.1:18495}"
     SWCLID_START_TIMEOUT="${SWCLID_START_TIMEOUT:-300}"
     VNC_ENABLE="${VNC_ENABLE:-false}"
+    SWCLID_VISIBLE="${SWCLID_VISIBLE:-${VNC_ENABLE}}"
     if ! [[ "${SWCLID_START_TIMEOUT}" =~ ^[0-9]+([.][0-9]+)?$ ]] || \
         ! jq -en --arg value "${SWCLID_START_TIMEOUT}" \
             '$value | tonumber | . <= 3600' >/dev/null; then
@@ -23,11 +24,11 @@ else
         --startup-timeout "${SWCLID_START_TIMEOUT}"
         --json
     )
-    case "${VNC_ENABLE}" in
+    case "${SWCLID_VISIBLE}" in
         1|true|TRUE|True|yes|YES|Yes|on|ON|On) SWCLID_START_ARGS+=(--visible) ;;
         0|false|FALSE|False|no|NO|No|off|OFF|Off) ;;
         *)
-            echo "[DockerSW][ERROR] VNC_ENABLE 必须是 true/false、1/0、yes/no 或 on/off，当前值: ${VNC_ENABLE}" >&2
+            echo "[DockerSW][ERROR] SWCLID_VISIBLE 必须是 true/false、1/0、yes/no 或 on/off，当前值: ${SWCLID_VISIBLE}" >&2
             exit 1
             ;;
     esac
