@@ -222,11 +222,30 @@ circle_json="$(capture_json sw-cli --session smoke-cut-failure sketch circle --p
 sketch_id="$(printf '%s' "${circle_json}" | jq -er '.sketch.sketch_id')"
 if denied_json="$(sw-cli --session smoke-cut-failure feature cut-extrude \
     "${sketch_id}" --depth-mm 10 --json)"; then
-    echo "A nonintersecting profile was reported as a successful cut" >&2
+    echo "A nonintersecting profile was reported as a successful cut: ${denied_json}" >&2
     exit 1
 fi
+printf '%s' "${denied_json}" | jq -e '(.warnings // []) | length == 0' >/dev/null || {
+    echo "Nonintersecting cut reported cleanup warnings: ${denied_json}" >&2
+    exit 1
+}
 printf '%s' "${denied_json}" | jq -e '.error.type == "CutExtrusionFailed"' >/dev/null || {
     echo "Nonintersecting cut failed for an unexpected reason: ${denied_json}" >&2
+    exit 1
+}
+# document inspect reports document/rebuild state; sketch inspect observes
+# whether the rejected profile itself is still being edited.
+failure_document_json="$(capture_json sw-cli --session smoke-cut-failure document inspect --json)"
+printf '%s\n' "${failure_document_json}"
+printf '%s' "${failure_document_json}" | jq -e '.ok == true' >/dev/null || {
+    echo "Nonintersecting cut document state is unavailable: ${failure_document_json}" >&2
+    exit 1
+}
+failure_sketch_json="$(capture_json sw-cli --session smoke-cut-failure sketch inspect "${sketch_id}" --json)"
+printf '%s\n' "${failure_sketch_json}"
+printf '%s' "${failure_sketch_json}" | jq -e '.ok == true and .editing == false' >/dev/null || {
+    echo "Nonintersecting cut left target sketch editing active or unknown: ${failure_sketch_json}" >&2
+    echo "Document state after the failed cut: ${failure_document_json}" >&2
     exit 1
 }
 sw-cli --session smoke-cut-failure document measure --json | jq -e \
@@ -323,3 +342,13 @@ printf '%s' "${list_json}" | jq -e --arg id "${assembly_id}" \
 
 sw-cli document close --discard --json
 sw-cli document close --discard --document "${part_id}" --json
+
+# Check the native open-document list, not just successful CloseDoc responses.
+# An empty list does not promise that every referenced model has been unloaded.
+final_documents_json="$(capture_json sw-cli document list --json)"
+printf '%s\n' "${final_documents_json}"
+printf '%s' "${final_documents_json}" | jq -e \
+    '.ok == true and .count == 0 and .documents == []' >/dev/null || {
+    echo "Open documents remain after the modeling gate: ${final_documents_json}" >&2
+    exit 1
+}
