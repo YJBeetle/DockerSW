@@ -114,7 +114,7 @@ for plane in front top right; do
             exit 1
         }
         if denied_json="$(sw-cli feature cut-extrude "${hole_id}" --depth-mm 20 \
-            --document "${created_a_id}" --json 2>&1)"; then
+            --document "${created_a_id}" --json)"; then
             echo "An absorbed cut profile was reused to create another feature" >&2
             exit 1
         fi
@@ -221,7 +221,7 @@ circle_json="$(capture_json sw-cli --session smoke-cut-failure sketch circle --p
     --radius-mm 2 --center-x-mm 1000 --json)"
 sketch_id="$(printf '%s' "${circle_json}" | jq -er '.sketch.sketch_id')"
 if denied_json="$(sw-cli --session smoke-cut-failure feature cut-extrude \
-    "${sketch_id}" --depth-mm 10 --json 2>&1)"; then
+    "${sketch_id}" --depth-mm 10 --json)"; then
     echo "A nonintersecting profile was reported as a successful cut" >&2
     exit 1
 fi
@@ -263,7 +263,7 @@ printf '%s\n' "${lease_json}"
 lease_id="$(printf '%s' "${lease_json}" | jq -er '.lease.lease_id')"
 
 if conflict_json="$(sw-cli --session smoke-contender document export \
-    /tmp/swcli-smoke-lease-denied.STEP --document "${part_id}" --json 2>&1)"; then
+    /tmp/swcli-smoke-lease-denied.STEP --document "${part_id}" --json)"; then
     echo "A competing session exported a leased document" >&2
     exit 1
 fi

@@ -133,6 +133,29 @@ class SmokeDiagnosticsTests(unittest.TestCase):
         self.assertNotIn('if denied_json="$(capture_json ', self.script)
         self.assertNotIn('if conflict_json="$(capture_json ', self.script)
 
+    @unittest.skipUnless(shutil.which("jq"), "jq is required for rejection parsing")
+    def test_expected_rejections_keep_wine_stderr_out_of_json(self) -> None:
+        # Exercise the real three conditional command substitutions, preserving
+        # their option/path arguments while isolating the expected-failure branch.
+        calls = re.findall(
+            r'if (denied_json|conflict_json)="(\$\(sw-cli.*?\))"; then',
+            self.script, re.DOTALL,
+        )
+        self.assertEqual(len(calls), 3)
+        for variable, capture in calls:
+            with self.subTest(variable=variable, capture=capture):
+                self.assertNotIn("2>&1", capture)
+                completed = self.run_helper(
+                    'created_a_id=d-first\nsketch_id=s-first\nhole_id=s-hole\npart_id=d-part\n'
+                    f'if {variable}="{capture}"; then exit 99; fi\n'
+                    f'printf "%s" "${{{variable}}}" | jq -e '
+                    "'.ok == false and .error.type == \"NativeFailure\"' >/dev/null",
+                    FAKE_STDERR="07fc:trace:loaddll: loaded winepath.exe\n",
+                )
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertEqual(completed.stdout, "")
+                self.assertIn("trace:loaddll", completed.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
