@@ -772,6 +772,7 @@ jobs:
             --name "${smoke_container}" \
             --env SW_SMOKE_EVIDENCE_DIR=/ci-smoke \
             --env SWCLID_VISIBLE=true \
+            --env SWCLID_RUNTIME_LOG_DIR=/ci-smoke/native-runtime-stderr \
             --env 'WINEDEBUG=-all,+seh,+loaddll' \
             --mount "type=bind,source=${smoke_root},target=/ci-smoke" \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/export.sh,target=/opt/dockersw-smoke/export.sh,readonly" \
@@ -888,6 +889,14 @@ jobs:
               echo "[CI evidence] collected readable native daemon log: ${daemon_log}"
             else
               echo "::warning::Could not collect a readable daemon log from ${smoke_container}:${native_log}"
+            fi
+            # The bind-mounted stderr survives even if the container has exited.
+            if sudo find "${smoke_root}/native-runtime-stderr" \
+                -maxdepth 1 -type f -name 'swclid-start-error.*' \
+                -exec chmod 0644 {} +; then
+              echo "[CI evidence] made native runtime stderr readable for artifact upload"
+            else
+              echo "::warning::Could not make native runtime stderr readable in ${smoke_container}"
             fi
             if ! docker rm -f "${container_id}" >/dev/null; then
               echo "::warning::Could not clean smoke container ${smoke_container} (${container_id})"

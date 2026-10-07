@@ -16,6 +16,20 @@ COLLECT_STEP = "Collect native daemon diagnostics & clean smoke container"
 LOCALIZED_STEP = "Smoke test localized SOLIDWORKS images"
 PUBLISH_STEP = "Publish verified CLI images & promote atomically"
 NATIVE_LOG = "/root/.wine/drive_c/users/root/AppData/Local/SWCLI/logs/daemon.log"
+NATIVE_STDERR_DIR = "/ci-smoke/native-runtime-stderr"
+NATIVE_STDERR_FIND_ARGS = [
+    "-maxdepth",
+    "1",
+    "-type",
+    "f",
+    "-name",
+    "swclid-start-error.*",
+    "-exec",
+    "chmod",
+    "0644",
+    "{}",
+    "+",
+]
 CONTAINER_ID = "d" * 64
 CONTAINER_NAME = "sw-cli-export-smoke-fixture-run-2"
 EXPORT_NAMES = (
@@ -49,6 +63,8 @@ class SmokeEvidenceTests(unittest.TestCase):
         self.trace = self.directory / "commands.jsonl"
         self.runner = self.directory / "runner"
         self.smoke_root = self.runner / "sw-cli-export-smoke"
+        self.runtime_stderr_dir = self.smoke_root / "native-runtime-stderr"
+        self.runtime_stderr_dir.mkdir(parents=True)
         self.fake_bin = self.directory / "bin"
         self.fake_bin.mkdir()
         executable = f"#!{sys.executable}\n" + textwrap.dedent("""
@@ -75,11 +91,22 @@ class SmokeEvidenceTests(unittest.TestCase):
             if role == 'stat':
                 print(Path(args[-1]).stat().st_size)
                 sys.exit(0)
+            if role == 'sudo':
+                runtime = Path(os.environ['RUNNER_TEMP']) / 'sw-cli-export-smoke' / 'native-runtime-stderr'
+                expected = ['find', str(runtime), *json.loads(os.environ['FAKE_NATIVE_STDERR_FIND_ARGS'])]
+                if args != expected:
+                    print('unexpected runtime log permission scope', file=sys.stderr)
+                    sys.exit(99)
+                sys.exit(subprocess.run(args, check=False).returncode)
             if role == 'chmod':
-                if os.environ.get('FAKE_CHMOD_FAILURE'):
+                if os.environ.get('FAKE_CHMOD_FAILURE') or (
+                    os.environ.get('FAKE_NATIVE_STDERR_CHMOD_FAILURE')
+                    and any('native-runtime-stderr' in item for item in args[1:])
+                ):
                     print('chmod fixture failure', file=sys.stderr)
                     sys.exit(9)
-                os.chmod(args[1], int(args[0], 8))
+                for target in args[1:]:
+                    os.chmod(target, int(args[0], 8))
                 sys.exit(0)
             if args[0] == 'inspect':
                 if os.environ.get('FAKE_CONTAINER_ABSENT'):
@@ -111,9 +138,16 @@ class SmokeEvidenceTests(unittest.TestCase):
                 if os.environ.get('FAKE_RUN_FAILURE'):
                     print('docker startup fixture failure', file=sys.stderr)
                     sys.exit(23)
+                runtime = Path(os.environ['RUNNER_TEMP']) / 'sw-cli-export-smoke' / 'native-runtime-stderr'
+                runtime.mkdir(parents=True, exist_ok=True)
                 print('d' * 64)
             elif args[0] == 'exec':
                 command = args[2:]
+                if os.environ.get('FAKE_ENTRYPOINT_EXIT') or (
+                    os.environ.get('FAKE_EXIT_AFTER_PROBE') and probe_count > 0
+                ):
+                    print('container is not running', file=sys.stderr)
+                    sys.exit(1)
                 if command == status:
                     ready = probe_count > int(os.environ.get('FAKE_READY_AFTER', '0'))
                     health = dict(host_connected=ready, worker_alive=ready,
@@ -147,7 +181,7 @@ class SmokeEvidenceTests(unittest.TestCase):
             else:
                 sys.exit(99)
             """)
-        for name in ("docker", "chmod", "timeout", "sleep", "stat"):
+        for name in ("docker", "chmod", "timeout", "sleep", "stat", "sudo"):
             path = self.fake_bin / name
             path.write_text(executable, encoding="utf-8")
             path.chmod(0o755)
@@ -156,6 +190,7 @@ class SmokeEvidenceTests(unittest.TestCase):
             "PATH": str(self.fake_bin) + os.pathsep + os.environ.get("PATH", ""),
             "FAKE_TRACE": str(self.trace),
             "FAKE_EXPORT_NAMES": json.dumps(EXPORT_NAMES),
+            "FAKE_NATIVE_STDERR_FIND_ARGS": json.dumps(NATIVE_STDERR_FIND_ARGS),
             "GITHUB_RUN_ID": "fixture-run",
             "GITHUB_RUN_ATTEMPT": "2",
             "GITHUB_WORKSPACE": str(PROJECT_ROOT),
@@ -250,6 +285,7 @@ class SmokeEvidenceTests(unittest.TestCase):
         self.assertIn("sleep infinity", main)
         self.assertIn("--env 'WINEDEBUG=-all,+seh,+loaddll'", main)
         self.assertIn("--env SWCLID_VISIBLE=true", main)
+        self.assertIn("--env SWCLID_RUNTIME_LOG_DIR=" + NATIVE_STDERR_DIR, main)
         self.assertIn("--env SW_SMOKE_EVIDENCE_DIR=/ci-smoke", main)
         self.assertNotIn("VNC_ENABLE", main)
         for script, _ in PHASES.values():
@@ -482,10 +518,126 @@ class SmokeEvidenceTests(unittest.TestCase):
                 ["chmod", "0644", str(startup_log)],
                 ["docker", "cp", CONTAINER_ID + ":" + NATIVE_LOG, str(daemon_log)],
                 ["chmod", "0644", str(daemon_log)],
+                ["sudo", "find", str(self.runtime_stderr_dir), *NATIVE_STDERR_FIND_ARGS],
                 ["docker", "rm", "-f", CONTAINER_ID],
             ],
         )
         self.assertNotIn("::warning::", completed.stdout)
+
+    def test_bound_native_stderr_becomes_readable_without_losing_background_writes(
+        self,
+    ) -> None:
+        native_stderr = self.runtime_stderr_dir / "swclid-start-error.fixture"
+        native_stderr.write_text("startup native stderr fixture\n", encoding="utf-8")
+        native_stderr.chmod(0o600)
+        with native_stderr.open("ab") as stream:
+            writer = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-c",
+                    "import sys; sys.stdin.read(1); "
+                    "sys.stderr.write('trace:seh background native fault fixture\\n'); "
+                    "sys.stderr.flush()",
+                ],
+                stdin=subprocess.PIPE,
+                stderr=stream,
+                text=True,
+            )
+        try:
+            completed = self.run_step(COLLECT_STEP)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertNotIn("::warning::", completed.stdout)
+            self.assertEqual(native_stderr.stat().st_mode & 0o777, 0o644)
+            writer.communicate("x", timeout=5)
+            self.assertEqual(writer.returncode, 0)
+            self.assertEqual(
+                native_stderr.read_text(encoding="utf-8"),
+                "startup native stderr fixture\n"
+                "trace:seh background native fault fixture\n",
+            )
+        finally:
+            if writer.poll() is None:
+                writer.kill()
+                writer.communicate(timeout=5)
+        calls = self.calls()
+        permission_call = [
+            "sudo", "find", str(self.runtime_stderr_dir), *NATIVE_STDERR_FIND_ARGS
+        ]
+        cleanup_call = ["docker", "rm", "-f", CONTAINER_ID]
+        self.assertIn(permission_call, calls)
+        self.assertLess(calls.index(permission_call), calls.index(cleanup_call))
+        self.assertEqual(calls[-1], cleanup_call)
+        self.assertFalse(any("cp" in call and NATIVE_STDERR_DIR in str(call) for call in calls))
+
+    def test_stopped_startup_container_still_retains_readable_native_stderr(
+        self,
+    ) -> None:
+        failed_startup = self.run_step(MAIN_STEP, FAKE_ENTRYPOINT_EXIT="1")
+        self.assertEqual(failed_startup.returncode, 1)
+        self.assertIn("entrypoint exited", failed_startup.stderr)
+        native_stderr = self.runtime_stderr_dir / "swclid-start-error.failed-startup"
+        native_stderr.write_text("native startup failure fixture\n", encoding="utf-8")
+        native_stderr.chmod(0o600)
+        completed = self.run_step(COLLECT_STEP, FAKE_ENTRYPOINT_EXIT="1")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertNotIn("::warning::", completed.stdout)
+        self.assertEqual(native_stderr.stat().st_mode & 0o777, 0o644)
+        self.assertEqual(native_stderr.read_text(), "native startup failure fixture\n")
+        self.assertEqual(failed_startup.returncode, 1)
+        self.assertFalse(any(call[1] == "exec" for call in self.calls("docker")))
+        self.assertEqual(self.calls("docker")[-1], ["docker", "rm", "-f", CONTAINER_ID])
+
+    def test_runtime_permissions_touch_only_matching_direct_regular_files(self) -> None:
+        matched = self.runtime_stderr_dir / "swclid-start-error.first"
+        matched_second = self.runtime_stderr_dir / "swclid-start-error.second"
+        unrelated = self.runtime_stderr_dir / "unrelated.log"
+        nested = self.runtime_stderr_dir / "nested" / "swclid-start-error.nested"
+        nested.parent.mkdir()
+        external = self.directory / "swclid-start-error.external"
+        for target in (matched, matched_second, unrelated, nested, external):
+            target.write_text(target.name, encoding="utf-8")
+            target.chmod(0o600)
+        link = self.runtime_stderr_dir / "swclid-start-error.link"
+        link.symlink_to(external)
+        matching_directory = self.runtime_stderr_dir / "swclid-start-error.directory"
+        matching_directory.mkdir(mode=0o700)
+        completed = self.run_step(COLLECT_STEP)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertNotIn("::warning::", completed.stdout)
+        for target in (matched, matched_second):
+            self.assertEqual(target.stat().st_mode & 0o777, 0o644)
+        for target in (unrelated, nested, external):
+            self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(matching_directory.stat().st_mode & 0o777, 0o700)
+
+    def test_native_stderr_permission_failure_warns_and_preserves_gate_failure(
+        self,
+    ) -> None:
+        failed_gate = self.run_step(
+            MAIN_STEP, FAKE_FAIL_SCRIPT="export.sh", FAKE_PHASE_EXIT_CODE="37"
+        )
+        self.assertEqual(failed_gate.returncode, 37)
+        native_stderr = self.runtime_stderr_dir / "swclid-start-error.fixture"
+        native_stderr.write_text("retained native fault fixture\n", encoding="utf-8")
+        native_stderr.chmod(0o600)
+        completed = self.run_step(COLLECT_STEP, FAKE_NATIVE_STDERR_CHMOD_FAILURE="1")
+        self.assertEqual(completed.returncode, 0)
+        self.assertIn("Could not make native runtime stderr readable", completed.stdout)
+        self.assertIn("chmod fixture failure", completed.stderr)
+        self.assertEqual(native_stderr.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(native_stderr.read_text(), "retained native fault fixture\n")
+        self.assertEqual(failed_gate.returncode, 37)
+        self.assertEqual(self.calls("docker")[-1], ["docker", "rm", "-f", CONTAINER_ID])
+
+    def test_missing_native_stderr_directory_warns_and_still_cleans_exact_container(
+        self,
+    ) -> None:
+        self.runtime_stderr_dir.rmdir()
+        completed = self.run_step(COLLECT_STEP)
+        self.assertEqual(completed.returncode, 0)
+        self.assertIn("Could not make native runtime stderr readable", completed.stdout)
+        self.assertEqual(self.calls("docker")[-1], ["docker", "rm", "-f", CONTAINER_ID])
 
     def test_missing_or_unreadable_logs_warn_but_cleanup_continues(self) -> None:
         for option, diagnostic in (
