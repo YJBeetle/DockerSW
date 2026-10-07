@@ -3,6 +3,12 @@
 **/__pycache__
 **/*.pyc
 swcli/SWCLI/.git
+# Local SWCLI build outputs and environments are not payload source.
+swcli/SWCLI/dist/
+swcli/SWCLI/build/
+swcli/SWCLI/.venv/
+swcli/SWCLI/.pytest_cache/
+swcli/SWCLI/**/*.egg-info/
 preinstall/media
 preinstall/fonts
 smoke-test/assets
