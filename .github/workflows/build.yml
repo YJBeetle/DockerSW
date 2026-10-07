@@ -754,9 +754,10 @@ jobs:
           mkdir -p "${output_dir}"
           docker rm -f "${smoke_container}" >/dev/null 2>&1 || true
 
-          docker run --rm \
+          docker run \
             --name "${smoke_container}" \
             --env SW_SMOKE_EVIDENCE_DIR=/ci-smoke \
+            --env 'WINEDEBUG=-all,+seh,+loaddll' \
             --mount "type=bind,source=${smoke_root},target=/ci-smoke" \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/export.sh,target=/opt/dockersw-smoke/export.sh,readonly" \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/verify-swcli.sh,target=/opt/dockersw-smoke/verify-swcli.sh,readonly" \
@@ -782,6 +783,32 @@ jobs:
               "${output_name}" "$(stat -c %s "${output_path}")"
           done
           echo "SOLIDWORKS export smoke test passed: ${#expected_outputs[@]} files verified."
+
+      - name: Collect native daemon diagnostics & clean smoke container
+        if: always() && steps.check-images.outputs.already_verified != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
+          native_log=/root/.wine/drive_c/users/root/AppData/Local/SWCLI/logs/daemon.log
+          daemon_log="${smoke_root}/daemon.log"
+
+          if container_id="$(docker inspect --type container --format '{{.Id}}' "${smoke_container}" 2>/dev/null)" \
+              && [ -n "${container_id}" ]; then
+            if mkdir -p "${smoke_root}" \
+                && docker cp "${container_id}:${native_log}" "${daemon_log}" \
+                && chmod 0644 "${daemon_log}"; then
+              echo "[CI evidence] collected readable native daemon log: ${daemon_log}"
+            else
+              echo "::warning::Could not collect a readable daemon log from ${smoke_container}:${native_log}"
+            fi
+            if ! docker rm -f "${container_id}" >/dev/null; then
+              echo "::warning::Could not clean smoke container ${smoke_container} (${container_id})"
+            fi
+          else
+            echo "::warning::Smoke container ${smoke_container} is unavailable; native daemon log was not collected"
+          fi
 
       - name: Smoke test localized SOLIDWORKS images
         if: steps.check-images.outputs.already_verified != 'true'
