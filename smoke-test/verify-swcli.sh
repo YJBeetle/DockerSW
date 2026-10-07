@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Keep failed JSON visible even when set -e exits a command substitution.
+capture_json() {
+    local output exit_code
+    if output="$("$@")"; then
+        printf '%s\n' "${output}"
+    else
+        exit_code=$?
+        printf '[smoke] %s:%s failed (exit %s): ' \
+            "${BASH_SOURCE[0]}" "${BASH_LINENO[0]}" "${exit_code}" >&2
+        printf '%q ' "$@" >&2
+        printf '\n%s\n' "${output}" >&2
+        return "${exit_code}"
+    fi
+}
+
 workspace="${1:?usage: verify-swcli.sh WINE_DRIVE_C}"
 part_path="${workspace}/users/Public/Documents/SOLIDWORKS/SOLIDWORKS 2025/samples/learn/Paper Airplane.SLDPRT"
 assembly_path="${workspace}/Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/bezel moldbase.sldasm"
@@ -9,8 +24,8 @@ assembly_path="${workspace}/Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/
 sw-cli capabilities --json
 
 # Unsaved documents have no path: their handles must still remain distinct.
-created_a="$(sw-cli document create --type part --json)"
-created_b="$(sw-cli document create --json)"
+created_a="$(capture_json sw-cli document create --type part --json)"
+created_b="$(capture_json sw-cli document create --json)"
 printf '%s\n' "${created_a}" "${created_b}"
 created_a_id="$(printf '%s' "${created_a}" | jq -er \
     'select(.created == true and .document.path == "" and .document.type == 1) | .document.document_id')"
@@ -24,7 +39,7 @@ printf '%s' "${created_b}" | jq -e --arg first "${created_a_id}" \
 # Create geometry in background part A; every operation must restore part B.
 # The additional native model stays outside the six published artifacts.
 for plane in front top right; do
-    rectangle_json="$(sw-cli sketch rectangle --plane "${plane}" \
+    rectangle_json="$(capture_json sw-cli sketch rectangle --plane "${plane}" \
         --width-mm 100 --height-mm 50 --center-x-mm 10 --center-y-mm 20 \
         --document "${created_a_id}" --json)"
     printf '%s\n' "${rectangle_json}"
@@ -38,7 +53,7 @@ for plane in front top right; do
         exit 1
     }
     sketch_id="$(printf '%s' "${rectangle_json}" | jq -er '.sketch.sketch_id')"
-    extrusion_json="$(sw-cli feature extrude "${sketch_id}" --depth-mm 20 \
+    extrusion_json="$(capture_json sw-cli feature extrude "${sketch_id}" --depth-mm 20 \
         --document "${created_a_id}" --json)"
     printf '%s\n' "${extrusion_json}"
     printf '%s' "${extrusion_json}" | jq -e \
@@ -60,7 +75,7 @@ for plane in front top right; do
             echo "First extrusion failed native volume or surface-area checks" >&2
             exit 1
         }
-        hole_json="$(sw-cli sketch circle --plane front --radius-mm 4 \
+        hole_json="$(capture_json sw-cli sketch circle --plane front --radius-mm 4 \
             --center-x-mm 10 --center-y-mm 20 --document "${created_a_id}" --json)"
         hole_id="$(printf '%s' "${hole_json}" | jq -er '.sketch.sketch_id')"
         hole_stamp="$(printf '%s' "${hole_json}" | jq -er '.document.update_stamp')"
@@ -74,7 +89,7 @@ for plane in front top right; do
             echo "Read-only circle observation failed geometry or foreground checks" >&2
             exit 1
         }
-        cut_json="$(sw-cli feature cut-extrude "${hole_id}" --depth-mm 20 \
+        cut_json="$(capture_json sw-cli feature cut-extrude "${hole_id}" --depth-mm 20 \
             --document "${created_a_id}" --json)"
         printf '%s\n' "${hole_json}" "${cut_json}"
         printf '%s' "${cut_json}" | jq -e --argjson pi 3.141592653589793 \
@@ -110,7 +125,7 @@ for plane in front top right; do
     fi
 done
 for plane in front top right; do
-    circle_json="$(sw-cli sketch circle --plane "${plane}" --radius-mm 8 \
+    circle_json="$(capture_json sw-cli sketch circle --plane "${plane}" --radius-mm 8 \
         --center-x-mm 120 --center-y-mm 20 --document "${created_a_id}" --json)"
     printf '%s\n' "${circle_json}"
     printf '%s' "${circle_json}" | jq -e \
@@ -123,7 +138,7 @@ for plane in front top right; do
         exit 1
     }
     sketch_id="$(printf '%s' "${circle_json}" | jq -er '.sketch.sketch_id')"
-    extrusion_json="$(sw-cli feature extrude "${sketch_id}" --depth-mm 20 --no-merge \
+    extrusion_json="$(capture_json sw-cli feature extrude "${sketch_id}" --depth-mm 20 --no-merge \
         --document "${created_a_id}" --json)"
     printf '%s\n' "${extrusion_json}"
     printf '%s' "${extrusion_json}" | jq -e \
@@ -142,11 +157,11 @@ sw-cli document inspect --json | jq -e --arg id "${created_b_id}" \
     exit 1
 }
 native_path=/tmp/swcli-smoke-generic.SLDPRT
-measurement_json="$(sw-cli document measure --document "${created_a_id}" --json)"
+measurement_json="$(capture_json sw-cli document measure --document "${created_a_id}" --json)"
 printf '%s\n' "${measurement_json}"
 volume="$(printf '%s' "${measurement_json}" | jq -er '.metrics.volume_mm3')"
 area="$(printf '%s' "${measurement_json}" | jq -er '.metrics.surface_area_mm2')"
-saved_json="$(sw-cli document save-as "${native_path}" \
+saved_json="$(capture_json sw-cli document save-as "${native_path}" \
     --document "${created_a_id}" --json)"
 printf '%s\n' "${saved_json}"
 printf '%s' "${saved_json}" | jq -e --arg id "${created_a_id}" \
@@ -181,11 +196,11 @@ sw-cli --session smoke-reopen document close --discard --json
 
 # --reverse means opposite the sketch normal for both bosses and cuts.
 sw-cli --session smoke-reverse document create --json
-rectangle_json="$(sw-cli --session smoke-reverse sketch rectangle --plane front \
+rectangle_json="$(capture_json sw-cli --session smoke-reverse sketch rectangle --plane front \
     --width-mm 40 --height-mm 30 --json)"
 sketch_id="$(printf '%s' "${rectangle_json}" | jq -er '.sketch.sketch_id')"
 sw-cli --session smoke-reverse feature extrude "${sketch_id}" --depth-mm 10 --reverse --json
-circle_json="$(sw-cli --session smoke-reverse sketch circle --plane front --radius-mm 3 --json)"
+circle_json="$(capture_json sw-cli --session smoke-reverse sketch circle --plane front --radius-mm 3 --json)"
 sketch_id="$(printf '%s' "${circle_json}" | jq -er '.sketch.sketch_id')"
 sw-cli --session smoke-reverse feature cut-extrude "${sketch_id}" --depth-mm 10 --reverse --json | \
     jq -e --argjson pi 3.141592653589793 \
@@ -198,11 +213,11 @@ sw-cli --session smoke-reverse document close --discard --json
 
 # Native rejection is also evidence: a nonintersecting profile cannot be a cut.
 sw-cli --session smoke-cut-failure document create --json
-rectangle_json="$(sw-cli --session smoke-cut-failure sketch rectangle --plane front \
+rectangle_json="$(capture_json sw-cli --session smoke-cut-failure sketch rectangle --plane front \
     --width-mm 40 --height-mm 30 --json)"
 sketch_id="$(printf '%s' "${rectangle_json}" | jq -er '.sketch.sketch_id')"
 sw-cli --session smoke-cut-failure feature extrude "${sketch_id}" --depth-mm 10 --json
-circle_json="$(sw-cli --session smoke-cut-failure sketch circle --plane front \
+circle_json="$(capture_json sw-cli --session smoke-cut-failure sketch circle --plane front \
     --radius-mm 2 --center-x-mm 1000 --json)"
 sketch_id="$(printf '%s' "${circle_json}" | jq -er '.sketch.sketch_id')"
 if denied_json="$(sw-cli --session smoke-cut-failure feature cut-extrude \
@@ -228,13 +243,13 @@ sw-cli document inspect --json | jq -e --arg id "${created_b_id}" \
 }
 sw-cli document close --discard --json
 
-part_json="$(sw-cli document open "${part_path}" --json)"
+part_json="$(capture_json sw-cli document open "${part_path}" --json)"
 printf '%s\n' "${part_json}"
 part_id="$(printf '%s' "${part_json}" | jq -er '.document.document_id')"
 
 # GetUpdateStamp must work on the real Wine/SOLIDWORKS host so optimistic
 # concurrency checks cannot silently degrade to null.
-inspect_json="$(sw-cli document inspect --document "${part_id}" --json)"
+inspect_json="$(capture_json sw-cli document inspect --document "${part_id}" --json)"
 printf '%s\n' "${inspect_json}"
 printf '%s' "${inspect_json}" | jq -e '.document.update_stamp != null' >/dev/null || {
     echo "GetUpdateStamp is unavailable on this Wine/SOLIDWORKS host" >&2
@@ -242,7 +257,7 @@ printf '%s' "${inspect_json}" | jq -e '.document.update_stamp != null' >/dev/nul
 }
 
 # A competing session must be rejected while the lease owner may export.
-lease_json="$(sw-cli --session smoke-owner document lease acquire \
+lease_json="$(capture_json sw-cli --session smoke-owner document lease acquire \
     --document "${part_id}" --ttl-seconds 60 --json)"
 printf '%s\n' "${lease_json}"
 lease_id="$(printf '%s' "${lease_json}" | jq -er '.lease.lease_id')"
@@ -270,11 +285,11 @@ sw-cli --session smoke-owner document lease release "${lease_id}" --json
 
 # Keep part A open, then open assembly B. Exporting A by ID must temporarily
 # activate it and restore B as both the active and current document.
-assembly_json="$(sw-cli document open "${assembly_path}" --json)"
+assembly_json="$(capture_json sw-cli document open "${assembly_path}" --json)"
 printf '%s\n' "${assembly_json}"
 assembly_id="$(printf '%s' "${assembly_json}" | jq -er '.document.document_id')"
 
-list_json="$(sw-cli document list --json)"
+list_json="$(capture_json sw-cli document list --json)"
 printf '%s\n' "${list_json}"
 printf '%s' "${list_json}" | jq -e --arg id "${part_id}" \
     '[.documents[] | select(.document_id == $id)] | length == 1' >/dev/null || {
@@ -291,7 +306,7 @@ sw-cli document export /tmp/swcli-smoke-multi-document.STEP \
     --document "${part_id}" --json
 test -s /tmp/swcli-smoke-multi-document.STEP
 
-list_json="$(sw-cli document list --json)"
+list_json="$(capture_json sw-cli document list --json)"
 printf '%s\n' "${list_json}"
 printf '%s' "${list_json}" | jq -e --arg id "${part_id}" \
     '[.documents[] | select(.document_id == $id)]
