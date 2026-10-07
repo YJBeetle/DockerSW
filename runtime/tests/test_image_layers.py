@@ -148,6 +148,7 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn("--cli-command /usr/local/bin/sw-cli", verification_script)
         self.assertIn('--host-output-dir "$(winepath -w', verification_script)
         self.assertIn("SW_SMOKE_EVIDENCE_DIR", verification_script)
+        self.assertIn('chmod 755 "${dimension_outdir}"', verification_script)
 
         workflow = self.read(".github/workflows/build.yml")
         self.assertIn("smoke-test/verify-swcli.sh", workflow)
