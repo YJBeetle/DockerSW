@@ -107,6 +107,8 @@ class SmokeEvidenceTests(unittest.TestCase):
         self.assertIn("docker run \\\n", main)
         self.assertNotIn("docker run --rm", main)
         self.assertIn("--env 'WINEDEBUG=-all,+seh,+loaddll'", main)
+        self.assertIn("--env SWCLID_VISIBLE=true", main)
+        self.assertNotIn("VNC_ENABLE", main)
         self.assertIn("if: always() && steps.check-images.outputs.already_verified != 'true'", collector)
         self.assertIn("docker run --rm", localized)
         self.assertNotIn("WINEDEBUG", localized)

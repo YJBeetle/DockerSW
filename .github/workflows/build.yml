@@ -768,6 +768,7 @@ jobs:
           docker run \
             --name "${smoke_container}" \
             --env SW_SMOKE_EVIDENCE_DIR=/ci-smoke \
+            --env SWCLID_VISIBLE=true \
             --env 'WINEDEBUG=-all,+seh,+loaddll' \
             --mount "type=bind,source=${smoke_root},target=/ci-smoke" \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/export.sh,target=/opt/dockersw-smoke/export.sh,readonly" \
