@@ -20,6 +20,11 @@ workspace="${1:?usage: verify-swcli.sh WINE_DRIVE_C}"
 part_path="${workspace}/users/Public/Documents/SOLIDWORKS/SOLIDWORKS 2025/samples/learn/Paper Airplane.SLDPRT"
 assembly_path="${workspace}/Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/bezel moldbase.sldasm"
 
+# Repeated local runs must not overwrite earlier evidence or fail on its names.
+modeling_outdir="$(mktemp -d "${SW_SMOKE_EVIDENCE_DIR:-/tmp}/swcli-generic.XXXXXX")"
+chmod 755 "${modeling_outdir}"
+printf '[smoke] Generic modeling evidence: %s\n' "${modeling_outdir}"
+
 # The client validates this response against capabilities.schema.json.
 sw-cli capabilities --json
 
@@ -156,7 +161,7 @@ sw-cli document inspect --json | jq -e --arg id "${created_b_id}" \
     echo "The foreground part was not restored after modeling" >&2
     exit 1
 }
-native_path=/tmp/swcli-smoke-generic.SLDPRT
+native_path="${modeling_outdir}/model.SLDPRT"
 measurement_json="$(capture_json sw-cli document measure --document "${created_a_id}" --json)"
 printf '%s\n' "${measurement_json}"
 volume="$(printf '%s' "${measurement_json}" | jq -er '.metrics.volume_mm3')"
@@ -282,7 +287,7 @@ printf '%s\n' "${lease_json}"
 lease_id="$(printf '%s' "${lease_json}" | jq -er '.lease.lease_id')"
 
 if conflict_json="$(sw-cli --session smoke-contender document export \
-    /tmp/swcli-smoke-lease-denied.STEP --document "${part_id}" --json)"; then
+    "${modeling_outdir}/lease-denied.STEP" --document "${part_id}" --json)"; then
     echo "A competing session exported a leased document" >&2
     exit 1
 fi
@@ -295,11 +300,11 @@ printf '%s' "${conflict_json}" | jq -e \
 
 # Additional verification artifacts stay outside the six published outputs.
 sw-cli --session smoke-owner document export \
-    /tmp/swcli-smoke-leased.STEP \
+    "${modeling_outdir}/leased.STEP" \
     --document "${part_id}" \
     --lease "${lease_id}" \
     --json
-test -s /tmp/swcli-smoke-leased.STEP
+test -s "${modeling_outdir}/leased.STEP"
 sw-cli --session smoke-owner document lease release "${lease_id}" --json
 
 # Keep part A open, then open assembly B. Exporting A by ID must temporarily
@@ -321,9 +326,9 @@ printf '%s' "${list_json}" | jq -e --arg id "${assembly_id}" \
     exit 1
 }
 
-sw-cli document export /tmp/swcli-smoke-multi-document.STEP \
+sw-cli document export "${modeling_outdir}/multi-document.STEP" \
     --document "${part_id}" --json
-test -s /tmp/swcli-smoke-multi-document.STEP
+test -s "${modeling_outdir}/multi-document.STEP"
 
 list_json="$(capture_json sw-cli document list --json)"
 printf '%s\n' "${list_json}"

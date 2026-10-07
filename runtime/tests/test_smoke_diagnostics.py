@@ -147,6 +147,7 @@ class SmokeDiagnosticsTests(unittest.TestCase):
                 self.assertNotIn("2>&1", capture)
                 completed = self.run_helper(
                     'created_a_id=d-first\nsketch_id=s-first\nhole_id=s-hole\npart_id=d-part\n'
+                    'modeling_outdir="/unused/evidence with spaces"\n'
                     f'if {variable}="{capture}"; then exit 99; fi\n'
                     f'printf "%s" "${{{variable}}}" | jq -e '
                     "'.ok == false and .error.type == \"NativeFailure\"' >/dev/null",

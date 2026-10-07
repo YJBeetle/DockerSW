@@ -125,7 +125,7 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn('"DocumentLeaseConflict"', verification_script)
         self.assertIn("document lease release", verification_script)
         self.assertIn("document list --json", verification_script)
-        self.assertIn("swcli-smoke-multi-document.STEP", verification_script)
+        self.assertIn('"${modeling_outdir}/multi-document.STEP"', verification_script)
         self.assertIn('sw-cli feature extrude "${sketch_id}"', verification_script)
         self.assertIn('sw-cli sketch circle --plane "${plane}"', verification_script)
         self.assertIn(".geometry_verification.complete_circle == true", verification_script)
