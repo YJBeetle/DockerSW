@@ -26,7 +26,7 @@ DockerSW 为 Linux 容器提供经过固定版本验证的 Wine、Wine-Mono、�
   - `*.REND.SLDASM` 导出为 `.GLB`；
   - 支持 Linux、Wine Windows、绝对及相对路径。
 - **两种许可接入方式**：优先使用局域网浮动许可服务器，也可按需挂载 `lmgrd.exe` 与许可文件并在容器内启动。
-- **固定 SWCLI 版本**：DockerSW 以 Git submodule 固定经过真实 Wine/SOLIDWORKS 冒烟验证的 SWCLI 提交，并将其装入对应的 `-cli` 镜像；容器只负责路径、进程、许可与显示环境适配。
+- **固定 SWCLI 版本**：DockerSW 以 Git submodule 固定 SWCLI 候选提交，并将其装入对应的 `-cli` 镜像；只有真实 Wine/SOLIDWORKS 冒烟门禁全部通过后才晋升公开版本标签。容器只负责路径、进程、许可与显示环境适配。
 
 ## 默认镜像与 CLI 变体
 
@@ -396,8 +396,10 @@ entrypoint 中通过 `sw-cli daemon start` 预热 daemon，后续调用通过本
 
 ## CI 真实导出门禁
 
-[`.github/workflows/build.yml`](.github/workflows/build.yml) 直接负责启动容器、限制
-总时长、收集日志并验证产物；容器内的 [`smoke-test/export.sh`](smoke-test/export.sh)
+[`.github/workflows/build.yml`](.github/workflows/build.yml) 直接负责启动容器、收集
+日志并验证产物。六产物导出、通用建模、驱动尺寸验证分别有 10 分钟预算，复用
+同一个容器与 daemon，阶段之间不重启宿主；任何阶段失败都阻止镜像晋升。
+容器内的 [`smoke-test/export.sh`](smoke-test/export.sh)
 则只组合 typed SWCLI 命令，对四个官方样例执行 `open -> export -> close`，生成 6 个
 STEP、PDF、DWG 产物。业务项目可以直接参考 `export.sh`，替换源文件、输出路径与
 格式规则。随后 [`smoke-test/verify-swcli.sh`](smoke-test/verify-swcli.sh) 会在同一真实
@@ -408,10 +410,13 @@ SOLIDWORKS 会话中验证 capabilities Schema、更新戳、多文档切换和 
 不改变 6 个正式产物的计数。同时还会拒绝已吸收轮廓复用，并验证不相交的切除
 明确失败且实体体积不变。只有这些门禁全部通过后，流水线才会晋升镜像。
 
-驱动直径门禁还会在三个基准面上执行圆草图 → 16 mm 驱动直径 → 10 mm 拉伸 →
+独立的 [`smoke-test/verify-driving.sh`](smoke-test/verify-driving.sh) 复用 SWCLI
+的驱动直径门禁，在三个基准面上执行圆草图 → 16 mm 驱动直径 → 10 mm 拉伸 →
 吸收后改为 20 mm → 原生保存重开，验证圆心/半径、体积、更新戳、lease/CAS 拒绝和
 精确前台恢复。重开后通过只读 `sketch list` 获取新的草图句柄并观察几何，重复列举
-不能改变句柄或 session/前台状态；旧句柄仍必须失效。这些建模证据收集到独立目录，
+不能改变句柄或 session/前台状态；再通过 `dimension discover-diameter` 只读恢复
+20 mm 直径，重复识别与 `dimension inspect` 必须使用同一个新的存活句柄，且
+更新戳、配置、编辑状态及前台保持不变。旧句柄仍必须失效。这些建模证据收集到独立目录，
 不计入 6 个正式导出产物。新增能力是否已验证应以对应提交的 CI 结果为准。
 
 ## 测试
