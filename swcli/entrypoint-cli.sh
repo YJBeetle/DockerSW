@@ -34,18 +34,31 @@ else
     esac
     echo "[DockerSW] 正在启动并等待 SWCLI daemon 与 SOLIDWORKS 就绪..."
     SWCLID_START_OUTPUT="$(mktemp "${TMPDIR:-/tmp}/swclid-start.XXXXXX")"
-    SWCLID_START_ERROR="$(mktemp "${TMPDIR:-/tmp}/swclid-start-error.XXXXXX")"
+    cleanup_swclid_start_files() {
+        rm -f "${SWCLID_START_OUTPUT}" || :
+        if [ -z "${SWCLID_RUNTIME_LOG_DIR:-}" ]; then
+            rm -f "${SWCLID_START_ERROR:-}" || :
+        fi
+    }
+    trap cleanup_swclid_start_files EXIT
+    if [ -n "${SWCLID_RUNTIME_LOG_DIR:-}" ]; then
+        mkdir -p -- "${SWCLID_RUNTIME_LOG_DIR}"
+        SWCLID_START_ERROR="$(mktemp -- "${SWCLID_RUNTIME_LOG_DIR%/}/swclid-start-error.XXXXXX")"
+        echo "[DockerSW] SWCLI runtime stderr log: ${SWCLID_START_ERROR}"
+    else
+        SWCLID_START_ERROR="$(mktemp "${TMPDIR:-/tmp}/swclid-start-error.XXXXXX")"
+    fi
     if sw-cli "${SWCLID_START_ARGS[@]}" \
         >"${SWCLID_START_OUTPUT}" 2>"${SWCLID_START_ERROR}"; then
         if jq -e '.success == true and .result.health.host_connected == true' \
             "${SWCLID_START_OUTPUT}" >/dev/null; then
-            rm -f "${SWCLID_START_OUTPUT}" "${SWCLID_START_ERROR}"
+            cleanup_swclid_start_files
+            trap - EXIT
             echo "[DockerSW] SWCLI daemon 与 SOLIDWORKS 已就绪: ${SWCLI_ENDPOINT}"
         else
             echo "[DockerSW][ERROR] SWCLI daemon 已响应，但 SOLIDWORKS 宿主未连接:" >&2
             cat "${SWCLID_START_ERROR}" >&2
             cat "${SWCLID_START_OUTPUT}" >&2
-            rm -f "${SWCLID_START_OUTPUT}" "${SWCLID_START_ERROR}"
             exit 1
         fi
     else
@@ -53,7 +66,6 @@ else
         echo "[DockerSW][ERROR] SWCLI daemon 或 SOLIDWORKS 启动失败:" >&2
         cat "${SWCLID_START_ERROR}" >&2
         cat "${SWCLID_START_OUTPUT}" >&2
-        rm -f "${SWCLID_START_OUTPUT}" "${SWCLID_START_ERROR}"
         exit "${SWCLID_START_EXIT}"
     fi
 fi

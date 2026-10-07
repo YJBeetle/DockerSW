@@ -291,6 +291,104 @@ class EntrypointTests(unittest.TestCase):
         self.assertEqual(len(calls), 2)
         self.assertLess(elapsed, 3.0)
 
+    def test_runtime_log_keeps_background_stderr_after_startup_returns(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            runtime_log_dir = Path(temporary_directory) / "runtime logs"
+
+            def after_startup(result, root):
+                self.assertEqual(result.returncode, 0, result.stderr)
+                logs = list(runtime_log_dir.glob("swclid-start-error.*"))
+                self.assertEqual(len(logs), 1)
+                self.assertEqual(logs[0].stat().st_mode & 0o777, 0o600)
+                self.assertIn(str(logs[0]), result.stdout)
+                self.assertEqual(result.stdout.count("runtime stderr log:"), 1)
+                self.assertNotIn("__ImageBase", result.stdout + result.stderr)
+                self.assertEqual(list((root / "capture").iterdir()), [])
+                written = root / "stderr-written"
+                self.assertFalse(written.exists())
+                # The entrypoint has returned; let the inherited fd2 writer run now.
+                (root / "write-stderr").touch()
+                deadline = time.monotonic() + 2.0
+                while not written.exists() and time.monotonic() < deadline:
+                    time.sleep(0.02)
+                self.assertTrue(written.exists(), "background stderr writer stalled")
+                self.assertIn(
+                    "late native SEH diagnostic", logs[0].read_text(encoding="utf-8")
+                )
+
+            started_at = time.monotonic()
+            result, calls = self._run_cli_entrypoint(
+                runtime_log_dir=runtime_log_dir,
+                start_warning=True,
+                background_stderr=True,
+                on_entrypoint_return=after_startup,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(len(calls), 2)
+            self.assertLess(time.monotonic() - started_at, 3.0)
+
+    def test_runtime_log_retains_failure_without_changing_exit_code(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            runtime_log_dir = Path(temporary_directory) / "logs"
+
+            def after_startup(result, root):
+                self.assertEqual(list((root / "capture").iterdir()), [])
+                logs = list(runtime_log_dir.glob("swclid-start-error.*"))
+                self.assertEqual(len(logs), 1)
+                self.assertEqual(logs[0].stat().st_mode & 0o777, 0o600)
+                self.assertIn("field __ImageBase warning", logs[0].read_text())
+
+            result, calls = self._run_cli_entrypoint(
+                runtime_log_dir=runtime_log_dir,
+                start_failure=True,
+                start_warning=True,
+                on_entrypoint_return=after_startup,
+            )
+            self.assertEqual(result.returncode, 7)
+            self.assertEqual(len(calls), 1)
+            self.assertIn("field __ImageBase warning", result.stderr)
+            self.assertIn("WorkerStartupError", result.stderr)
+
+    def test_runtime_log_retains_disconnected_host_diagnostics(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            runtime_log_dir = Path(temporary_directory) / "logs"
+            result, calls = self._run_cli_entrypoint(
+                runtime_log_dir=runtime_log_dir,
+                host_connected=False,
+                start_warning=True,
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(len(calls), 1)
+            logs = list(runtime_log_dir.glob("swclid-start-error.*"))
+            self.assertEqual(len(logs), 1)
+            self.assertIn("field __ImageBase warning", logs[0].read_text())
+            self.assertIn('"host_connected":false', result.stderr)
+
+    def test_default_runtime_capture_files_are_still_removed(self):
+        def after_startup(result, root):
+            self.assertEqual(list((root / "capture").iterdir()), [])
+            self.assertNotIn("runtime stderr log:", result.stdout)
+
+        for options in ({}, {"start_failure": True}, {"host_connected": False}):
+            with self.subTest(options=options):
+                self._run_cli_entrypoint(**options, on_entrypoint_return=after_startup)
+
+    def test_invalid_runtime_log_directory_fails_before_starting(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            runtime_log_dir = Path(temporary_directory) / "not-a-directory"
+            runtime_log_dir.write_text("occupied", encoding="utf-8")
+
+            def after_startup(result, root):
+                self.assertEqual(list((root / "capture").iterdir()), [])
+
+            result, calls = self._run_cli_entrypoint(
+                runtime_log_dir=runtime_log_dir,
+                on_entrypoint_return=after_startup,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(calls, [])
+            self.assertIn(str(runtime_log_dir), result.stderr)
+
     def _run_cli_entrypoint(
         self,
         *,
@@ -301,12 +399,17 @@ class EntrypointTests(unittest.TestCase):
         hold_start_output=False,
         host_connected=True,
         startup_timeout="1",
+        runtime_log_dir=None,
+        background_stderr=False,
+        on_entrypoint_return=None,
     ):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             fake_sw_cli = root / "sw-cli"
             call_log = root / "calls.log"
             descendant_pid_file = root / "descendant.pid"
+            capture_dir = root / "capture"
+            capture_dir.mkdir()
             fake_sw_cli.write_text(
                 "#!/usr/bin/env bash\n"
                 "printf '%s\\n' \"$*\" >> \"$SWCLI_TEST_CALL_LOG\"\n"
@@ -314,6 +417,15 @@ class EntrypointTests(unittest.TestCase):
                 "  test \"$WINE_SOLIDWORKS_STARTUP_TIMEOUT\" = \"$SWCLID_START_TIMEOUT\" || exit 9\n"
                 "  if [ \"${SWCLI_TEST_START_WARNING:-false}\" = true ]; then\n"
                 "    printf '%s\\n' 'field __ImageBase warning' >&2\n"
+                "  fi\n"
+                "  if [ \"${SWCLI_TEST_BACKGROUND_STDERR:-false}\" = true ]; then\n"
+                "    (\n"
+                "      exec >/dev/null\n"
+                "      until [ -f \"$SWCLI_TEST_WRITE_STDERR\" ]; do sleep 0.02; done\n"
+                "      printf '%s\\n' 'late native SEH diagnostic' >&2\n"
+                "      touch \"$SWCLI_TEST_STDERR_WRITTEN\"\n"
+                "    ) &\n"
+                "    printf '%s\\n' \"$!\" > \"$SWCLI_TEST_DESCENDANT_PID_FILE\"\n"
                 "  fi\n"
                 "  if [ \"${SWCLI_TEST_START_FAILURE:-false}\" = true ]; then\n"
                 "    printf '%s\\n' "
@@ -333,6 +445,7 @@ class EntrypointTests(unittest.TestCase):
             fake_sw_cli.chmod(0o755)
             environment = dict(os.environ)
             environment.pop("SWCLID_VISIBLE", None)
+            environment.pop("SWCLID_RUNTIME_LOG_DIR", None)
             environment.update(
                 {
                     "PATH": f"{root}:{environment['PATH']}",
@@ -345,10 +458,18 @@ class EntrypointTests(unittest.TestCase):
                     "SWCLI_TEST_HOLD_START_OUTPUT": "true" if hold_start_output else "false",
                     "SWCLI_TEST_DESCENDANT_PID_FILE": str(descendant_pid_file),
                     "SWCLI_TEST_HOST_CONNECTED": "true" if host_connected else "false",
+                    "TMPDIR": str(capture_dir),
+                    "SWCLI_TEST_BACKGROUND_STDERR": (
+                        "true" if background_stderr else "false"
+                    ),
+                    "SWCLI_TEST_WRITE_STDERR": str(root / "write-stderr"),
+                    "SWCLI_TEST_STDERR_WRITTEN": str(root / "stderr-written"),
                 }
             )
             if visible is not None:
                 environment["SWCLID_VISIBLE"] = visible
+            if runtime_log_dir is not None:
+                environment["SWCLID_RUNTIME_LOG_DIR"] = str(runtime_log_dir)
             try:
                 result = subprocess.run(
                     [str(CLI_ENTRYPOINT), "sw-cli", "document", "list", "--json"],
@@ -357,9 +478,14 @@ class EntrypointTests(unittest.TestCase):
                     env=environment,
                     timeout=5.0,
                 )
+                if on_entrypoint_return is not None:
+                    on_entrypoint_return(result, root)
             finally:
                 if descendant_pid_file.exists():
-                    os.kill(int(descendant_pid_file.read_text()), signal.SIGTERM)
+                    try:
+                        os.kill(int(descendant_pid_file.read_text()), signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
             calls = (
                 call_log.read_text(encoding="utf-8").splitlines()
                 if call_log.exists() else []

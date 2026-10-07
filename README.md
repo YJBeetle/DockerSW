@@ -383,6 +383,12 @@ entrypoint 中通过 `sw-cli daemon start` 预热 daemon，后续调用通过本
 | `SWCLI_ENDPOINT` | `127.0.0.1:18495` | SWCLI daemon 本地协议端点 |
 | `SWCLID_START_TIMEOUT` | `300` | daemon 与 SOLIDWORKS 就绪等待秒数，范围 0–3600；同时控制 Wine 的 COM 注册等待 |
 | `SWCLID_VISIBLE` | 跟随 `VNC_ENABLE` | 独立控制 SOLIDWORKS 窗口是否显示在 Xvfb 桌面；设为 `true` 不会启动 VNC 或开放端口 |
+| `SWCLID_RUNTIME_LOG_DIR` | 未设置 | 可选运行时 stderr 日志目录；入口打印实际文件路径，并在启动成功或失败后保留权限为 `0600` 的文件 |
+
+诊断 Wine/COM 运行时问题时，可将 `SWCLID_RUNTIME_LOG_DIR` 指向挂载的日志目录。
+日志从 daemon 启动前开始捕获，也保留继承 stderr 的后台 SOLIDWORKS 进程后续输出；
+成功启动不会将日志内容打印到控制台。未设置时仍使用启动临时文件并在预热结束后删除。
+日志可能包含运行时诊断信息，应仅保存在可信环境；收集端需显式管理访问权限和清理。
 
 容器自动启动只支持本地端点。对外暴露 daemon 属于显式部署行为，应直接运行
 `sw-cli daemon serve --allow-remote`，并置于可信网络边界或认证隧道之后。
