@@ -151,7 +151,7 @@ class SmokeEvidenceTests(unittest.TestCase):
                 if command == status:
                     ready = probe_count > int(os.environ.get('FAKE_READY_AFTER', '0'))
                     health = dict(host_connected=ready, worker_alive=ready,
-                                  recovery_required=False, host={'process_id': 608})
+                                  recovery_required=False, host={'process_id': 608, 'visible': False})
                     kind = os.environ.get('FAKE_HEALTH_KIND')
                     if kind == 'disconnected':
                         health['host_connected'] = False
@@ -161,6 +161,10 @@ class SmokeEvidenceTests(unittest.TestCase):
                         health['recovery_required'] = True
                     elif kind == 'missing-host':
                         health['host'] = None
+                    elif kind == 'visible-host':
+                        health['host']['visible'] = True
+                    elif kind == 'missing-visibility':
+                        del health['host']['visible']
                     elif kind == 'invalid-json':
                         print('not JSON')
                         sys.exit(0)
@@ -284,7 +288,8 @@ class SmokeEvidenceTests(unittest.TestCase):
         self.assertNotIn("docker run --rm", main)
         self.assertIn("sleep infinity", main)
         self.assertIn("--env 'WINEDEBUG=-all,+seh,+loaddll'", main)
-        self.assertIn("--env SWCLID_VISIBLE=true", main)
+        self.assertIn("--env SWCLID_VISIBLE=false", main)
+        self.assertNotIn("--env SWCLID_VISIBLE=true", main)
         self.assertIn("--env SWCLID_RUNTIME_LOG_DIR=" + NATIVE_STDERR_DIR, main)
         self.assertIn("--env SW_SMOKE_EVIDENCE_DIR=/ci-smoke", main)
         self.assertNotIn("VNC_ENABLE", main)
@@ -417,6 +422,8 @@ class SmokeEvidenceTests(unittest.TestCase):
             "dead-worker",
             "recovery",
             "missing-host",
+            "visible-host",
+            "missing-visibility",
             "invalid-json",
             "failed",
         ):

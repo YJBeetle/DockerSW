@@ -405,6 +405,8 @@ entrypoint 中通过 `sw-cli daemon start` 预热 daemon，后续调用通过本
 [`.github/workflows/build.yml`](.github/workflows/build.yml) 直接负责启动容器、收集
 日志并验证产物。六产物导出、通用建模、驱动尺寸验证分别有 10 分钟预算，复用
 同一个容器与 daemon，阶段之间不重启宿主；任何阶段失败都阻止镜像晋升。
+门禁显式使用默认交付的隐藏宿主模式（`SWCLID_VISIBLE=false`），并在启动状态中确认
+`host.visible=false`，避免仅凭可见窗口模式成功就声称默认后台执行已验证。
 容器内的 [`smoke-test/export.sh`](smoke-test/export.sh)
 则只组合 typed SWCLI 命令，对四个官方样例执行 `open -> export -> close`，生成 6 个
 STEP、PDF、DWG 产物。业务项目可以直接参考 `export.sh`，替换源文件、输出路径与

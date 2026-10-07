@@ -767,11 +767,12 @@ jobs:
           mkdir -p "${output_dir}"
           docker rm -f "${smoke_container}" >/dev/null 2>&1 || true
 
-          # Keep the same container and COM session for all three smoke phases.
+          # Verify the default hidden execution mode, keeping one container and
+          # COM session for all three phases (including rejected-cut recovery).
           docker run -d \
             --name "${smoke_container}" \
             --env SW_SMOKE_EVIDENCE_DIR=/ci-smoke \
-            --env SWCLID_VISIBLE=true \
+            --env SWCLID_VISIBLE=false \
             --env SWCLID_RUNTIME_LOG_DIR=/ci-smoke/native-runtime-stderr \
             --env 'WINEDEBUG=-all,+seh,+loaddll' \
             --mount "type=bind,source=${smoke_root},target=/ci-smoke" \
@@ -802,7 +803,7 @@ jobs:
                 >"${status_file}" 2>>"${probe_log}" \
                 && jq -e '.success == true and .result.host_connected == true
                   and .result.worker_alive == true and .result.recovery_required == false
-                  and .result.host != null' "${status_file}" >/dev/null; then
+                  and .result.host != null and .result.host.visible == false' "${status_file}" >/dev/null; then
               ready=true
               break
             fi
