@@ -756,6 +756,7 @@ jobs:
 
           docker run --rm \
             --name "${smoke_container}" \
+            --env SW_SMOKE_EVIDENCE_DIR=/ci-smoke \
             --mount "type=bind,source=${smoke_root},target=/ci-smoke" \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/export.sh,target=/opt/dockersw-smoke/export.sh,readonly" \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/verify-swcli.sh,target=/opt/dockersw-smoke/verify-swcli.sh,readonly" \

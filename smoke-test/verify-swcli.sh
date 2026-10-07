@@ -308,3 +308,12 @@ printf '%s' "${list_json}" | jq -e --arg id "${assembly_id}" \
 
 sw-cli document close --discard --json
 sw-cli document close --discard --document "${part_id}" --json
+
+# Reuse SWCLI's protocol gate through the Linux CLI entry point. Extra native
+# models/evidence stay outside the six published export artifacts.
+dimension_outdir="$(mktemp -d "${SW_SMOKE_EVIDENCE_DIR:-/tmp}/swcli-driving.XXXXXX")"
+PYTHONPATH="${SWCLI_SOURCE:-/opt/swcli/src}:${SWCLI_DEPS:-/opt/swcli-deps}/linux" \
+    python3 /opt/swcli/scripts/ci/verify-driving-dimensions.py \
+    --output-dir "${dimension_outdir}" \
+    --host-output-dir "$(winepath -w "${dimension_outdir}")" \
+    --cli-command /usr/local/bin/sw-cli

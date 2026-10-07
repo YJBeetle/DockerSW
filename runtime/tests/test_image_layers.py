@@ -144,9 +144,14 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn(".metrics.surface_area_mm2 - 16000", verification_script)
         self.assertIn("--session smoke-reopen document measure", verification_script)
         self.assertIn(".diagnostics.healthy == true and .needs_rebuild == 0", verification_script)
+        self.assertIn("verify-driving-dimensions.py", verification_script)
+        self.assertIn("--cli-command /usr/local/bin/sw-cli", verification_script)
+        self.assertIn('--host-output-dir "$(winepath -w', verification_script)
+        self.assertIn("SW_SMOKE_EVIDENCE_DIR", verification_script)
 
         workflow = self.read(".github/workflows/build.yml")
         self.assertIn("smoke-test/verify-swcli.sh", workflow)
+        self.assertIn("--env SW_SMOKE_EVIDENCE_DIR=/ci-smoke", workflow)
         expected_outputs = workflow.split("expected_outputs=(", maxsplit=1)[1].split(
             ")", maxsplit=1
         )[0]
