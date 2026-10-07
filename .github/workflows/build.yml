@@ -848,7 +848,7 @@ jobs:
           smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
           docker exec "${smoke_container}" \
-            bash /opt/dockersw-smoke/verify-swcli.sh /root/.wine/drive_c 2>&1 \
+            bash /opt/dockersw-smoke/verify-swcli.sh /root/.wine/drive_c /ci-smoke/modeling 2>&1 \
             | tee "${smoke_root}/sw-cli-modeling.log"
 
       - name: Smoke test SWCLI driving dimensions
@@ -860,7 +860,8 @@ jobs:
           set -Eeuo pipefail
           smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
-          docker exec "${smoke_container}" bash /opt/dockersw-smoke/verify-driving.sh 2>&1 \
+          docker exec "${smoke_container}" \
+            bash /opt/dockersw-smoke/verify-driving.sh /ci-smoke/modeling/modeling.json 2>&1 \
             | tee "${smoke_root}/sw-cli-driving.log"
 
       - name: Collect native daemon diagnostics & clean smoke container

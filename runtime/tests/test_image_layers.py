@@ -112,61 +112,33 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertNotIn("sw-cli daemon", export_script)
         self.assertNotIn("\nswclid ", export_script)
 
-    def test_real_export_smoke_test_covers_protocol_and_concurrency_gates(self) -> None:
+    def test_real_smoke_delegates_shared_assertions_and_keeps_delivery_gates(self) -> None:
         export_script = self.read("smoke-test/export.sh")
-        verification_script = self.read("smoke-test/verify-swcli.sh")
+        modeling_script = self.read("smoke-test/verify-swcli.sh")
         driving_script = self.read("smoke-test/verify-driving.sh")
-
         self.assertNotIn("verify-swcli.sh", export_script)
         self.assertNotIn("verify-driving", export_script)
-        self.assertIn("sw-cli capabilities --json", verification_script)
-        self.assertIn(".document.update_stamp != null", verification_script)
-        self.assertIn("document lease acquire", verification_script)
-        self.assertIn('"DocumentLeaseConflict"', verification_script)
-        self.assertIn("document lease release", verification_script)
-        self.assertIn("document list --json", verification_script)
-        self.assertIn('"${modeling_outdir}/multi-document.STEP"', verification_script)
-        self.assertIn('sw-cli feature extrude "${sketch_id}"', verification_script)
-        self.assertIn('sw-cli sketch circle --plane "${plane}"', verification_script)
-        self.assertIn(".geometry_verification.complete_circle == true", verification_script)
-        self.assertIn('sw-cli feature cut-extrude "${hole_id}"', verification_script)
-        self.assertIn(".geometry_verification.volume_removed_mm3", verification_script)
-        self.assertIn("--session smoke-reverse feature cut-extrude", verification_script)
-        self.assertIn('--session smoke-observer sketch inspect "${hole_id}"', verification_script)
-        self.assertIn(".sketch.owner.name == $owner", verification_script)
-        self.assertIn('"SketchUnavailable"', verification_script)
-        self.assertIn('"CutExtrusionFailed"', verification_script)
-        self.assertIn("--session smoke-cut-failure document measure", verification_script)
-        self.assertIn('sw-cli document save-as "${native_path}"', verification_script)
-        self.assertIn(".file_verification.minimum_size_valid == true", verification_script)
-        self.assertIn("--session smoke-reopen document open", verification_script)
-        self.assertIn(".structure.bodies.count == $count", verification_script)
-        self.assertIn('sw-cli document measure --document "${created_a_id}"', verification_script)
-        self.assertIn(".metrics.volume_mm3 - 100000", verification_script)
-        self.assertIn(".metrics.surface_area_mm2 - 16000", verification_script)
-        self.assertIn("--session smoke-reopen document measure", verification_script)
-        self.assertIn(".diagnostics.healthy == true and .needs_rebuild == 0", verification_script)
-        self.assertNotIn("verify-driving-dimensions.py", verification_script)
+        self.assertIn("verify-modeling.py", modeling_script)
         self.assertIn("verify-driving-dimensions.py", driving_script)
-        self.assertIn("--cli-command /usr/local/bin/sw-cli", driving_script)
-        self.assertIn('--host-output-dir "$(winepath -w', driving_script)
-        self.assertIn("SW_SMOKE_EVIDENCE_DIR", driving_script)
-        self.assertIn('chmod 755 "${dimension_outdir}"', driving_script)
-        for script in (export_script, verification_script, driving_script):
-            self.assertNotIn("sw-cli daemon start", script)
-            self.assertNotIn("sw-cli daemon restart", script)
-            self.assertNotIn("sw-cli daemon stop", script)
-
+        self.assertIn('--after-modeling "${modeling_record}"', driving_script)
+        for script in (modeling_script, driving_script):
+            self.assertIn("--cli-command /usr/local/bin/sw-cli", script)
+            self.assertIn('--host-output-dir "$(winepath -w', script)
+            self.assertIn("SW_SMOKE_EVIDENCE_DIR", script)
+            for duplicate in ("jq ", "document lease", "feature extrude", "document export"):
+                self.assertNotIn(duplicate, script)
+        for script in (export_script, modeling_script, driving_script):
+            for mutation in ("sw-cli daemon start", "sw-cli daemon restart", "sw-cli daemon stop"):
+                self.assertNotIn(mutation, script)
         workflow = self.read(".github/workflows/build.yml")
-        self.assertIn("smoke-test/verify-swcli.sh", workflow)
+        self.assertIn("bash -n smoke-test/verify-swcli.sh", workflow)
         self.assertIn("bash -n smoke-test/verify-driving.sh", workflow)
-        self.assertIn("smoke-test/verify-driving.sh", workflow)
+        self.assertIn("verify-swcli.sh /root/.wine/drive_c /ci-smoke/modeling", workflow)
+        self.assertIn("verify-driving.sh /ci-smoke/modeling/modeling.json", workflow)
         self.assertIn("--env SW_SMOKE_EVIDENCE_DIR=/ci-smoke", workflow)
-        expected_outputs = workflow.split("expected_outputs=(", maxsplit=1)[1].split(
-            ")", maxsplit=1
-        )[0]
+        expected_outputs = workflow.split("expected_outputs=(", maxsplit=1)[1].split(")", maxsplit=1)[0]
         self.assertEqual(expected_outputs.count('"'), 12)
-        self.assertNotIn("swcli-smoke-", expected_outputs)
+        self.assertNotIn("modeling", expected_outputs)
 
     def test_ci_builds_default_and_cli_images_from_one_payload(self) -> None:
         workflow = self.read(".github/workflows/build.yml")

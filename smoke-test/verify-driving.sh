@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+modeling_record="${1:?usage: verify-driving.sh MODELING_JSON}"
 
 # Reuse SWCLI's protocol gate through the Linux CLI entry point. Extra native
 # models/evidence stay outside the six published export artifacts.
@@ -9,5 +10,6 @@ chmod 755 "${dimension_outdir}"
 PYTHONPATH="${SWCLI_SOURCE:-/opt/swcli/src}:${SWCLI_DEPS:-/opt/swcli-deps}/linux" \
     python3 /opt/swcli/scripts/ci/verify-driving-dimensions.py \
     --output-dir "${dimension_outdir}" \
+    --after-modeling "${modeling_record}" \
     --host-output-dir "$(winepath -w "${dimension_outdir}")" \
     --cli-command /usr/local/bin/sw-cli

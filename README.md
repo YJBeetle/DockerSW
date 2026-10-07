@@ -408,23 +408,31 @@ entrypoint 中通过 `sw-cli daemon start` 预热 daemon，后续调用通过本
 容器内的 [`smoke-test/export.sh`](smoke-test/export.sh)
 则只组合 typed SWCLI 命令，对四个官方样例执行 `open -> export -> close`，生成 6 个
 STEP、PDF、DWG 产物。业务项目可以直接参考 `export.sh`，替换源文件、输出路径与
-格式规则。随后 [`smoke-test/verify-swcli.sh`](smoke-test/verify-swcli.sh) 会在同一真实
-SOLIDWORKS 会话中验证 capabilities Schema、更新戳、多文档切换和 lease 互斥，
+格式规则。随后 [`smoke-test/verify-swcli.sh`](smoke-test/verify-swcli.sh) 只准备真实 Wine
+路径与输出目录，调用 SWCLI 的 [`verify-modeling.py`](swcli/SWCLI/scripts/ci/verify-modeling.py)。
+Windows 与 Linux/Wine 共用这份操作和断言，在同一真实 SOLIDWORKS 会话中验证
+capabilities Schema、更新戳、多文档切换和 lease/CAS 互斥，
 并在新建的后台零件上验证三个基准面的矩形/圆草图、定深拉伸、圆孔切除与前台恢复，
 另测反向拉伸/切除的方向和体积减少，观察切除前后草图状态与所属特征，再执行
 原生体积/表面积测量、另存为、关闭重开、实体数量与重建诊断检查；每次运行将额外模型和导出
-证据保留在独立的 `swcli-generic.*` 目录（优先使用 `SW_SMOKE_EVIDENCE_DIR`，否则 `/tmp`），
-不改变 6 个正式产物的计数。同时还会拒绝已吸收轮廓复用，并验证不相交的切除
-明确失败且实体体积不变。只有这些门禁全部通过后，流水线才会晋升镜像。
+证据保留在单次输出目录（CI 使用 `/ci-smoke/modeling`，本地默认生成独立的
+`swcli-generic.*`，优先使用 `SW_SMOKE_EVIDENCE_DIR`，否则 `/tmp`），不改变 6 个正式
+产物的计数。同时拒绝已吸收轮廓复用，并验证不相交的切除明确失败、没有清理 warnings、
+已退出草图编辑、实体体积不变；关闭后必须在同一个宿主里成功新建后台圆草图。
+不能重启宿主或重试原生失败来使门禁通过。只有这些门禁全部通过后，流水线才会晋升镜像。
 
-独立的 [`smoke-test/verify-driving.sh`](smoke-test/verify-driving.sh) 复用 SWCLI
-的驱动直径门禁，在三个基准面上执行圆草图 → 16 mm 驱动直径 → 10 mm 拉伸 →
+独立的 [`smoke-test/verify-driving.sh`](smoke-test/verify-driving.sh) 接收前一步成功的
+`modeling.json`，通过 `--after-modeling` 验证宿主 PID 未变，再复用 SWCLI 的驱动直径
+门禁，在三个基准面上执行圆草图 → 16 mm 驱动直径 → 10 mm 拉伸 →
 吸收后改为 20 mm → 原生保存重开，验证圆心/半径、体积、更新戳、lease/CAS 拒绝和
 精确前台恢复。重开后通过只读 `sketch list` 获取新的草图句柄并观察几何，重复列举
 不能改变句柄或 session/前台状态；再通过 `dimension discover-diameter` 只读恢复
 20 mm 直径，重复识别与 `dimension inspect` 必须使用同一个新的存活句柄，且
 更新戳、配置、编辑状态及前台保持不变。旧句柄仍必须失效。这些建模证据收集到独立目录，
 不计入 6 个正式导出产物。新增能力是否已验证应以对应提交的 CI 结果为准。
+共享脚本的参数、三平台分工和证据边界见 [SWCLI 运行时测试说明](swcli/SWCLI/docs/runtime-tests.md)。
+Windows/DockerSW 原有的重复通用断言已移除；DockerSW 的 shell 测试只验证路径转换、
+参数传递和错误传播，建模断言的契约测试统一由 SWCLI 维护。
 
 ## 测试
 

@@ -365,6 +365,7 @@ class SmokeEvidenceTests(unittest.TestCase):
                     "bash",
                     "/opt/dockersw-smoke/verify-swcli.sh",
                     "/root/.wine/drive_c",
+                    "/ci-smoke/modeling",
                 ],
                 [
                     "docker",
@@ -372,6 +373,7 @@ class SmokeEvidenceTests(unittest.TestCase):
                     CONTAINER_NAME,
                     "bash",
                     "/opt/dockersw-smoke/verify-driving.sh",
+                    "/ci-smoke/modeling/modeling.json",
                 ],
             ],
         )
