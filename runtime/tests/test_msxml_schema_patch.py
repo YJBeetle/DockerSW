@@ -53,6 +53,13 @@ class MSXMLSchemaPatchTests(unittest.TestCase):
             self.assertIn(fragment, source)
         self.assertEqual(source.count('    test("'), 7)
 
+    def test_probe_uses_jammy_headers_but_requests_msxml6(self):
+        source = (ROOT / "runtime/tests/native/msxml_schema_namespace_probe.c").read_text()
+        self.assertIn("#include <msxml2.h>", source)
+        self.assertNotIn("#include <msxml6.h>", source)
+        self.assertIn("Msxml2.DOMDocument.6.0", source)
+        self.assertIn("Msxml2.XMLSchemaCache.6.0", source)
+
 
 if __name__ == "__main__":
     unittest.main()

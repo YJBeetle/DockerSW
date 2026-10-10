@@ -3,6 +3,8 @@
 移植自 MacSW `c1648c6b8bdb2a296abf8a4956de0626dccbbd10` 的源码补丁，
 保留 `0014-msxml-schema-cache-namespace.patch` 编号与内容；七项原生探针来自
 MacSW `45de3f9e5452b47d1e93d2374cc4d0f44d9fc489`。
+探针仅将包含头改为 Ubuntu 22.04 MinGW 提供的 `msxml2.h`，仍通过明确的
+MSXML6 ProgID 和接口 GUID 运行相同七项测试，不降级到 MSXML2。
 
 SOLIDWORKS 将无 `targetNamespace` 的官方 `sw2005plusSchema.xsd` 放入非空
 SchemaCache 命名空间。Wine 没有采用缓存的命名空间，导致装配体保存的 XML 验证

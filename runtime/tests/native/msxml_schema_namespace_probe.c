@@ -1,6 +1,7 @@
 #define COBJMACROS
 #include <windows.h>
-#include <msxml6.h>
+/* MinGW shipped by Ubuntu 22.04 declares these shared DOM/cache interfaces here. */
+#include <msxml2.h>
 #include <oleauto.h>
 #include <stdio.h>
 
