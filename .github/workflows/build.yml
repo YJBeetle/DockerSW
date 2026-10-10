@@ -956,6 +956,20 @@ jobs:
             echo "[CI language] ${language_tag} UI language and real STEP export verified."
           done < "${SW_LANGUAGE_BUILD_PLAN}"
 
+      - name: Make public smoke evidence readable for upload
+        if: always() && steps.check-images.outputs.already_verified != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          # Atomic JSON written by root containers can retain mode 0600.
+          # Only public evidence is shared; never traverse symlink targets.
+          for evidence_dir in "${RUNNER_TEMP}/sw-cli-export-smoke" "${RUNNER_TEMP}/sw-language-smoke"; do
+            if [ -d "${evidence_dir}" ]; then
+              sudo find -P "${evidence_dir}" -type d -exec chmod a+rx {} +
+              sudo find -P "${evidence_dir}" -type f -exec chmod a+r {} +
+            fi
+          done
+
       - name: Publish verified CLI images & promote atomically
         if: success() && steps.smoke-toolbox.outcome == 'success'
         shell: bash

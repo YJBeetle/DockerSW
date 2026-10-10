@@ -15,6 +15,7 @@ DRIVING_STEP = "Smoke test SWCLI driving dimensions"
 TOOLBOX_STEP = "Smoke test SWCLI Toolbox deployment & read-only part"
 COLLECT_STEP = "Collect native daemon diagnostics & clean smoke container"
 LOCALIZED_STEP = "Smoke test localized SOLIDWORKS images"
+PUBLIC_EVIDENCE_STEP = "Make public smoke evidence readable for upload"
 PUBLISH_STEP = "Publish verified CLI images & promote atomically"
 NATIVE_LOG = "/root/.wine/drive_c/users/root/AppData/Local/SWCLI/logs/daemon.log"
 NATIVE_STDERR_DIR = "/ci-smoke/native-runtime-stderr"
@@ -96,7 +97,14 @@ class SmokeEvidenceTests(unittest.TestCase):
             if role == 'sudo':
                 runtime = Path(os.environ['RUNNER_TEMP']) / 'sw-cli-export-smoke' / 'native-runtime-stderr'
                 expected = ['find', str(runtime), *json.loads(os.environ['FAKE_NATIVE_STDERR_FIND_ARGS'])]
-                if args != expected:
+                public_roots = ['sw-cli-export-smoke', 'sw-language-smoke']
+                public_commands = [
+                    ['find', '-P', str(Path(os.environ['RUNNER_TEMP']) / root),
+                     '-type', kind, '-exec', 'chmod', mode, '{}', '+']
+                    for root in public_roots
+                    for kind, mode in [('d', 'a+rx'), ('f', 'a+r')]
+                ]
+                if args != expected and args not in public_commands:
                     print('unexpected runtime log permission scope', file=sys.stderr)
                     sys.exit(99)
                 sys.exit(subprocess.run(args, check=False).returncode)
@@ -108,7 +116,11 @@ class SmokeEvidenceTests(unittest.TestCase):
                     print('chmod fixture failure', file=sys.stderr)
                     sys.exit(9)
                 for target in args[1:]:
-                    os.chmod(target, int(args[0], 8))
+                    if args[0] in ('a+r', 'a+rx'):
+                        additions = 0o444 if args[0] == 'a+r' else 0o555
+                        os.chmod(target, (os.stat(target).st_mode & 0o777) | additions)
+                    else:
+                        os.chmod(target, int(args[0], 8))
                 sys.exit(0)
             if args[0] == 'inspect':
                 if os.environ.get('FAKE_CONTAINER_ABSENT'):
@@ -244,6 +256,56 @@ class SmokeEvidenceTests(unittest.TestCase):
             for call in self.calls("docker")
             if call[1] == "exec" and call[3] == "bash"
         ]
+
+    def test_public_evidence_permissions_preserve_private_and_symlink_targets(self):
+        toolbox = self.smoke_root / 'toolbox'
+        toolbox.mkdir(mode=0o700)
+        record = toolbox / 'toolbox.json'
+        record.write_text('{}', encoding='utf-8')
+        record.chmod(0o600)
+        localized = self.runner / 'sw-language-smoke' / 'zh-cn'
+        localized.mkdir(parents=True, mode=0o700)
+        output = localized / 'output.STEP'
+        output.write_text('fixture', encoding='utf-8')
+        output.chmod(0o400)
+        private = self.runner / 'swcli-private-runtime'
+        private.mkdir(mode=0o700)
+        secret = private / 'install.log'
+        secret.write_text('private fixture', encoding='utf-8')
+        secret.chmod(0o600)
+        (toolbox / 'outside-file').symlink_to(secret)
+        (toolbox / 'outside-directory').symlink_to(private, target_is_directory=True)
+
+        result = self.run_step(PUBLIC_EVIDENCE_STEP)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(0o644, record.stat().st_mode & 0o777)
+        self.assertEqual(0o755, toolbox.stat().st_mode & 0o777)
+        self.assertEqual(0o444, output.stat().st_mode & 0o777)
+        self.assertEqual(0o755, localized.stat().st_mode & 0o777)
+        self.assertEqual(0o600, secret.stat().st_mode & 0o777)
+        self.assertEqual(0o700, private.stat().st_mode & 0o777)
+        self.assertEqual(4, len(self.calls('sudo')))
+
+    def test_public_evidence_absent_directories_are_a_safe_noop(self):
+        empty_runner = self.directory / 'empty-runner'
+        empty_runner.mkdir()
+        result = self.run_step(PUBLIC_EVIDENCE_STEP, RUNNER_TEMP=str(empty_runner))
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([], self.calls('sudo'))
+
+    def test_public_evidence_permission_failure_is_not_silenced(self):
+        result = self.run_step(PUBLIC_EVIDENCE_STEP, FAKE_CHMOD_FAILURE='1')
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn('chmod fixture failure', result.stderr)
+
+    def test_public_evidence_runs_on_failure_before_upload_and_promotion(self):
+        step = self.step(PUBLIC_EVIDENCE_STEP)
+        self.assertIn("if: always() && steps.check-images.outputs.already_verified != 'true'", step)
+        self.assertNotIn('continue-on-error', step)
+        for name in ('Upload export smoke-test artifacts', PUBLISH_STEP):
+            self.assertLess(self.workflow.index(PUBLIC_EVIDENCE_STEP), self.workflow.index(name))
+        for forbidden in ('PRIVATE_ROOT', 'RCLONE_CONFIG_FILE', 'sw-install-logs', 'find -L'):
+            self.assertNotIn(forbidden, step)
 
     def test_four_phase_budgets_guards_and_final_collection(self) -> None:
         for name in PHASES:
