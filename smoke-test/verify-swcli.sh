@@ -10,10 +10,13 @@ printf '[smoke] Shared modeling evidence: %s\n' "${modeling_outdir}"
 
 part_path="${workspace}/users/Public/Documents/SOLIDWORKS/SOLIDWORKS 2025/samples/learn/Paper Airplane.SLDPRT"
 assembly_path="${workspace}/Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/bezel moldbase.sldasm"
+drawing_path="${workspace}/Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/bezel moldbase.slddrw"
 PYTHONPATH="${SWCLI_SOURCE:-/opt/swcli/src}:${SWCLI_DEPS:-/opt/swcli-deps}/linux" \
     python3 /opt/swcli/scripts/ci/verify-modeling.py \
     --output-dir "${modeling_outdir}" \
     --host-output-dir "$(winepath -w "${modeling_outdir}")" \
     --cli-command /usr/local/bin/sw-cli \
     --sample-part "$(winepath -w "${part_path}")" \
-    --sample-assembly "$(winepath -w "${assembly_path}")"
+    --sample-assembly "$(winepath -w "${assembly_path}")" \
+    --sample-drawing "$(winepath -w "${drawing_path}")" \
+    --sample-drawing-local "${drawing_path}"

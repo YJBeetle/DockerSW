@@ -79,6 +79,10 @@ class SharedSmokeWrapperTests(unittest.TestCase):
         self.assertTrue(
             self.value("--sample-assembly").endswith("bezel moldbase.sldasm")
         )
+        drawing = "/wine drive C/Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/bezel moldbase.slddrw"
+        self.assertEqual(self.value("--sample-drawing-local"), drawing)
+        self.assertEqual(self.value("--sample-drawing"),
+                         "C:\\mapped" + drawing.replace("/", "\\"))
         self.assertEqual(self.value("--cli-command"), "/usr/local/bin/sw-cli")
         self.assertEqual(
             self.call()["pythonpath"], "/source with spaces/src:/deps with spaces/linux"
