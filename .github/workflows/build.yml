@@ -74,6 +74,7 @@ jobs:
           bash -n smoke-test/export.sh
           bash -n smoke-test/verify-swcli.sh
           bash -n smoke-test/verify-driving.sh
+          bash -n smoke-test/verify-toolbox.sh
           bash -n smoke-test/export-localized.sh
           bash -n preinstall/install-fonts.sh
           perl -c runtime/patch_wine_mono.pl
@@ -779,6 +780,7 @@ jobs:
             --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/export.sh,target=/opt/dockersw-smoke/export.sh,readonly" \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/verify-swcli.sh,target=/opt/dockersw-smoke/verify-swcli.sh,readonly" \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/verify-driving.sh,target=/opt/dockersw-smoke/verify-driving.sh,readonly" \
+            --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/verify-toolbox.sh,target=/opt/dockersw-smoke/verify-toolbox.sh,readonly" \
             "${SW_EXECUTABLE_CLI_IMAGE}" \
             sleep infinity
 
@@ -867,6 +869,19 @@ jobs:
             bash /opt/dockersw-smoke/verify-driving.sh /ci-smoke/modeling/modeling.json 2>&1 \
             | tee "${smoke_root}/sw-cli-driving.log"
 
+      - name: Smoke test SWCLI Toolbox deployment & read-only part
+        id: smoke-toolbox
+        if: success() && steps.smoke-driving.outcome == 'success'
+        shell: bash
+        timeout-minutes: 10
+        run: |
+          set -Eeuo pipefail
+          smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
+          docker exec "${smoke_container}" \
+            bash /opt/dockersw-smoke/verify-toolbox.sh /ci-smoke/toolbox /root/.wine 2>&1 \
+            | tee "${smoke_root}/sw-cli-toolbox.log"
+
       - name: Collect native daemon diagnostics & clean smoke container
         if: always() && steps.check-images.outputs.already_verified != 'true'
         shell: bash
@@ -910,7 +925,7 @@ jobs:
           fi
 
       - name: Smoke test localized SOLIDWORKS images
-        if: success() && steps.smoke-driving.outcome == 'success'
+        if: success() && steps.smoke-toolbox.outcome == 'success'
         shell: bash
         timeout-minutes: 30
         run: |
@@ -942,7 +957,7 @@ jobs:
           done < "${SW_LANGUAGE_BUILD_PLAN}"
 
       - name: Publish verified CLI images & promote atomically
-        if: success() && steps.smoke-driving.outcome == 'success'
+        if: success() && steps.smoke-toolbox.outcome == 'success'
         shell: bash
         run: |
           set -Eeuo pipefail

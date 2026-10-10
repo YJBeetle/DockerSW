@@ -12,6 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MAIN_STEP = "Smoke test real SOLIDWORKS exports"
 GENERIC_STEP = "Smoke test SWCLI modeling & protocol"
 DRIVING_STEP = "Smoke test SWCLI driving dimensions"
+TOOLBOX_STEP = "Smoke test SWCLI Toolbox deployment & read-only part"
 COLLECT_STEP = "Collect native daemon diagnostics & clean smoke container"
 LOCALIZED_STEP = "Smoke test localized SOLIDWORKS images"
 PUBLISH_STEP = "Publish verified CLI images & promote atomically"
@@ -44,6 +45,7 @@ PHASES = {
     MAIN_STEP: ("export.sh", "sw-cli-export.log"),
     GENERIC_STEP: ("verify-swcli.sh", "sw-cli-modeling.log"),
     DRIVING_STEP: ("verify-driving.sh", "sw-cli-driving.log"),
+    TOOLBOX_STEP: ("verify-toolbox.sh", "sw-cli-toolbox.log"),
 }
 STATUS_COMMAND = ["sw-cli", "--request-timeout", "2", "daemon", "status", "--json"]
 
@@ -243,7 +245,7 @@ class SmokeEvidenceTests(unittest.TestCase):
             if call[1] == "exec" and call[3] == "bash"
         ]
 
-    def test_three_phase_budgets_guards_and_final_collection(self) -> None:
+    def test_four_phase_budgets_guards_and_final_collection(self) -> None:
         for name in PHASES:
             with self.subTest(phase=name):
                 step = self.step(name)
@@ -260,9 +262,12 @@ class SmokeEvidenceTests(unittest.TestCase):
         self.assertIn(
             "steps.smoke-generic.outcome == 'success'", self.step(DRIVING_STEP)
         )
+        self.assertIn(
+            "steps.smoke-driving.outcome == 'success'", self.step(TOOLBOX_STEP)
+        )
         for name in (LOCALIZED_STEP, PUBLISH_STEP):
             self.assertIn(
-                "if: success() && steps.smoke-driving.outcome == 'success'",
+                "if: success() && steps.smoke-toolbox.outcome == 'success'",
                 self.step(name),
             )
         collector = self.step(COLLECT_STEP)
@@ -305,7 +310,7 @@ class SmokeEvidenceTests(unittest.TestCase):
                 + ",readonly",
                 main,
             )
-        for name in (GENERIC_STEP, DRIVING_STEP):
+        for name in (GENERIC_STEP, DRIVING_STEP, TOOLBOX_STEP):
             self.assertNotIn("docker run", self.step(name))
         localized = self.step(LOCALIZED_STEP)
         self.assertIn("docker run --rm", localized)
@@ -382,6 +387,10 @@ class SmokeEvidenceTests(unittest.TestCase):
                     "bash",
                     "/opt/dockersw-smoke/verify-driving.sh",
                     "/ci-smoke/modeling/modeling.json",
+                ],
+                [
+                    "docker", "exec", CONTAINER_NAME, "bash",
+                    "/opt/dockersw-smoke/verify-toolbox.sh", "/ci-smoke/toolbox", "/root/.wine",
                 ],
             ],
         )

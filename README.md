@@ -403,7 +403,7 @@ entrypoint 中通过 `sw-cli daemon start` 预热 daemon，后续调用通过本
 ## CI 真实导出门禁
 
 [`.github/workflows/build.yml`](.github/workflows/build.yml) 直接负责启动容器、收集
-日志并验证产物。六产物导出、通用建模、驱动尺寸验证分别有 10、30、10 分钟预算，复用
+日志并验证产物。六产物导出、通用建模、驱动尺寸、Toolbox 验证分别有 10、30、10、10 分钟预算，复用
 同一个容器与 daemon，阶段之间不重启宿主；任何阶段失败都阻止镜像晋升。
 通用建模阶段为完整原生观测和受保护深度修改预留独立预算，不延长六产物导出的超时，
 也不引入失败重试。新增操作仍须以固定 SWCLI 版本及其实际门禁结果为准。
@@ -446,6 +446,11 @@ capabilities Schema、更新戳、多文档切换和 lease/CAS 互斥，
 `dimension discover-rectangle` 必须恢复一对新的精确宽高句柄，重复发现和读取不得
 改变更新戳、配置或两会话的当前／前台状态。该门禁也不重启宿主、不重试失败操作，
 矩形原生文件同样只属于独立验证证据，不增加六个正式导出产物的数量。
+最后 [`smoke-test/verify-toolbox.sh`](smoke-test/verify-toolbox.sh) 调用 SWCLI 共享 Toolbox
+门禁，读取实际配置及 Wine 盘符映射，要求每个启用标准都有非空原生模型、数据库和官方索引。
+同一宿主通过公共 CLI 只读打开一个代表件、诊断、测量并关闭，验证源文件没有改写。
+失败会阻止镜像晋升，不自动修复或重试。文件检查不等于更新工具退出成功，也不证明
+插件加载、规格选型或插入装配体；安装与部署修复仍属于 DockerSW。
 共享脚本的参数、三平台分工和证据边界见 [SWCLI 运行时测试说明](swcli/SWCLI/docs/runtime-tests.md)。
 Windows/DockerSW 原有的重复通用断言已移除；DockerSW 的 shell 测试只验证路径转换、
 参数传递和错误传播，建模断言的契约测试统一由 SWCLI 维护。

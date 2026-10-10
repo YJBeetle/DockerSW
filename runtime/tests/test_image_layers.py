@@ -116,10 +116,14 @@ class ImageLayeringTests(unittest.TestCase):
         export_script = self.read("smoke-test/export.sh")
         modeling_script = self.read("smoke-test/verify-swcli.sh")
         driving_script = self.read("smoke-test/verify-driving.sh")
+        toolbox_script = self.read("smoke-test/verify-toolbox.sh")
         self.assertNotIn("verify-swcli.sh", export_script)
         self.assertNotIn("verify-driving", export_script)
         self.assertIn("verify-modeling.py", modeling_script)
         self.assertIn("verify-driving-dimensions.py", driving_script)
+        self.assertIn("verify-toolbox.py", toolbox_script)
+        self.assertIn("--require-toolbox", toolbox_script)
+        self.assertNotIn("--inventory-only", toolbox_script)
         self.assertIn('--after-modeling "${modeling_record}"', driving_script)
         for script in (modeling_script, driving_script):
             self.assertIn("--cli-command /usr/local/bin/sw-cli", script)
@@ -127,14 +131,16 @@ class ImageLayeringTests(unittest.TestCase):
             self.assertIn("SW_SMOKE_EVIDENCE_DIR", script)
             for duplicate in ("jq ", "document lease", "feature extrude", "document export"):
                 self.assertNotIn(duplicate, script)
-        for script in (export_script, modeling_script, driving_script):
+        for script in (export_script, modeling_script, driving_script, toolbox_script):
             for mutation in ("sw-cli daemon start", "sw-cli daemon restart", "sw-cli daemon stop"):
                 self.assertNotIn(mutation, script)
         workflow = self.read(".github/workflows/build.yml")
         self.assertIn("bash -n smoke-test/verify-swcli.sh", workflow)
         self.assertIn("bash -n smoke-test/verify-driving.sh", workflow)
+        self.assertIn("bash -n smoke-test/verify-toolbox.sh", workflow)
         self.assertIn("verify-swcli.sh /root/.wine/drive_c /ci-smoke/modeling", workflow)
         self.assertIn("verify-driving.sh /ci-smoke/modeling/modeling.json", workflow)
+        self.assertIn("verify-toolbox.sh /ci-smoke/toolbox /root/.wine", workflow)
         self.assertIn("--env SW_SMOKE_EVIDENCE_DIR=/ci-smoke", workflow)
         expected_outputs = workflow.split("expected_outputs=(", maxsplit=1)[1].split(")", maxsplit=1)[0]
         self.assertEqual(expected_outputs.count('"'), 12)

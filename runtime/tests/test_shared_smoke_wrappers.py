@@ -117,11 +117,25 @@ class SharedSmokeWrapperTests(unittest.TestCase):
         for script, arguments in (
             ("verify-swcli.sh", ("/wine",)),
             ("verify-driving.sh", ("/proof/modeling.json",)),
+            ("verify-toolbox.sh", (str(self.evidence / "toolbox"), "/wine prefix")),
         ):
             with self.subTest(script=script):
                 result = self.run_wrapper(script, *arguments, EXIT_CODE="23")
                 self.assertEqual(result.returncode, 23)
                 self.assertIn("native diagnostic stderr", result.stderr)
+
+    def test_toolbox_delegates_configured_prefix_and_required_policy(self):
+        output = self.evidence / "toolbox"
+        result = self.run_wrapper("verify-toolbox.sh", str(output), "/actual wine prefix")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.call()["args"][0], "/opt/swcli/scripts/ci/verify-toolbox.py")
+        self.assertEqual(self.value("--output-dir"), str(output))
+        self.assertEqual(self.value("--wine-prefix"), "/actual wine prefix")
+        self.assertEqual(self.value("--cli-command"), "/usr/local/bin/sw-cli")
+        self.assertIn("--require-toolbox", self.call()["args"])
+        self.assertNotIn("--inventory-only", self.call()["args"])
+        self.assertNotIn("--data-dir", self.call()["args"])
+        self.assertNotIn("--host-output-dir", self.call()["args"])
 
 
 if __name__ == "__main__":
