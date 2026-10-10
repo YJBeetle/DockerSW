@@ -77,7 +77,6 @@ jobs:
           bash -n smoke-test/verify-toolbox.sh
           bash -n smoke-test/export-localized.sh
           bash -n preinstall/install-fonts.sh
-          perl -c runtime/patch_wine_mono.pl
 
       - name: Run Logic Tests
         run: |

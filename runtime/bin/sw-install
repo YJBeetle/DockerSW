@@ -515,10 +515,5 @@ install_wpf_themes
 
 chmod -R go-rwx "${LOG_DIR}" 2>/dev/null || true
 
-# 校验并应用 Wine-Mono CCW 释放断言补丁，防止托管 COM 析构或二次释放触发 SIGABRT 崩溃
-if [ -f "/usr/local/lib/sw-runtime/patch_wine_mono.pl" ]; then
-    perl /usr/local/lib/sw-runtime/patch_wine_mono.pl >/dev/null 2>&1 || true
-fi
-
 info "SOLIDWORKS installation completed and SLDWORKS.exe was verified."
 info "Installation logs remain private at ${LOG_DIR}."

@@ -396,7 +396,7 @@ elif program == "wineserver":
         self.assertIn("VersionIndependentProgID", script)
         self.assertIn("TypeLib", script)
 
-    def test_runtime_versions_and_both_mono_patches_are_pinned(self) -> None:
+    def test_runtime_versions_and_shared_mono_engines_are_pinned(self) -> None:
         config = (RUNTIME_ROOT / "managed_com.env").read_text(encoding="utf-8")
         dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(
             encoding="utf-8"
@@ -412,15 +412,15 @@ elif program == "wineserver":
         )
         self.assertIn('WINE_MONO_VERSION="11.3.0"', config)
         self.assertIn(
-            'MONO_PATCH_RELEASE="wine-mono-11.3.0-X86StdcallFix-ComRegistration-v3"',
+            'MONO_PATCH_RELEASE="wine-mono-11.3.0-X86StdcallFix-ComRegistration-CCWFix"',
             config,
         )
         self.assertIn(
-            'MONO_PATCH_SHA256="950509a51c72ab9347ad49548f297d7dc81c98a56609f102b26fb30fa3e9f7ea"',
+            'MONO_PATCH_SHA256="d22ce0075cf56a0102455f435d4328da4e6c54a62504c51793f623faf58f989c"',
             config,
         )
         self.assertIn(
-            'MONO_MSCORLIB_SHA256="dbf8fe45f524f5ac0ca87af8d70d08bcbb0fa46e2048a8780d577fb246542eba"',
+            'MONO_MSCORLIB_SHA256="dd81a8c4d651c35f03387cf8ecef46cb5a171c072b19f23332c4adfb9980cea3"',
             config,
         )
         # Pin every package in the WineHQ dependency chain. Otherwise apt picks
@@ -430,6 +430,8 @@ elif program == "wineserver":
         self.assertIn('"wine-devel=${WINE_PACKAGE_VERSION}"', dockerfile)
         self.assertIn('"winehq-devel=${WINE_PACKAGE_VERSION}"', dockerfile)
         self.assertIn("libmono-2.0-x86.dll", prepare)
+        self.assertIn("libmono-2.0-x86_64.dll", prepare)
+        self.assertIn('${MONO_X64_SHA256}', prepare)
         self.assertIn("mscorlib.dll", prepare)
         self.assertIn("regasm-x86.exe", prepare)
         self.assertIn("regasm-x86_64.exe", prepare)

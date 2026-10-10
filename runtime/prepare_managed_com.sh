@@ -37,6 +37,8 @@ install_verified() {
 
 install_verified "${ASSET_DIR}/libmono-2.0-x86.dll" \
     "${MONO_ROOT}/bin/libmono-2.0-x86.dll" "${MONO_PATCH_SHA256}"
+install_verified "${ASSET_DIR}/libmono-2.0-x86_64.dll" \
+    "${MONO_ROOT}/bin/libmono-2.0-x86_64.dll" "${MONO_X64_SHA256}"
 install_verified "${ASSET_DIR}/mscorlib.dll" \
     "${MONO_ROOT}/lib/mono/4.5/mscorlib.dll" "${MONO_MSCORLIB_SHA256}"
 install_verified "${ASSET_DIR}/regasm-x86.exe" \
@@ -49,4 +51,4 @@ install_verified "${ASSET_DIR}/stdole.dll" \
     "${WINEPREFIX}/drive_c/Program Files/Common Files/SOLIDWORKS Shared/stdole.dll" \
     "${STDOLE_DLL_SHA256}"
 
-echo "Wine ${WINE_VERSION}, Wine-Mono ${WINE_MONO_VERSION}, x86 stdcall and managed COM registration assets are ready."
+echo "Wine ${WINE_VERSION}, Wine-Mono ${WINE_MONO_VERSION}, shared x86/x64 CCW, stdcall and managed COM registration assets are ready."

@@ -148,7 +148,6 @@ RUN dpkg --add-architecture i386 && \
 COPY runtime/managed_com.env /opt/sw-runtime/managed_com.env
 COPY --chmod=755 runtime/configure_ui_fonts.sh /usr/local/lib/sw-runtime/configure_ui_fonts.sh
 COPY --chmod=755 runtime/prepare_managed_com.sh /usr/local/lib/sw-runtime/prepare_managed_com.sh
-COPY --chmod=755 runtime/patch_wine_mono.pl /usr/local/lib/sw-runtime/patch_wine_mono.pl
 COPY --from=wine-unix-builder /build/output/ /opt/sw-runtime/wine-unix/
 
 # 3. 安装 Wine、下载 Mono 资产并初始化无头运行环境（合并在单层内执行反向去重，消除 540MB 重复物理占用）

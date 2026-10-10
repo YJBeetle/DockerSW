@@ -37,6 +37,9 @@ download_verified "Wine-Mono ${WINE_MONO_VERSION}" \
 download_verified "Wine-Mono x86 stdcall runtime" \
     "${PATCH_BASE_URL}/libmono-2.0-x86.dll" \
     "${ASSET_DIR}/libmono-2.0-x86.dll" "${MONO_PATCH_SHA256}"
+download_verified "Wine-Mono shared x64 CCW runtime" \
+    "${PATCH_BASE_URL}/libmono-2.0-x86_64.dll" \
+    "${ASSET_DIR}/libmono-2.0-x86_64.dll" "${MONO_X64_SHA256}"
 download_verified "Wine-Mono RegistrationServices mscorlib" \
     "${PATCH_BASE_URL}/mscorlib.dll" \
     "${ASSET_DIR}/mscorlib.dll" "${MONO_MSCORLIB_SHA256}"
@@ -55,5 +58,11 @@ rm -f "${ASSET_DIR}/stdole.dll.download"
 verify_sha256 "${ASSET_DIR}/stdole.dll.download" "${STDOLE_DLL_SHA256}"
 mv "${ASSET_DIR}/stdole.dll.download" "${ASSET_DIR}/stdole.dll"
 rm -f "${STDOLE_PACKAGE}"
+
+# Complete engine sources are published with the shared release. Keep their
+# immutable identity with the shipped components, without rebuilding Mono.
+printf 'Shared release: %s\nBuild source: https://github.com/YJBeetle/wine-mono/tree/%s\nMono source: %s/mono-%s.tar.gz\nSource SHA256: %s\n' \
+    "${MONO_PATCH_RELEASE}" "${MONO_PATCH_SOURCE_COMMIT}" "${PATCH_BASE_URL}" \
+    "${MONO_SOURCE_COMMIT}" "${MONO_SOURCE_SHA256}" > "${ASSET_DIR}/SOURCE.txt"
 
 echo "[DockerSW Build] Managed COM assets verified."

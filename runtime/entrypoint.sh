@@ -44,12 +44,6 @@ echo "========================================================="
 echo "  DockerSW Headless Container (Wine SolidWorks Runtime)  "
 echo "========================================================="
 
-# 0. 自动应用/校验 Wine-Mono CCW release assertion 补丁。Wine Unix 核心
-# 模块已在镜像构建阶段从固定源码编译并成对安装，不在运行时修改二进制。
-if [ -f "/usr/local/lib/sw-runtime/patch_wine_mono.pl" ]; then
-    perl /usr/local/lib/sw-runtime/patch_wine_mono.pl >/dev/null 2>&1 || true
-fi
-
 # 1. 守护启动 Xvfb 无头虚拟显示服务（COM 消息循环与 3D 渲染必需）
 SCREEN_NUM=$(echo "${DISPLAY}" | sed -E 's/.*:([0-9]+).*/\1/')
 if [ ! -S "/tmp/.X11-unix/X${SCREEN_NUM}" ]; then
@@ -88,7 +82,7 @@ if [ ! -d "${MONO_ROOT}" ]; then
     wineserver -w
 fi
 
-echo "[DockerSW] 正在校验 Wine-Mono stdcall 与托管 COM 注册组件..."
+echo "[DockerSW] 正在校验共享 Wine-Mono CCW、stdcall 与托管 COM 注册组件..."
 /usr/local/lib/sw-runtime/prepare_managed_com.sh
 
 # Wine 会在语言包安装后的首次进程启动中重新生成系统字体别名。构建层内的
