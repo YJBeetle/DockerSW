@@ -77,6 +77,16 @@ SaveAs 严格门禁的失败。图纸最终隔离引用目录接线也通过，�
 和文件哈希。生成的 ASM 必须包含一个原生组件 `Reference`，其首次 SaveAs 也不允许
 `DocumentStillModified`。这不是配合求解、嵌套装配或引用可移植性测试。
 
+SWCLI `254a293` 的独立 Linux/Wine 单次门禁已通过：插入一个 `Default` 配置零件，
+ASM 严格 SaveAs 为 41,840 字节，严格 Save3 后为 41,245 字节，修改标志均为 false。
+关闭 ASM 后源 PRT 已随之卸载，原生文档列表确认为空，再分别可写、只读重开 ASM：
+错误/警告均为 0、修改标志为 false、新文档 ID、配置/特征签名一致。
+ASM SHA-256 `2796c667c02fc0786644112916680e62c329b7c1161cb344a19f63e78f589cd9`
+在两次重开后保持不变，47,897 字节源 PRT 的哈希也保持不变；宿主 PID 616 未变，
+清理无错误，最终文档列表为空。原始证据保存在 workspaceroot 的
+`/tmp/swcli-asm-generated-254a-20261011.2kptQi/evidence/modeling.json`。
+这次使用固定完整源码及现有 MSXML 修复派生镜像，不等同于最新完整镜像或 Windows CI。
+
 ## 可选官方样例准备
 
 显式传入 `--verify-sample-assembly-save` 时，共享门禁首先将官方样例另存为新的测试副本，
