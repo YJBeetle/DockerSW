@@ -403,8 +403,10 @@ entrypoint 中通过 `sw-cli daemon start` 预热 daemon，后续调用通过本
 ## CI 真实导出门禁
 
 [`.github/workflows/build.yml`](.github/workflows/build.yml) 直接负责启动容器、收集
-日志并验证产物。六产物导出、通用建模、驱动尺寸验证分别有 10 分钟预算，复用
+日志并验证产物。六产物导出、通用建模、驱动尺寸验证分别有 10、30、10 分钟预算，复用
 同一个容器与 daemon，阶段之间不重启宿主；任何阶段失败都阻止镜像晋升。
+通用建模阶段为完整原生观测和受保护深度修改预留独立预算，不延长六产物导出的超时，
+也不引入失败重试。新增操作仍须以固定 SWCLI 版本及其实际门禁结果为准。
 门禁显式使用默认交付的隐藏宿主模式（`SWCLID_VISIBLE=false`），并在启动状态中确认
 `host.visible=false`，避免仅凭可见窗口模式成功就声称默认后台执行已验证。
 容器内的 [`smoke-test/export.sh`](smoke-test/export.sh)

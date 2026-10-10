@@ -843,7 +843,9 @@ jobs:
         id: smoke-generic
         if: success() && steps.smoke-exports.outcome == 'success'
         shell: bash
-        timeout-minutes: 10
+        # Guarded depth edits include complete native selection-scope and
+        # geometry checks. This phase budget does not extend the six exports.
+        timeout-minutes: 30
         run: |
           set -Eeuo pipefail
           smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
