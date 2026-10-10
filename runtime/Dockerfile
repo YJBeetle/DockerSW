@@ -155,6 +155,8 @@ COPY --from=wine-unix-builder /build/output/ /opt/sw-runtime/wine-unix/
 # runtime/ 树纳入缓存键；普通脚本与单测改动不应导致 Wine/Mono/Python 安装
 # 无谓重建。原生探针是有意输入，变更后必须重新验证运行时。
 RUN --mount=type=bind,from=wine-unix-builder,source=/build/probes,target=/mnt/wine-probes \
+    --mount=type=bind,source=runtime/verify_mono_ccw.sh,target=/mnt/mono-gates/verify.sh \
+    --mount=type=bind,source=runtime/tests/native/mono_ccw_release_probe.cs,target=/mnt/mono-gates/probe.cs \
     --mount=type=bind,source=runtime/fetch_managed_com.sh,target=/mnt/runtime/fetch_managed_com.sh \
     --mount=type=bind,source=runtime/init_wineprefix.sh,target=/mnt/runtime/init_wineprefix.sh \
     --mount=type=bind,source=runtime/registry,target=/mnt/runtime/registry \
@@ -190,6 +192,7 @@ RUN --mount=type=bind,from=wine-unix-builder,source=/build/probes,target=/mnt/wi
     tr -d '\r' < /tmp/msxml-schema-probe.log > /tmp/msxml-schema-probe.txt && \
     grep -qx 'XML_NAMESPACE_PROBE_PASS' /tmp/msxml-schema-probe.txt && \
     test "$(grep -c '^case=' /tmp/msxml-schema-probe.txt)" -eq 7 && \
+    bash /mnt/mono-gates/verify.sh /mnt/mono-gates/probe.cs && \
     timeout --foreground 60 wineserver -w && \
     rm -rf /tmp/* /root/.cache/*
 

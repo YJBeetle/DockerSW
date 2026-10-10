@@ -1,113 +1,54 @@
-# Wine-Mono CCW 引用计数断言缺陷与修补技术文档
+# Wine-Mono CCW 兼容修复与共享运行时
 
-本文档记录了在 Linux 无头容器（Wine 11.x + Wine-Mono 11.3.0）环境下，SOLIDWORKS 导出工程图为 DWG 等依赖托管 COM (.NET) 的格式时，偶发出现 `* Assertion at .../cominterop.c:3392, condition 'ccw->ref_count > 0' not met` 导致 `SLDWORKS.exe` 进程闪退及后续所有导出任务发生 `RPC server unavailable` 的根本原因、逆向分析、热补丁方案与设计实现。
+## 现象和证据边界
 
----
+DockerSW 的某些工程图导出／清理路径曾触发 `cominterop.c` 的
+`ccw->ref_count > 0` 断言，导致 SOLIDWORKS 退出，后续 COM 请求报告
+`RPC server unavailable`。MacSW 的 Toolbox 新规格确认也触发相同断言。
 
-## 1. 现象与排查背景
+最小探针在托管对象仍然存活时，将 CCW 计数释放到零，再多调用两次
+`Release`，随后重新 `AddRef` 和 `Release`。Windows .NET Framework x86/x64
+返回 `-1` 并允许重新获取引用；原 Wine-Mono 在第一次多余 Release 断言退出。
+这不是对已被 GC 回收的对象调用 COM 的安全性保证，也不证明全部并发 GC 场景。
 
-在 GitLab CI 等高并发批处理场景下，使用 `sw-cli document export` 连续导出多个复杂工程图（`.SLDDRW` -> `.PDF` 与 `.DWG`）时：
-1. **PDF 导出成功**：在第一阶段通常能顺利导出高质量 PDF；
-2. **DWG 转换时偶发崩溃**：当进入 DWG 转换环节，控制台输出断言失败：
-   ```text
-   * Assertion at /builds/mono/wine-mono/wine-mono-11.3.0/mono/mono/metadata/cominterop.c:3392, condition `ccw->ref_count > 0' not met
-   AttributeError: <unknown>.Extension
-   pywintypes.com_error: (-2147023174, 'RPC server unavailable.', None, None)
-   ```
-3. **雪崩式连锁失败**：由于该断言直接调用了 `abort()` 触发 `SIGABRT`，宿主 `SLDWORKS.exe` 进程瞬间暴毙退出。如果导出脚本未作单条目进程级隔离，后续所有排队导出的模型条目均会因 COM 连接中断而全军覆没。
+## 当前方案
 
----
+DockerSW 与 MacSW 使用同一个
+[共享 CCWFix 版本](https://github.com/YJBeetle/wine-mono/releases/tag/wine-mono-11.3.0-X86StdcallFix-ComRegistration-CCWFix)，
+保留已有 v3 的 x86 stdcall 与托管 COM 注册修复。源码身份：
 
-## 2. 源码级根本原因分析 (Root Cause)
+- Wine-Mono 集成：`eb8d3270298d2d59f7e304d23e6af0ff374f4559`。
+- Mono 引擎：`edc3bfecdcb5c1c4705bdc9b82257d1d35143f06`。
 
-SOLIDWORKS 的工程图转换组件包含混合架构，DWG/DXF 导出插件内部通过 COM 互操作（COM Interop）调用托管 .NET 运行时组件。
+[源码修复](https://github.com/YJBeetle/mono/commit/edc3bfecdcb5c1c4705bdc9b82257d1d35143f06)
+在零计数时返回 `-1`，但内部计数保持零；正常递减使用原子 CAS，保留 1→0
+时从强 GC 句柄切换到弱句柄的原有逻辑。不通过永久 AddRef 或关闭 GC 保活。
 
-在 Mono / Wine-Mono 的内部实现中，当原生 COM 宿主持有托管对象接口时，Mono 会为其分配一个 **CCW (COM Callable Wrapper)**，其引用计数保存在 `ccw->ref_count`。
+原二进制 NOP 方案只跳过断言，仍将内部计数减到负数，不等价于这一行为。
+现已移除 `patch_wine_mono.pl` 及构建、安装、入口点中的调用，不再扫描或改写 DLL。
+脚本及旧单测可从 Git 历史恢复。
 
-### 缺陷：Mono 对外部 COM 调用的硬断言过严
+`runtime/managed_com.env` 锁定共享 Release、源码提交及全部运行文件的 SHA256。
+`fetch_managed_com.sh` 下载同一共享版本的双架构 DLL、mscorlib 和 RegAsm；
+`prepare_managed_com.sh` 在复制前后校验，覆盖全新及挂载的已有 prefix。
+共享源码归档地址和哈希写入镜像内 `managed-com/SOURCE.txt`，无需项目本地构建 Mono。
+原有 BTLS DLL 和 `System.dll` 不改动；x86 保持 v3 的 BTLS-disabled 配置，
+x86 BTLS 调查另行进行。
 
-在 Wine-Mono 源码 `mono/mono/metadata/cominterop.c` 的 `cominterop_ccw_release` 函数中：
-```c
-/* Wine-Mono cominterop.c */
-static ULONG STDMETHODCALLTYPE
-cominterop_ccw_release (IUnknown *pUnk)
-{
-    MonoCCW *ccw = ...;
-    ...
-    g_assert (ccw->ref_count > 0); /* <-- 崩溃根因：第 3392 行硬断言 */
+## 回归和验收
 
-    if (InterlockedDecrement (&ccw->ref_count) == 0) {
-        mono_ccw_destroy (ccw);
-        return 0;
-    }
-    return ccw->ref_count;
-}
-```
+共享发布已通过同一源码提交的
+[双架构 Wine 门禁](https://github.com/YJBeetle/wine-mono/actions/runs/38078186166)、
+[Windows CLR 对照](https://github.com/YJBeetle/wine-mono/actions/runs/38078186208) 和
+[COM 注册集成](https://github.com/YJBeetle/wine-mono/actions/runs/38078186212)。
+CCW 门禁覆盖 x86/x64、JIT/解释器以及原引擎的预期失败对照。
 
-- **语义差异**：
-  - **Windows 原生 .NET CLR**：设计为宽容防御模式。当面对某些第三方复杂 COM 组件（或多线程并发释放回调）偶发多调用了一次 `Release()`（Double-Release）时，CLR 会容错忽略，绝不会因为外部 COM 宿主的计数瑕疵直接调用 `abort()` 杀死调用方进程。
-  - **Wine-Mono**：此处误用了不可关闭的 `g_assert`。当 `ccw->ref_count` 已经是 0 时，一旦再次收到 Release，断言失败立即触发 `abort()`，直接杀死 `SLDWORKS.exe` 宿主！
+DockerSW 镜像构建增加 `verify_mono_ccw.sh`，使用实际安装的运行时编译并执行
+相同的七项 CCW 检查，分别运行 x86/x64、JIT/解释器。必须同时满足退出码零、
+准确的完成标记、七项输出且无断言／异常；退出码零本身不算通过。
+探针仅通过 BuildKit 绑定挂载，不进入最终镜像，也不在容器日常启动时执行。
 
----
-
-## 3. 逆向定位与汇编热修补方案
-
-为了在无需重新完整构建庞大 Wine-Mono 编译链的前提下实现即时免疫，我们在 64 位核心动态链接库 `libmono-2.0-x86_64.dll` 上进行了指令级逆向分析与热修补。
-
-### 3.1 指令级定位 (x86_64)
-
-在 `libmono-2.0-x86_64.dll`（PE 映像基址 `0x180000000`）中，`cominterop_ccw_release` 汇编如下：
-
-```assembly
-; 文件偏移 0x175588 / 内存 RVA 0x176188
-180176188: 4d 8b 6e 08           movq   0x8(%r14), %r13       ; %r13 = ccw
-18017618c: 4d 85 ed              testq  %r13, %r13            ; ccw 是否为 NULL
-18017618f: 0f 84 9f 00 00 00     je     0x180176234           ; 若 NULL 跳转断言 0xd3f
-180176195: 41 83 7d 00 00        cmpl   $0x0, (%r13)          ; 比较 ccw->ref_count 与 0
-18017619a: 0f 84 ac 00 00 00     je     0x18017624c           ; 【关键分支】若 == 0，跳转调用 mono_assertion_message(0xd40) abort()!
-1801761a0: 48 8b 80 48 04 00 00  movq   0x448(%rax), %rax
-...
-1801761ad: bd ff ff ff ff        movl   $0xffffffff, %ebp     ; %ebp = -1
-1801761b2: f0 41 0f c1 6d 00     lock xaddl %ebp, (%r13)      ; 原子减 1 并返回旧值
-1801761b8: ff cd                 decl   %ebp                  ; 计算新引用计数
-1801761ba: 74 44                 je     0x180176200           ; 只有新计数刚好为 0 时才跳转销毁 CCW
-...
-1801761ed: 89 e8                 movl   %ebp, %eax            ; 返回引用计数
-1801761ff: c3                    retq
-```
-
-### 3.2 补丁设计与数学安全性
-
-我们将 `0x18017619a` 处长度为 6 字节的跳转断言指令：
-```
-原机器码：0f 84 ac 00 00 00  (je 0x18017624c)
-```
-替换为 6 个等长的单字节 NOP 指令：
-```
-补丁机器码：90 90 90 90 90 90  (6 * nop)
-```
-
-**为什么这种替换是 100% 安全且不会发生二次析构的？**
-1. **彻底免疫 abort**：断言分支不再触发，宿主进程绝不崩溃；
-2. **防重释放析构保证**：
-   - 当原计数为 $1$（正常释放）时：`lock xaddl` 减完为 $0$，`decl` 后 `%ebp == 0`，触发 `je 0x180176200` 正确执行 CCW 销毁逻辑。
-   - 当原计数为 $0$（Double-Release 异常）时：`lock xaddl` 减完变为 $-1$，`decl` 后 `%ebp == -2`，条件不成立，**绝不会跳转到销毁分支**！
-3. **干净安全返回**：函数平稳完成 GC 状态恢复并返回，调用方获得非零返回值，行为对齐微软原生 .NET CLR。
-
----
-
-## 4. 工程化集成与四重保障架构
-
-在 `DockerSW` 体系中，通过如下四个层面全生命周期自动应用与校验补丁：
-
-1. **补丁脚本**：[docker/patch_wine_mono.pl](file:///Volumes/Data/Workspace/DockerSWPreinstalled/DockerSW/docker/patch_wine_mono.pl)
-   - 包含快速偏移（`0x175588`）与全局哈希扫描双模式；
-   - 具备完整幂等性（重复执行不报错且安全跳过）。
-2. **基础镜像构建期应用**：[docker/init_wineprefix.sh](file:///Volumes/Data/Workspace/DockerSWPreinstalled/DockerSW/docker/init_wineprefix.sh)
-   - 在基础镜像首次装载 Mono 运行时即刻固化补丁。
-3. **预安装镜像构建期应用**：[scripts/sw-install](file:///Volumes/Data/Workspace/DockerSWPreinstalled/DockerSW/scripts/sw-install)
-   - 在 SolidWorks 安装及前置环境准备后执行自动校验。
-4. **容器运行期 Entrypoint 防护**：[docker/entrypoint.sh](file:///Volumes/Data/Workspace/DockerSWPreinstalled/DockerSW/docker/entrypoint.sh)
-   - 即使使用者挂载了外部私有 WinePrefix 或外部 Mono 目录，每次容器启动都会自动识别并应用修补。
-5. **自动化单元测试覆盖**：[tests/test_patch_wine_mono.py](file:///Volumes/Data/Workspace/DockerSWPreinstalled/DockerSW/tests/test_patch_wine_mono.py)
-   - 包含快路径、全盘扫描、幂等性及真实 DLL 文件的完整单元测试。
+本地离线单测验证共享版本锁定、复制前后校验、损坏输入拒绝、幂等复制以及
+完成标记的成功／失败判定；不是 Linux 镜像构建或 SOLIDWORKS 导出实测。
+真实 Linux 容器中的运行时门禁、Toolbox 及 DWG／PDF 导出仍由 DockerSW CI
+在新镜像上验证，不能用共享最小探针替代完整 CAD 验收。
