@@ -2,6 +2,7 @@
 # win32u、winex11 和 opengl32 直接依赖同次构建的 Wine 私有 ABI，因此必须
 # 与 ntdll 成套交付，不能只替换单个 Unix 模块。
 # 同版本 x64 combase.dll 负责 SOLIDWORKS 专用的 COM 激活注册等待。
+# msxml3.dll 提供 MSXML6 SchemaCache 的命名空间兼容实现（MacSW 0014）。
 FROM ubuntu:22.04 AS wine-unix-builder
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -38,6 +39,7 @@ RUN apt-get update && \
 
 COPY runtime/managed_com.env /build/managed_com.env
 COPY runtime/wine-patches/*.patch /patches/
+COPY runtime/tests/native/msxml_schema_namespace_probe.c /build/probes/source.c
 
 RUN . /build/managed_com.env && \
     mkdir -p /build/source /build/output && \
@@ -85,14 +87,18 @@ RUN . /build/managed_com.env && \
         --with-opengl \
         --with-vulkan \
         --with-x && \
-    make -j"$(nproc)" dlls/win32u/win32u.so dlls/winex11.drv/winex11.so dlls/opengl32/opengl32.so dlls/combase/x86_64-windows/combase.dll && \
+    make -j"$(nproc)" dlls/win32u/win32u.so dlls/winex11.drv/winex11.so dlls/opengl32/opengl32.so dlls/combase/x86_64-windows/combase.dll dlls/msxml3/x86_64-windows/msxml3.dll && \
     strip --strip-unneeded dlls/ntdll/ntdll.so dlls/win32u/win32u.so dlls/winex11.drv/winex11.so dlls/opengl32/opengl32.so && \
     x86_64-w64-mingw32-strip --strip-debug dlls/combase/x86_64-windows/combase.dll && \
+    x86_64-w64-mingw32-strip --strip-debug dlls/msxml3/x86_64-windows/msxml3.dll && \
     install -m 0644 dlls/ntdll/ntdll.so /build/output/ntdll.so && \
     install -m 0644 dlls/win32u/win32u.so /build/output/win32u.so && \
     install -m 0644 dlls/winex11.drv/winex11.so /build/output/winex11.so && \
     install -m 0644 dlls/opengl32/opengl32.so /build/output/opengl32.so && \
-    install -m 0644 dlls/combase/x86_64-windows/combase.dll /build/output/combase.dll
+    install -m 0644 dlls/combase/x86_64-windows/combase.dll /build/output/combase.dll && \
+    install -m 0644 dlls/msxml3/x86_64-windows/msxml3.dll /build/output/msxml3.dll && \
+    x86_64-w64-mingw32-gcc -O2 -Wall /build/probes/source.c \
+        -o /build/probes/msxml-schema.exe -lole32 -loleaut32
 
 # DockerSW: 无头 SOLIDWORKS Wine 运行时镜像
 FROM ubuntu:22.04 AS sw-runtime
@@ -146,10 +152,11 @@ COPY --chmod=755 runtime/patch_wine_mono.pl /usr/local/lib/sw-runtime/patch_wine
 COPY --from=wine-unix-builder /build/output/ /opt/sw-runtime/wine-unix/
 
 # 3. 安装 Wine、下载 Mono 资产并初始化无头运行环境（合并在单层内执行反向去重，消除 540MB 重复物理占用）
-# 仅绑定挂载本层真正消费的三个源（两个构建脚本 + registry 目录），避免把整个
-# runtime/ 树纳入缓存键——否则 runtime/bin、runtime/scripts、runtime/tests 的
-# 任何改动都会击穿这一层，导致约 145s 的 Wine/Mono/Python 安装被无谓重建。
-RUN --mount=type=bind,source=runtime/fetch_managed_com.sh,target=/mnt/runtime/fetch_managed_com.sh \
+# 仅绑定挂载本层消费的脚本、registry 目录和构建探针，避免把整个
+# runtime/ 树纳入缓存键；普通脚本与单测改动不应导致 Wine/Mono/Python 安装
+# 无谓重建。原生探针是有意输入，变更后必须重新验证运行时。
+RUN --mount=type=bind,from=wine-unix-builder,source=/build/probes,target=/mnt/wine-probes \
+    --mount=type=bind,source=runtime/fetch_managed_com.sh,target=/mnt/runtime/fetch_managed_com.sh \
     --mount=type=bind,source=runtime/init_wineprefix.sh,target=/mnt/runtime/init_wineprefix.sh \
     --mount=type=bind,source=runtime/registry,target=/mnt/runtime/registry \
     . /opt/sw-runtime/managed_com.env && \
@@ -170,12 +177,21 @@ RUN --mount=type=bind,source=runtime/fetch_managed_com.sh,target=/mnt/runtime/fe
         /opt/wine-devel/lib/wine/x86_64-unix/opengl32.so && \
     install -m 0644 /opt/sw-runtime/wine-unix/combase.dll \
         /opt/wine-devel/lib/wine/x86_64-windows/combase.dll && \
+    install -m 0644 /opt/sw-runtime/wine-unix/msxml3.dll \
+        /opt/wine-devel/lib/wine/x86_64-windows/msxml3.dll && \
     rm -rf /opt/sw-runtime/wine-unix && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     bash /mnt/runtime/fetch_managed_com.sh && \
     wget -q "https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-amd64.exe" -O /tmp/python-installer.exe && \
     bash /mnt/runtime/init_wineprefix.sh && \
+    { timeout --foreground 120 wine /mnt/wine-probes/msxml-schema.exe > /tmp/msxml-schema-probe.log 2>&1 || \
+        { probe_status=$?; cat /tmp/msxml-schema-probe.log >&2; exit "${probe_status}"; }; } && \
+    cat /tmp/msxml-schema-probe.log && \
+    tr -d '\r' < /tmp/msxml-schema-probe.log > /tmp/msxml-schema-probe.txt && \
+    grep -qx 'XML_NAMESPACE_PROBE_PASS' /tmp/msxml-schema-probe.txt && \
+    test "$(grep -c '^case=' /tmp/msxml-schema-probe.txt)" -eq 7 && \
+    timeout --foreground 60 wineserver -w && \
     rm -rf /tmp/* /root/.cache/*
 
 # 4. 仅加入执行 SOLIDWORKS 官方安装所需的稳定工具。频繁变化的 SWCLI、
