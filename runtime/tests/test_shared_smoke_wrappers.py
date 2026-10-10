@@ -21,12 +21,19 @@ class SharedSmokeWrapperTests(unittest.TestCase):
         self.evidence = self.directory / "evidence with spaces"
         self.evidence.mkdir()
         self.trace = self.directory / "command.json"
+        self.workspace = self.directory / "wine drive C"
+        self.mold = self.workspace / "Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold"
+        (self.mold / "Moldbase").mkdir(parents=True)
+        (self.mold / "bezel moldbase.slddrw").write_bytes(b"source drawing")
+        (self.mold / "Moldbase/reference.SLDPRT").write_bytes(b"reference model")
         python = self.directory / "python3"
         python.write_text(
             f"#!{sys.executable}\n"
             "import json, os, sys\n"
             "from pathlib import Path\n"
-            "Path(os.environ['TRACE']).write_text(json.dumps({'args':sys.argv[1:],'pythonpath':os.environ['PYTHONPATH']}))\n"
+            "args=sys.argv[1:]\n"
+            "fixture=Path(args[args.index('--drawing-work-dir')+1]) if '--drawing-work-dir' in args else None\n"
+            "Path(os.environ['TRACE']).write_text(json.dumps({'args':args,'pythonpath':os.environ['PYTHONPATH'], 'reference':(fixture/'Moldbase/reference.SLDPRT').read_text() if fixture else None}))\n"
             "sys.stderr.write('native diagnostic stderr\\n')\n"
             "sys.exit(int(os.environ.get('EXIT_CODE','0')))\n",
             encoding="utf-8",
@@ -67,7 +74,7 @@ class SharedSmokeWrapperTests(unittest.TestCase):
 
     def test_modeling_delegates_paths_and_samples_without_its_own_cad_logic(self):
         output = self.evidence / "modeling"
-        result = self.run_wrapper("verify-swcli.sh", "/wine drive C", str(output))
+        result = self.run_wrapper("verify-swcli.sh", str(self.workspace), str(output))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             self.call()["args"][0], "/opt/swcli/scripts/ci/verify-modeling.py"
@@ -79,10 +86,17 @@ class SharedSmokeWrapperTests(unittest.TestCase):
         self.assertTrue(
             self.value("--sample-assembly").endswith("bezel moldbase.sldasm")
         )
-        drawing = "/wine drive C/Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/bezel moldbase.slddrw"
+        drawing = str(self.mold / "bezel moldbase.slddrw")
         self.assertEqual(self.value("--sample-drawing-local"), drawing)
         self.assertEqual(self.value("--sample-drawing"),
                          "C:\\mapped" + drawing.replace("/", "\\"))
+        fixture = self.value("--drawing-work-dir")
+        self.assertEqual(self.value("--host-drawing-work-dir"),
+                         "C:\\mapped" + fixture.replace("/", "\\"))
+        self.assertEqual(self.call()["reference"], "reference model")
+        self.assertFalse(Path(fixture).exists())
+        self.assertEqual((self.mold / "bezel moldbase.slddrw").read_bytes(), b"source drawing")
+        self.assertFalse((output / "Moldbase").exists())
         self.assertEqual(self.value("--cli-command"), "/usr/local/bin/sw-cli")
         self.assertEqual(
             self.call()["pythonpath"], "/source with spaces/src:/deps with spaces/linux"
@@ -91,16 +105,31 @@ class SharedSmokeWrapperTests(unittest.TestCase):
         self.assertIn("native diagnostic stderr", result.stderr)
 
     def test_local_repeat_runs_use_distinct_directories(self):
-        self.assertEqual(self.run_wrapper("verify-swcli.sh", "/wine").returncode, 0)
+        self.assertEqual(self.run_wrapper("verify-swcli.sh", str(self.workspace)).returncode, 0)
         first = Path(self.value("--output-dir"))
         model = first / "model.SLDPRT"
         model.write_bytes(b"previous evidence")
-        self.assertEqual(self.run_wrapper("verify-swcli.sh", "/wine").returncode, 0)
+        self.assertEqual(self.run_wrapper("verify-swcli.sh", str(self.workspace)).returncode, 0)
         second = Path(self.value("--output-dir"))
         self.assertNotEqual(first, second)
         self.assertEqual(model.read_bytes(), b"previous evidence")
         self.assertEqual(first.parent, self.evidence)
         self.assertEqual(second.parent, self.evidence)
+
+    def test_fixture_copy_failure_cleans_temp_inputs_and_never_calls_cli(self):
+        receipt = self.directory / "fixture-path"
+        copy = self.directory / "cp"
+        copy.write_text(
+            f"#!{sys.executable}\nimport sys\nfrom pathlib import Path\n"
+            f"Path({str(receipt)!r}).write_text(sys.argv[-1])\n"
+            "sys.exit(21)\n",
+            encoding="utf-8",
+        )
+        copy.chmod(0o755)
+        result = self.run_wrapper("verify-swcli.sh", str(self.workspace))
+        self.assertEqual(result.returncode, 21)
+        self.assertFalse(self.trace.exists())
+        self.assertFalse(Path(receipt.read_text()).exists())
 
     def test_driving_requires_and_forwards_predecessor_record(self):
         record = str(self.evidence / "modeling/modeling.json")
@@ -119,7 +148,7 @@ class SharedSmokeWrapperTests(unittest.TestCase):
 
     def test_shared_failure_propagates_without_retry_or_suppressing_stderr(self):
         for script, arguments in (
-            ("verify-swcli.sh", ("/wine",)),
+            ("verify-swcli.sh", (str(self.workspace),)),
             ("verify-driving.sh", ("/proof/modeling.json",)),
             ("verify-toolbox.sh", (str(self.evidence / "toolbox"), "/wine prefix")),
         ):
@@ -127,6 +156,8 @@ class SharedSmokeWrapperTests(unittest.TestCase):
                 result = self.run_wrapper(script, *arguments, EXIT_CODE="23")
                 self.assertEqual(result.returncode, 23)
                 self.assertIn("native diagnostic stderr", result.stderr)
+                if script == "verify-swcli.sh":
+                    self.assertFalse(Path(self.value("--drawing-work-dir")).exists())
 
     def test_toolbox_delegates_configured_prefix_and_required_policy(self):
         output = self.evidence / "toolbox"
