@@ -12,6 +12,11 @@ on:
       - 'LICENSE'
   workflow_dispatch:
     inputs:
+      runtime_suite:
+        description: 'Core manual regression or full image-promotion acceptance'
+        type: choice
+        options: [core, full]
+        default: full
       force_rebuild:
         description: 'Force full rebuild even if image for this commit SHA exists on GHCR'
         type: boolean
@@ -103,6 +108,8 @@ jobs:
       SW_PREINSTALLED_REPO: ghcr.io/yjbeetle/sw-preinstalled
       SW_EXECUTABLE_REPO: ghcr.io/yjbeetle/sw-executable
       SW_LANGUAGES: ${{ inputs.languages || 'zh-cn' }}
+      # Pushes promote released image tags, so they still require full coverage.
+      SWCLI_RUNTIME_SUITE: ${{ inputs.runtime_suite || 'full' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -774,6 +781,7 @@ jobs:
             --name "${smoke_container}" \
             --env SW_SMOKE_EVIDENCE_DIR=/ci-smoke \
             --env SWCLID_VISIBLE=false \
+            --env "SWCLI_RUNTIME_SUITE=${SWCLI_RUNTIME_SUITE:-full}" \
             --env SWCLID_RUNTIME_LOG_DIR=/ci-smoke/native-runtime-stderr \
             --env 'WINEDEBUG=-all,+seh,+loaddll' \
             --mount "type=bind,source=${smoke_root},target=/ci-smoke" \
@@ -971,7 +979,7 @@ jobs:
           done
 
       - name: Publish verified CLI images & promote atomically
-        if: success() && steps.smoke-toolbox.outcome == 'success'
+        if: success() && steps.smoke-toolbox.outcome == 'success' && env.SWCLI_RUNTIME_SUITE == 'full'
         shell: bash
         run: |
           set -Eeuo pipefail

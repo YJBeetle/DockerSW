@@ -9,6 +9,7 @@ dimension_outdir="$(mktemp -d "${SW_SMOKE_EVIDENCE_DIR:-/tmp}/swcli-driving.XXXX
 chmod 755 "${dimension_outdir}"
 PYTHONPATH="${SWCLI_SOURCE:-/opt/swcli/src}:${SWCLI_DEPS:-/opt/swcli-deps}/linux" \
     python3 /opt/swcli/scripts/ci/verify-driving-dimensions.py \
+    --suite "${SWCLI_RUNTIME_SUITE:-full}" \
     --output-dir "${dimension_outdir}" \
     --after-modeling "${modeling_record}" \
     --host-output-dir "$(winepath -w "${dimension_outdir}")" \

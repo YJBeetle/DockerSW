@@ -196,6 +196,11 @@ rclone config show gdrive | base64 | tr -d '\n'
 gh workflow run build.yml --ref main
 ```
 
+共享 CLI 的建模／尺寸门禁支持 `runtime_suite=core|full`。自动构建仍默认 `full`，
+因为通过后会提升正式镜像标签；手动排查可追加 `-f runtime_suite=core`，保留
+核心建模、保存重开、导出和三平面几何，减少重复尺寸反例，但不提升正式镜像标签。
+两档沿用现有后台宿主，组间不重启，逐组核对文档清空；Toolbox 和六类交付导出仍必测。
+
 ## 运行私有预安装镜像
 
 ### 1. 登录 GHCR 私有仓库 (PAT)

@@ -104,6 +104,19 @@ class SharedSmokeWrapperTests(unittest.TestCase):
         self.assertEqual(output.stat().st_mode & 0o777, 0o755)
         self.assertIn("native diagnostic stderr", result.stderr)
 
+    def test_suite_is_forwarded_without_weakening_default_promotion(self):
+        for suite in ("core", "full"):
+            for script, args in (("verify-swcli.sh", (str(self.workspace),)),
+                                 ("verify-driving.sh", ("/proof/modeling.json",))):
+                with self.subTest(suite=suite, script=script):
+                    result = self.run_wrapper(script, *args, SWCLI_RUNTIME_SUITE=suite)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(self.value("--suite"), suite)
+        workflow = (ROOT / ".github/workflows/build.yml").read_text()
+        self.assertIn("SWCLI_RUNTIME_SUITE: ${{ inputs.runtime_suite || 'full' }}", workflow)
+        publish = workflow.split("- name: Publish verified CLI images & promote atomically", 1)[1]
+        self.assertIn("env.SWCLI_RUNTIME_SUITE == 'full'", publish.split("run:", 1)[0])
+
     def test_local_repeat_runs_use_distinct_directories(self):
         self.assertEqual(self.run_wrapper("verify-swcli.sh", str(self.workspace)).returncode, 0)
         first = Path(self.value("--output-dir"))

@@ -18,6 +18,7 @@ trap 'rm -rf -- "${drawing_workdir}"' EXIT
 cp -a "$(dirname "${drawing_path}")/." "${drawing_workdir}/"
 PYTHONPATH="${SWCLI_SOURCE:-/opt/swcli/src}:${SWCLI_DEPS:-/opt/swcli-deps}/linux" \
     python3 /opt/swcli/scripts/ci/verify-modeling.py \
+    --suite "${SWCLI_RUNTIME_SUITE:-full}" \
     --output-dir "${modeling_outdir}" \
     --host-output-dir "$(winepath -w "${modeling_outdir}")" \
     --cli-command /usr/local/bin/sw-cli \
