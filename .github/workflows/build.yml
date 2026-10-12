@@ -775,8 +775,8 @@ jobs:
           mkdir -p "${output_dir}"
           docker rm -f "${smoke_container}" >/dev/null 2>&1 || true
 
-          # Verify the default hidden execution mode, keeping one container and
-          # COM session for all three phases (including rejected-cut recovery).
+          # Verify default hidden execution on one installed container. Shared
+          # functional sets restart only CLI/SW, never Wine/FlexNet/the container.
           docker run -d \
             --name "${smoke_container}" \
             --env SW_SMOKE_EVIDENCE_DIR=/ci-smoke \
@@ -849,46 +849,20 @@ jobs:
           done
           echo "SOLIDWORKS export smoke test passed: ${#expected_outputs[@]} files verified."
 
-      - name: Smoke test SWCLI modeling & protocol
+      - name: Shared isolated functional test sets
         id: smoke-generic
         if: success() && steps.smoke-exports.outcome == 'success'
         shell: bash
-        # Guarded depth edits include complete native selection-scope and
-        # geometry checks. This phase budget does not extend the six exports.
-        timeout-minutes: 30
+        # One prepared container; fresh daemon/owned SW between shared sets.
+        # The full CAD assertions remain in SWCLI, not in platform wrappers.
+        timeout-minutes: 60
         run: |
           set -Eeuo pipefail
           smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
           docker exec "${smoke_container}" \
-            bash /opt/dockersw-smoke/verify-swcli.sh /root/.wine/drive_c /ci-smoke/modeling 2>&1 \
-            | tee "${smoke_root}/sw-cli-modeling.log"
-
-      - name: Smoke test SWCLI driving dimensions
-        id: smoke-driving
-        if: success() && steps.smoke-generic.outcome == 'success'
-        shell: bash
-        timeout-minutes: 10
-        run: |
-          set -Eeuo pipefail
-          smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
-          docker exec "${smoke_container}" \
-            bash /opt/dockersw-smoke/verify-driving.sh /ci-smoke/modeling/modeling.json 2>&1 \
-            | tee "${smoke_root}/sw-cli-driving.log"
-
-      - name: Smoke test SWCLI Toolbox deployment & read-only part
-        id: smoke-toolbox
-        if: success() && steps.smoke-driving.outcome == 'success'
-        shell: bash
-        timeout-minutes: 10
-        run: |
-          set -Eeuo pipefail
-          smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
-          docker exec "${smoke_container}" \
-            bash /opt/dockersw-smoke/verify-toolbox.sh /ci-smoke/toolbox /root/.wine 2>&1 \
-            | tee "${smoke_root}/sw-cli-toolbox.log"
+            bash /opt/dockersw-smoke/verify-swcli.sh /root/.wine/drive_c /ci-smoke/runtime-sets 2>&1 \
+            | tee "${smoke_root}/sw-cli-runtime-sets.log"
 
       - name: Collect native daemon diagnostics & clean smoke container
         if: always() && steps.check-images.outputs.already_verified != 'true'
@@ -933,7 +907,7 @@ jobs:
           fi
 
       - name: Smoke test localized SOLIDWORKS images
-        if: success() && steps.smoke-toolbox.outcome == 'success'
+        if: success() && steps.smoke-generic.outcome == 'success'
         shell: bash
         timeout-minutes: 30
         run: |
@@ -979,7 +953,7 @@ jobs:
           done
 
       - name: Publish verified CLI images & promote atomically
-        if: success() && steps.smoke-toolbox.outcome == 'success' && env.SWCLI_RUNTIME_SUITE == 'full'
+        if: success() && steps.smoke-generic.outcome == 'success' && env.SWCLI_RUNTIME_SUITE == 'full'
         shell: bash
         run: |
           set -Eeuo pipefail

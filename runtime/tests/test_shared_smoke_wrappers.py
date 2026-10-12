@@ -77,7 +77,7 @@ class SharedSmokeWrapperTests(unittest.TestCase):
         result = self.run_wrapper("verify-swcli.sh", str(self.workspace), str(output))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
-            self.call()["args"][0], "/opt/swcli/scripts/ci/verify-modeling.py"
+            self.call()["args"][0], "/opt/swcli/scripts/ci/verify-runtime-sets.py"
         )
         self.assertEqual(self.value("--output-dir"), str(output))
         self.assertTrue(self.value("--host-output-dir").startswith("C:"))
@@ -90,10 +90,12 @@ class SharedSmokeWrapperTests(unittest.TestCase):
         self.assertEqual(self.value("--sample-drawing-local"), drawing)
         self.assertEqual(self.value("--sample-drawing"),
                          "C:\\mapped" + drawing.replace("/", "\\"))
-        fixture = self.value("--drawing-work-dir")
-        self.assertEqual(self.value("--host-drawing-work-dir"),
+        fixture = self.value("--fixture-work-dir")
+        self.assertEqual(self.value("--host-fixture-work-dir"),
                          "C:\\mapped" + fixture.replace("/", "\\"))
-        self.assertEqual(self.call()["reference"], "reference model")
+        self.assertIsNone(self.call()["reference"])  # Shared runner copies per set.
+        self.assertEqual(self.value("--mode"), "hidden")
+        self.assertEqual(self.value("--wine-prefix"), "/root/.wine")
         self.assertFalse(Path(fixture).exists())
         self.assertEqual((self.mold / "bezel moldbase.slddrw").read_bytes(), b"source drawing")
         self.assertFalse((output / "Moldbase").exists())
@@ -129,20 +131,12 @@ class SharedSmokeWrapperTests(unittest.TestCase):
         self.assertEqual(first.parent, self.evidence)
         self.assertEqual(second.parent, self.evidence)
 
-    def test_fixture_copy_failure_cleans_temp_inputs_and_never_calls_cli(self):
-        receipt = self.directory / "fixture-path"
-        copy = self.directory / "cp"
-        copy.write_text(
-            f"#!{sys.executable}\nimport sys\nfrom pathlib import Path\n"
-            f"Path({str(receipt)!r}).write_text(sys.argv[-1])\n"
-            "sys.exit(21)\n",
-            encoding="utf-8",
-        )
-        copy.chmod(0o755)
+    def test_missing_fixture_never_calls_cli(self):
+        (self.mold / "bezel moldbase.slddrw").unlink()
         result = self.run_wrapper("verify-swcli.sh", str(self.workspace))
-        self.assertEqual(result.returncode, 21)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("official drawing fixture is missing", result.stderr)
         self.assertFalse(self.trace.exists())
-        self.assertFalse(Path(receipt.read_text()).exists())
 
     def test_driving_requires_and_forwards_predecessor_record(self):
         record = str(self.evidence / "modeling/modeling.json")
@@ -170,7 +164,7 @@ class SharedSmokeWrapperTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 23)
                 self.assertIn("native diagnostic stderr", result.stderr)
                 if script == "verify-swcli.sh":
-                    self.assertFalse(Path(self.value("--drawing-work-dir")).exists())
+                    self.assertFalse(Path(self.value("--fixture-work-dir")).exists())
 
     def test_toolbox_delegates_configured_prefix_and_required_policy(self):
         output = self.evidence / "toolbox"

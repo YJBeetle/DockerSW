@@ -408,8 +408,8 @@ entrypoint 中通过 `sw-cli daemon start` 预热 daemon，后续调用通过本
 ## CI 真实导出门禁
 
 [`.github/workflows/build.yml`](.github/workflows/build.yml) 直接负责启动容器、收集
-日志并验证产物。六产物导出、通用建模、驱动尺寸、Toolbox 验证分别有 10、30、10、10 分钟预算，复用
-同一个容器与 daemon，阶段之间不重启宿主；任何阶段失败都阻止镜像晋升。
+日志并验证产物。六产物导出保留 10 分钟预算；共享功能测试组总预算 60 分钟，复用
+同一个已部署容器，每组新建 CLI daemon／SW 会话，组内不重启；任何组失败都阻止镜像晋升。
 通用建模阶段为完整原生观测和受保护深度修改预留独立预算，不延长六产物导出的超时，
 也不引入失败重试。新增操作仍须以固定 SWCLI 版本及其实际门禁结果为准。
 门禁显式使用默认交付的隐藏宿主模式（`SWCLID_VISIBLE=false`），并在启动状态中确认
@@ -418,17 +418,18 @@ entrypoint 中通过 `sw-cli daemon start` 预热 daemon，后续调用通过本
 则只组合 typed SWCLI 命令，对四个官方样例执行 `open -> export -> close`，生成 6 个
 STEP、PDF、DWG 产物。业务项目可以直接参考 `export.sh`，替换源文件、输出路径与
 格式规则。随后 [`smoke-test/verify-swcli.sh`](smoke-test/verify-swcli.sh) 只准备真实 Wine
-路径与输出目录，调用 SWCLI 的 [`verify-modeling.py`](swcli/SWCLI/scripts/ci/verify-modeling.py)。
-Windows 与 Linux/Wine 共用这份操作和断言，在同一真实 SOLIDWORKS 会话中验证
+路径与输出目录，调用 SWCLI 的 [`verify-runtime-sets.py`](swcli/SWCLI/scripts/ci/verify-runtime-sets.py)。
+Windows、Linux/Wine、macOS/Wine 共用同一计划（core 11 组，full 17 组）和断言，在每组的真实 SOLIDWORKS 会话中验证
 capabilities Schema、更新戳、多文档切换和 lease/CAS 互斥，
 并在新建的后台零件上验证三个基准面的矩形/圆草图、定深拉伸、圆孔切除与前台恢复，
 另测反向拉伸/切除的方向和体积减少，观察切除前后草图状态与所属特征，再执行
 原生体积/表面积测量、另存为、关闭重开、实体数量与重建诊断检查；每次运行将额外模型和导出
-证据保留在单次输出目录（CI 使用 `/ci-smoke/modeling`，本地默认生成独立的
+证据保留在单次输出目录（CI 使用 `/ci-smoke/runtime-sets`，本地默认生成独立的
 `swcli-generic.*`，优先使用 `SW_SMOKE_EVIDENCE_DIR`，否则 `/tmp`），不改变 6 个正式
 产物的计数。同时拒绝已吸收轮廓复用，并验证不相交的切除明确失败、没有清理 warnings、
 已退出草图编辑、实体体积不变；关闭后必须在同一个宿主里成功新建后台圆草图。
-不能重启宿主或重试原生失败来使门禁通过。只有这些门禁全部通过后，流水线才会晋升镜像。
+失败续用→Front 直径检查保留同一宿主；不能在组内重启宿主或重试原生失败来使门禁通过。
+只有这些门禁全部通过后，新构建镜像才会晋升。
 
 同一门禁默认自建 40 × 30 × 10 mm 的实体 PRT，并通过 `document create --type assembly`
 和 `assembly add-component` 创建单零件 ASM，不依赖官方样例的历史保存状态。
@@ -470,9 +471,9 @@ ASM 保存使用 Wine 的 MSXML `0014` 源码兼容补丁；构建时七项原�
 `dimension discover-rectangle` 必须恢复一对新的精确宽高句柄，重复发现和读取不得
 改变更新戳、配置或两会话的当前／前台状态。该门禁也不重启宿主、不重试失败操作，
 矩形原生文件同样只属于独立验证证据，不增加六个正式导出产物的数量。
-最后 [`smoke-test/verify-toolbox.sh`](smoke-test/verify-toolbox.sh) 调用 SWCLI 共享 Toolbox
+最后共享计划直接调用 SWCLI 共享 Toolbox
 门禁，读取实际配置及 Wine 盘符映射，要求每个启用标准都有非空原生模型、数据库和官方索引。
-同一宿主通过公共 CLI 只读打开一个代表件、诊断、测量并关闭，验证源文件没有改写。
+该组的新宿主通过公共 CLI 只读打开一个代表件、诊断、测量并关闭，验证源文件没有改写。
 失败会阻止镜像晋升，不自动修复或重试。文件检查不等于更新工具退出成功，也不证明
 插件加载、规格选型或插入装配体；安装与部署修复仍属于 DockerSW。
 共享脚本的参数、三平台分工和证据边界见 [SWCLI 运行时测试说明](swcli/SWCLI/docs/runtime-tests.md)。

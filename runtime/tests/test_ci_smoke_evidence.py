@@ -10,9 +10,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MAIN_STEP = "Smoke test real SOLIDWORKS exports"
-GENERIC_STEP = "Smoke test SWCLI modeling & protocol"
-DRIVING_STEP = "Smoke test SWCLI driving dimensions"
-TOOLBOX_STEP = "Smoke test SWCLI Toolbox deployment & read-only part"
+GENERIC_STEP = "Shared isolated functional test sets"
 COLLECT_STEP = "Collect native daemon diagnostics & clean smoke container"
 LOCALIZED_STEP = "Smoke test localized SOLIDWORKS images"
 PUBLIC_EVIDENCE_STEP = "Make public smoke evidence readable for upload"
@@ -44,9 +42,7 @@ EXPORT_NAMES = (
 )
 PHASES = {
     MAIN_STEP: ("export.sh", "sw-cli-export.log"),
-    GENERIC_STEP: ("verify-swcli.sh", "sw-cli-modeling.log"),
-    DRIVING_STEP: ("verify-driving.sh", "sw-cli-driving.log"),
-    TOOLBOX_STEP: ("verify-toolbox.sh", "sw-cli-toolbox.log"),
+    GENERIC_STEP: ("verify-swcli.sh", "sw-cli-runtime-sets.log"),
 }
 STATUS_COMMAND = ["sw-cli", "--request-timeout", "2", "daemon", "status", "--json"]
 
@@ -307,29 +303,23 @@ class SmokeEvidenceTests(unittest.TestCase):
         for forbidden in ('PRIVATE_ROOT', 'RCLONE_CONFIG_FILE', 'sw-install-logs', 'find -L'):
             self.assertNotIn(forbidden, step)
 
-    def test_four_phase_budgets_guards_and_final_collection(self) -> None:
+    def test_delivery_and_shared_set_budgets_guards_and_final_collection(self) -> None:
         for name in PHASES:
             with self.subTest(phase=name):
                 step = self.step(name)
-                minutes = 30 if name == GENERIC_STEP else 10
+                minutes = 60 if name == GENERIC_STEP else 10
                 self.assertIn(f"timeout-minutes: {minutes}", step)
                 self.assertIn("if: success() &&", step)
                 self.assertNotIn("continue-on-error", step)
                 self.assertNotIn(
-                    f"timeout-minutes: {10 if minutes == 30 else 30}", step
+                    f"timeout-minutes: {10 if minutes == 60 else 60}", step
                 )
         self.assertIn(
             "steps.smoke-exports.outcome == 'success'", self.step(GENERIC_STEP)
         )
-        self.assertIn(
-            "steps.smoke-generic.outcome == 'success'", self.step(DRIVING_STEP)
-        )
-        self.assertIn(
-            "steps.smoke-driving.outcome == 'success'", self.step(TOOLBOX_STEP)
-        )
         for name in (LOCALIZED_STEP, PUBLISH_STEP):
             self.assertIn(
-                "if: success() && steps.smoke-toolbox.outcome == 'success'",
+                "if: success() && steps.smoke-generic.outcome == 'success'",
                 self.step(name),
             )
         collector = self.step(COLLECT_STEP)
@@ -372,7 +362,7 @@ class SmokeEvidenceTests(unittest.TestCase):
                 + ",readonly",
                 main,
             )
-        for name in (GENERIC_STEP, DRIVING_STEP, TOOLBOX_STEP):
+        for name in (GENERIC_STEP,):
             self.assertNotIn("docker run", self.step(name))
         localized = self.step(LOCALIZED_STEP)
         self.assertIn("docker run --rm", localized)
@@ -440,19 +430,7 @@ class SmokeEvidenceTests(unittest.TestCase):
                     "bash",
                     "/opt/dockersw-smoke/verify-swcli.sh",
                     "/root/.wine/drive_c",
-                    "/ci-smoke/modeling",
-                ],
-                [
-                    "docker",
-                    "exec",
-                    CONTAINER_NAME,
-                    "bash",
-                    "/opt/dockersw-smoke/verify-driving.sh",
-                    "/ci-smoke/modeling/modeling.json",
-                ],
-                [
-                    "docker", "exec", CONTAINER_NAME, "bash",
-                    "/opt/dockersw-smoke/verify-toolbox.sh", "/ci-smoke/toolbox", "/root/.wine",
+                    "/ci-smoke/runtime-sets",
                 ],
             ],
         )
