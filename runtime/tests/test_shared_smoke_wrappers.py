@@ -103,6 +103,9 @@ class SharedSmokeWrapperTests(unittest.TestCase):
         self.assertEqual(
             self.call()["pythonpath"], "/source with spaces/src:/deps with spaces/linux"
         )
+        arguments = self.call()["args"]
+        paths = [arguments[index + 1] for index, value in enumerate(arguments) if value == "--python-path"]
+        self.assertEqual(paths, ["/source with spaces/src", "/deps with spaces/linux"])
         self.assertEqual(output.stat().st_mode & 0o777, 0o755)
         self.assertIn("native diagnostic stderr", result.stderr)
 

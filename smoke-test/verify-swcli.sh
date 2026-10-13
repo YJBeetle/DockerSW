@@ -23,6 +23,8 @@ PYTHONPATH="${SWCLI_SOURCE:-/opt/swcli/src}:${SWCLI_DEPS:-/opt/swcli-deps}/linux
     --output-dir "${modeling_outdir}" \
     --host-output-dir "$(winepath -w "${modeling_outdir}")" \
     --cli-command /usr/local/bin/sw-cli \
+    --python-path "${SWCLI_SOURCE:-/opt/swcli/src}" \
+    --python-path "${SWCLI_DEPS:-/opt/swcli-deps}/linux" \
     --sample-part "$(winepath -w "${part_path}")" \
     --sample-assembly "$(winepath -w "${assembly_path}")" \
     --sample-drawing "$(winepath -w "${drawing_path}")" \
