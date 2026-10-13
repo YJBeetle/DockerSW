@@ -768,7 +768,7 @@ jobs:
 
           smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
-          output_dir="${smoke_root}/output"
+          output_dir="${smoke_root}/output/中文 路径"
           log_file="${smoke_root}/sw-cli-export.log"
 
           rm -rf "${smoke_root}"
@@ -780,6 +780,7 @@ jobs:
           docker run -d \
             --name "${smoke_container}" \
             --env SW_SMOKE_EVIDENCE_DIR=/ci-smoke \
+            --env 'SW_SMOKE_OUTDIR=/ci-smoke/output/中文 路径' \
             --env SWCLID_VISIBLE=false \
             --env "SWCLI_RUNTIME_SUITE=${SWCLI_RUNTIME_SUITE:-full}" \
             --env SWCLID_RUNTIME_LOG_DIR=/ci-smoke/native-runtime-stderr \
@@ -842,6 +843,15 @@ jobs:
             output_path="${output_dir}/${output_name}"
             test -s "${output_path}" || {
               echo "Expected export is missing or empty: ${output_name}" >&2
+              exit 1
+            }
+            # Basic delivery signatures only; CAD semantics live in SWCLI gates.
+            case "${output_name##*.}" in
+              PDF) valid_signature="$(head -c 5 "${output_path}")"; [[ "${valid_signature}" == '%PDF-' ]] ;;
+              DWG) valid_signature="$(head -c 6 "${output_path}")"; [[ "${valid_signature}" =~ ^AC10[0-9]{2}$ ]] ;;
+              STEP) head -c 256 "${output_path}" | grep -aFq 'ISO-10303-21;' ;;
+            esac || {
+              echo "Export has an invalid format signature: ${output_name}" >&2
               exit 1
             }
             printf '[CI export] verified %s (%s bytes)\n' \

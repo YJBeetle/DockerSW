@@ -187,10 +187,13 @@ class SmokeEvidenceTests(unittest.TestCase):
                     ))), file=sys.stderr)
                     sys.exit(int(os.environ.get('FAKE_PHASE_EXIT_CODE', '23')))
                 if script == 'export.sh':
-                    outdir = Path(os.environ['RUNNER_TEMP']) / 'sw-cli-export-smoke' / 'output'
+                    outdir = Path(os.environ['RUNNER_TEMP']) / 'sw-cli-export-smoke' / 'output' / '中文 路径'
                     for name in json.loads(os.environ['FAKE_EXPORT_NAMES']):
                         if name != os.environ.get('FAKE_MISSING_EXPORT'):
-                            (outdir / name).write_text('export fixture', encoding='utf-8')
+                            header = {'PDF':'%PDF-1.7', 'DWG':'AC1032', 'STEP':'ISO-10303-21;'}[name.rsplit('.', 1)[1]]
+                            if name == os.environ.get('FAKE_INVALID_EXPORT'):
+                                header = 'not a CAD export'
+                            (outdir / name).write_text(header + '\\nexport fixture', encoding='utf-8')
                 print(script + ' success fixture')
             else:
                 sys.exit(99)
@@ -435,7 +438,7 @@ class SmokeEvidenceTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            sorted(path.name for path in (self.smoke_root / "output").iterdir()),
+            sorted(path.name for path in (self.smoke_root / "output" / "中文 路径").iterdir()),
             sorted(EXPORT_NAMES),
         )
         self.assertIn("6 files verified", main_stdout)
@@ -544,6 +547,23 @@ class SmokeEvidenceTests(unittest.TestCase):
                 self.assertEqual(
                     self.calls("docker")[-1], ["docker", "rm", "-f", CONTAINER_ID]
                 )
+
+    def test_invalid_export_signatures_fail_delivery_even_when_nonempty(self) -> None:
+        for name in ("bezel moldbase.PDF", "bezel moldbase.DWG", "Paper Airplane.STEP"):
+            with self.subTest(name=name):
+                completed = self.run_step(MAIN_STEP, FAKE_INVALID_EXPORT=name)
+                self.assertNotEqual(completed.returncode, 0)
+                self.assertIn("invalid format signature: " + name, completed.stderr)
+
+    def test_delivery_uses_unicode_space_output_and_no_source_repairs(self) -> None:
+        completed = self.run_step(MAIN_STEP)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        run = next(call for call in self.calls("docker") if call[1] == "run")
+        self.assertIn("SW_SMOKE_OUTDIR=/ci-smoke/output/中文 路径", run)
+        script = (PROJECT_ROOT / "smoke-test/export.sh").read_text()
+        self.assertEqual(script.count("sw-cli document export --json"), 6)
+        for forbidden in ("--strict", "sw-cli document save", "sw-cli document rebuild", "sw-cli daemon"):
+            self.assertNotIn(forbidden, script)
 
     def test_missing_export_still_fails_the_original_six_file_gate(self) -> None:
         completed = self.run_step(MAIN_STEP, FAKE_MISSING_EXPORT="cabinet_bath.DWG")

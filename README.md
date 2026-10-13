@@ -417,7 +417,11 @@ entrypoint 中通过 `sw-cli daemon start` 预热 daemon，后续调用通过本
 容器内的 [`smoke-test/export.sh`](smoke-test/export.sh)
 则只组合 typed SWCLI 命令，对四个官方样例执行 `open -> export -> close`，生成 6 个
 STEP、PDF、DWG 产物。业务项目可以直接参考 `export.sh`，替换源文件、输出路径与
-格式规则。随后 [`smoke-test/verify-swcli.sh`](smoke-test/verify-swcli.sh) 只准备真实 Wine
+格式规则。这层只验证镜像入口/daemon 就绪、Linux 到 Wine 的文件路径转换和产物收集：
+CI 将六个文件写入带中文及空格的输出目录，检查非空及 PDF/DWG/STEP 基本文件头。
+使用普通宽容导出，不自动重建或保存源样例；严格模式、权限、几何和保存重开由
+SWCLI 共享门禁验证，不在 DockerSW 重写。文件头有效不等于 CAD 内容正确。
+随后 [`smoke-test/verify-swcli.sh`](smoke-test/verify-swcli.sh) 只准备真实 Wine
 路径与输出目录，调用 SWCLI 的 [`verify-runtime-sets.py`](swcli/SWCLI/scripts/ci/verify-runtime-sets.py)。
 Windows、Linux/Wine、macOS/Wine 共用同一计划（core 11 组，full 17 组）和断言，在每组的真实 SOLIDWORKS 会话中验证
 capabilities Schema、更新戳、多文档切换和 lease/CAS 互斥，
