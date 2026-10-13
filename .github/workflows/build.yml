@@ -12,11 +12,6 @@ on:
       - 'LICENSE'
   workflow_dispatch:
     inputs:
-      runtime_suite:
-        description: 'Core manual regression or full image-promotion acceptance'
-        type: choice
-        options: [core, full]
-        default: full
       force_rebuild:
         description: 'Force full rebuild even if image for this commit SHA exists on GHCR'
         type: boolean
@@ -77,6 +72,7 @@ jobs:
           bash -n runtime/bin/*
           bash -n swcli/bin/*
           bash -n smoke-test/export.sh
+          bash -n smoke-test/verify-visible.sh
           bash -n smoke-test/verify-swcli.sh
           bash -n smoke-test/verify-driving.sh
           bash -n smoke-test/verify-toolbox.sh
@@ -109,7 +105,7 @@ jobs:
       SW_EXECUTABLE_REPO: ghcr.io/yjbeetle/sw-executable
       SW_LANGUAGES: ${{ inputs.languages || 'zh-cn' }}
       # Pushes promote released image tags, so they still require full coverage.
-      SWCLI_RUNTIME_SUITE: ${{ inputs.runtime_suite || 'full' }}
+      SWCLI_RUNTIME_SUITE: full
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -948,6 +944,25 @@ jobs:
             echo "[CI language] ${language_tag} UI language and real STEP export verified."
           done < "${SW_LANGUAGE_BUILD_PLAN}"
 
+      - name: Shared lightweight visible smoke
+        id: smoke-visible
+        if: success() && steps.smoke-generic.outcome == 'success'
+        shell: bash
+        timeout-minutes: 5
+        run: |
+          set -Eeuo pipefail
+          smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
+          visible_container="sw-cli-visible-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          trap 'docker rm -f "${visible_container}" >/dev/null 2>&1 || :' EXIT
+          docker run --rm \
+            --name "${visible_container}" \
+            --env SWCLID_VISIBLE=true --env VNC_ENABLE=true \
+            --env SW_SMOKE_EVIDENCE_DIR=/ci-smoke \
+            --mount "type=bind,source=${smoke_root},target=/ci-smoke" \
+            --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/verify-visible.sh,target=/opt/dockersw-smoke/verify-visible.sh,readonly" \
+            "${SW_EXECUTABLE_CLI_IMAGE}" \
+            bash /opt/dockersw-smoke/verify-visible.sh 2>&1 | tee "${smoke_root}/visible.log"
+
       - name: Make public smoke evidence readable for upload
         if: always() && steps.check-images.outputs.already_verified != 'true'
         shell: bash
@@ -961,9 +976,8 @@ jobs:
               sudo find -P "${evidence_dir}" -type f -exec chmod a+r {} +
             fi
           done
-
       - name: Publish verified CLI images & promote atomically
-        if: success() && steps.smoke-generic.outcome == 'success' && env.SWCLI_RUNTIME_SUITE == 'full'
+        if: success() && steps.smoke-generic.outcome == 'success' && steps.smoke-visible.outcome == 'success' && env.SWCLI_RUNTIME_SUITE == 'full'
         shell: bash
         run: |
           set -Eeuo pipefail

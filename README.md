@@ -196,10 +196,9 @@ rclone config show gdrive | base64 | tr -d '\n'
 gh workflow run build.yml --ref main
 ```
 
-共享 CLI 的建模／尺寸门禁支持 `runtime_suite=core|full`。自动构建仍默认 `full`，
-因为通过后会提升正式镜像标签；手动排查可追加 `-f runtime_suite=core`，保留
-核心建模、保存重开、导出和三平面几何，减少重复尺寸反例，但不提升正式镜像标签。
-两档沿用现有后台宿主，组间不重启，逐组核对文档清空；Toolbox 和六类交付导出仍必测。
+自动构建和手动 CI 均执行共享隐藏完整门禁，再运行独立的共享轻量可见冒烟；
+不再提供 `runtime_suite` 选项。每个业务测试组使用新 daemon／SW 会话，组内不重启，
+逐组核对文档清空。Toolbox、六产物交付和可见冒烟都通过后才提升正式镜像标签。
 
 ## 运行私有预安装镜像
 
@@ -414,6 +413,11 @@ entrypoint 中通过 `sw-cli daemon start` 预热 daemon，后续调用通过本
 也不引入失败重试。新增操作仍须以固定 SWCLI 版本及其实际门禁结果为准。
 门禁显式使用默认交付的隐藏宿主模式（`SWCLID_VISIBLE=false`），并在启动状态中确认
 `host.visible=false`，避免仅凭可见窗口模式成功就声称默认后台执行已验证。
+自动推送和手动 CI 均执行隐藏完整门禁，不再提供 `core/full` 选择。
+另外用独立容器执行 [`verify-visible.sh`](smoke-test/verify-visible.sh)，调用 SWCLI 共享
+[`verify-visible.py`](swcli/SWCLI/scripts/ci/verify-visible.py)：只检查可见宿主的只读打开、
+读取、关闭和停止，不重复建模或导出。启用 VNC 但不发布端口；这不等于完整交互或
+VNC 客户端验收。隐藏完整与可见轻量两项都通过才允许晋升镜像。
 容器内的 [`smoke-test/export.sh`](smoke-test/export.sh)
 则只组合 typed SWCLI 命令，对四个官方样例执行 `open -> export -> close`，生成 6 个
 STEP、PDF、DWG 产物。业务项目可以直接参考 `export.sh`，替换源文件、输出路径与

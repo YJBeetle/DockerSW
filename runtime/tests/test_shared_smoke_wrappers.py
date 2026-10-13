@@ -118,9 +118,11 @@ class SharedSmokeWrapperTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertEqual(self.value("--suite"), suite)
         workflow = (ROOT / ".github/workflows/build.yml").read_text()
-        self.assertIn("SWCLI_RUNTIME_SUITE: ${{ inputs.runtime_suite || 'full' }}", workflow)
+        self.assertIn("SWCLI_RUNTIME_SUITE: full", workflow)
+        self.assertNotIn("runtime_suite:", workflow)
         publish = workflow.split("- name: Publish verified CLI images & promote atomically", 1)[1]
         self.assertIn("env.SWCLI_RUNTIME_SUITE == 'full'", publish.split("run:", 1)[0])
+        self.assertIn("steps.smoke-visible.outcome == 'success'", publish.split("run:", 1)[0])
 
     def test_local_repeat_runs_use_distinct_directories(self):
         self.assertEqual(self.run_wrapper("verify-swcli.sh", str(self.workspace)).returncode, 0)
