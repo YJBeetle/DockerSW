@@ -199,6 +199,8 @@ gh workflow run build.yml --ref main
 自动构建和手动 CI 均执行共享隐藏完整门禁，再运行独立的共享轻量可见冒烟；
 不再提供 `runtime_suite` 选项。每个业务测试组使用新 daemon／SW 会话，组内不重启，
 逐组核对文档清空。Toolbox、六产物交付和可见冒烟都通过后才提升正式镜像标签。
+组间确认 daemon 正常退出及操作系统中已无 `SLDWORKS.exe` 后，才启动下一组。
+Wine 的 PID 可以回收，不要求历史 PID 永不重复；组内宿主不变的检查仍保留。
 
 ## 运行私有预安装镜像
 
