@@ -16,6 +16,11 @@ drawing_path="${workspace}/Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/b
 drawing_workdir="$(mktemp -d /tmp/swcli-drawing.XXXXXX)"
 trap 'rm -rf -- "${drawing_workdir}"' EXIT
 test -f "${drawing_path}" || { echo 'Installed official drawing fixture is missing' >&2; exit 1; }
+drawing_template_args=()
+if [[ "${SWCLI_RUNTIME_SUITE:-full}" == full ]]; then
+    drawing_template="$(python3 /opt/swcli/scripts/ci/gate_support/drawing_template.py --program-data "${workspace}/ProgramData")"
+    drawing_template_args=(--drawing-template "$(winepath -w "${drawing_template}")")
+fi
 PYTHONPATH="${SWCLI_SOURCE:-/opt/swcli/src}:${SWCLI_DEPS:-/opt/swcli-deps}/linux" \
     python3 /opt/swcli/scripts/ci/verify-runtime-sets.py \
     --suite "${SWCLI_RUNTIME_SUITE:-full}" \
@@ -30,4 +35,5 @@ PYTHONPATH="${SWCLI_SOURCE:-/opt/swcli/src}:${SWCLI_DEPS:-/opt/swcli-deps}/linux
     --sample-drawing "$(winepath -w "${drawing_path}")" \
     --sample-drawing-local "${drawing_path}" \
     --fixture-work-dir "${drawing_workdir}" \
-    --host-fixture-work-dir "$(winepath -w "${drawing_workdir}")"
+    --host-fixture-work-dir "$(winepath -w "${drawing_workdir}")" \
+    "${drawing_template_args[@]}"
