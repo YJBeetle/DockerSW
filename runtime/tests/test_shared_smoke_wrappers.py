@@ -26,7 +26,7 @@ class SharedSmokeWrapperTests(unittest.TestCase):
         (self.mold / "Moldbase").mkdir(parents=True)
         (self.mold / "bezel moldbase.slddrw").write_bytes(b"source drawing")
         (self.mold / "Moldbase/reference.SLDPRT").write_bytes(b"reference model")
-        self.template = self.workspace / "ProgramData/SOLIDWORKS/SOLIDWORKS 2025/templates/gb_a4.drwdot"
+        self.template = self.workspace / "Program Files/SOLIDWORKS/data/templates/gb.drwdot"
         self.template.parent.mkdir(parents=True)
         self.template.write_bytes(b"installed template")
         python = self.directory / "python3"
@@ -153,18 +153,18 @@ class SharedSmokeWrapperTests(unittest.TestCase):
         self.assertIn("official drawing fixture is missing", result.stderr)
         self.assertFalse(self.trace.exists())
 
-    def test_missing_or_ambiguous_template_stops_before_business_gate(self):
+    def test_missing_host_template_stops_and_explicit_override_is_forwarded(self):
         self.template.unlink()
         missing = self.run_wrapper("verify-swcli.sh", str(self.workspace))
         self.assertNotEqual(missing.returncode, 0)
-        self.assertIn("SWCLI_DRAWING_TEMPLATE", missing.stderr)
+        self.assertIn("Explicit drawing template", missing.stderr)
         self.assertFalse(self.trace.exists())
-        self.template.write_bytes(b"installed template")
         other = self.workspace / "ProgramData/SOLIDWORKS/SOLIDWORKS 2026/templates/gb_a4.drwdot"
         other.parent.mkdir(parents=True)
         other.write_bytes(b"another installed template")
-        ambiguous = self.run_wrapper("verify-swcli.sh", str(self.workspace))
-        self.assertNotEqual(ambiguous.returncode, 0)
+        # A different available template is never silently selected.
+        missing = self.run_wrapper("verify-swcli.sh", str(self.workspace))
+        self.assertNotEqual(missing.returncode, 0)
         self.assertFalse(self.trace.exists())
         explicit = self.run_wrapper("verify-swcli.sh", str(self.workspace),
                                     SWCLI_DRAWING_TEMPLATE=str(other))

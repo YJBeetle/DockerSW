@@ -429,7 +429,7 @@ CI 将六个文件写入带中文及空格的输出目录，检查非空及 PDF/
 SWCLI 共享门禁验证，不在 DockerSW 重写。文件头有效不等于 CAD 内容正确。
 随后 [`smoke-test/verify-swcli.sh`](smoke-test/verify-swcli.sh) 只准备真实 Wine
 路径与输出目录，调用 SWCLI 的 [`verify-runtime-sets.py`](swcli/SWCLI/scripts/ci/verify-runtime-sets.py)。
-Windows、Linux/Wine、macOS/Wine 共用同一计划（core 11 组，full 17 组）和断言，在每组的真实 SOLIDWORKS 会话中验证
+Windows、Linux/Wine、macOS/Wine 共用同一计划（core 11 组，full 19 组）和断言，在每组的真实 SOLIDWORKS 会话中验证
 capabilities Schema、更新戳、多文档切换和 lease/CAS 互斥，
 并在新建的后台零件上验证三个基准面的矩形/圆草图、定深拉伸、圆孔切除与前台恢复，
 另测反向拉伸/切除的方向和体积减少，观察切除前后草图状态与所属特征，再执行
@@ -440,6 +440,11 @@ capabilities Schema、更新戳、多文档切换和 lease/CAS 互斥，
 已退出草图编辑、实体体积不变；关闭后必须在同一个宿主里成功新建后台圆草图。
 失败续用→Front 直径检查保留同一宿主；不能在组内重启宿主或重试原生失败来使门禁通过。
 只有这些门禁全部通过后，新构建镜像才会晋升。
+
+完整门禁还包含工程图创建及标准三视图。DockerSW 显式使用安装目录中的官方
+`data/templates/gb.drwdot`，不依赖 Windows 首次运行生成的 `gb_a4.drwdot`；
+需要覆盖时可设置容器内本地路径 `SWCLI_DRAWING_TEMPLATE`。模板缺失即失败，
+创建后的实际 A4 纸张、视图几何及严格导出仍由 SWCLI 共享门禁检查。
 
 同一门禁默认自建 40 × 30 × 10 mm 的实体 PRT，并通过 `document create --type assembly`
 和 `assembly add-component` 创建单零件 ASM，不依赖官方样例的历史保存状态。
