@@ -36,4 +36,4 @@ PYTHONPATH="${SWCLI_SOURCE:-/opt/swcli/src}:${SWCLI_DEPS:-/opt/swcli-deps}/linux
     --sample-drawing-local "${drawing_path}" \
     --fixture-work-dir "${drawing_workdir}" \
     --host-fixture-work-dir "$(winepath -w "${drawing_workdir}")" \
-    "${drawing_template_args[@]}"
+    ${drawing_template_args[@]+"${drawing_template_args[@]}"}

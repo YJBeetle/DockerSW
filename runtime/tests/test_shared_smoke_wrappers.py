@@ -26,12 +26,17 @@ class SharedSmokeWrapperTests(unittest.TestCase):
         (self.mold / "Moldbase").mkdir(parents=True)
         (self.mold / "bezel moldbase.slddrw").write_bytes(b"source drawing")
         (self.mold / "Moldbase/reference.SLDPRT").write_bytes(b"reference model")
+        self.template = self.workspace / "ProgramData/SOLIDWORKS/SOLIDWORKS 2025/templates/gb_a4.drwdot"
+        self.template.parent.mkdir(parents=True)
+        self.template.write_bytes(b"installed template")
         python = self.directory / "python3"
         python.write_text(
             f"#!{sys.executable}\n"
             "import json, os, sys\n"
             "from pathlib import Path\n"
             "args=sys.argv[1:]\n"
+            "if args and args[0].endswith('/gate_support/drawing_template.py'):\n"
+            f"    os.execv(sys.executable, [sys.executable, {str(ROOT / 'swcli/SWCLI/scripts/ci/gate_support/drawing_template.py')!r}, *args[1:]])\n"
             "fixture=Path(args[args.index('--drawing-work-dir')+1]) if '--drawing-work-dir' in args else None\n"
             "Path(os.environ['TRACE']).write_text(json.dumps({'args':args,'pythonpath':os.environ['PYTHONPATH'], 'reference':(fixture/'Moldbase/reference.SLDPRT').read_text() if fixture else None}))\n"
             "sys.stderr.write('native diagnostic stderr\\n')\n"
@@ -54,6 +59,7 @@ class SharedSmokeWrapperTests(unittest.TestCase):
             "SW_SMOKE_EVIDENCE_DIR": str(self.evidence),
             "SWCLI_SOURCE": "/source with spaces/src",
             "SWCLI_DEPS": "/deps with spaces",
+            "SWCLI_DRAWING_TEMPLATE": "",
         }
 
     def run_wrapper(self, name, *arguments, **environment):
@@ -90,6 +96,8 @@ class SharedSmokeWrapperTests(unittest.TestCase):
         self.assertEqual(self.value("--sample-drawing-local"), drawing)
         self.assertEqual(self.value("--sample-drawing"),
                          "C:\\mapped" + drawing.replace("/", "\\"))
+        self.assertEqual(self.value("--drawing-template"),
+                         "C:\\mapped" + str(self.template.resolve()).replace("/", "\\"))
         fixture = self.value("--fixture-work-dir")
         self.assertEqual(self.value("--host-fixture-work-dir"),
                          "C:\\mapped" + fixture.replace("/", "\\"))
@@ -117,6 +125,8 @@ class SharedSmokeWrapperTests(unittest.TestCase):
                     result = self.run_wrapper(script, *args, SWCLI_RUNTIME_SUITE=suite)
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertEqual(self.value("--suite"), suite)
+                    if script == "verify-swcli.sh":
+                        self.assertEqual("--drawing-template" in self.call()["args"], suite == "full")
         workflow = (ROOT / ".github/workflows/build.yml").read_text()
         self.assertIn("SWCLI_RUNTIME_SUITE: full", workflow)
         self.assertNotIn("runtime_suite:", workflow)
@@ -142,6 +152,25 @@ class SharedSmokeWrapperTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("official drawing fixture is missing", result.stderr)
         self.assertFalse(self.trace.exists())
+
+    def test_missing_or_ambiguous_template_stops_before_business_gate(self):
+        self.template.unlink()
+        missing = self.run_wrapper("verify-swcli.sh", str(self.workspace))
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertIn("SWCLI_DRAWING_TEMPLATE", missing.stderr)
+        self.assertFalse(self.trace.exists())
+        self.template.write_bytes(b"installed template")
+        other = self.workspace / "ProgramData/SOLIDWORKS/SOLIDWORKS 2026/templates/gb_a4.drwdot"
+        other.parent.mkdir(parents=True)
+        other.write_bytes(b"another installed template")
+        ambiguous = self.run_wrapper("verify-swcli.sh", str(self.workspace))
+        self.assertNotEqual(ambiguous.returncode, 0)
+        self.assertFalse(self.trace.exists())
+        explicit = self.run_wrapper("verify-swcli.sh", str(self.workspace),
+                                    SWCLI_DRAWING_TEMPLATE=str(other))
+        self.assertEqual(explicit.returncode, 0, explicit.stderr)
+        self.assertEqual(self.value("--drawing-template"),
+                         "C:\\mapped" + str(other.resolve()).replace("/", "\\"))
 
     def test_driving_requires_and_forwards_predecessor_record(self):
         record = str(self.evidence / "modeling/modeling.json")
