@@ -116,12 +116,14 @@ ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 
 # 1. 配置系统基础依赖与 WineHQ 仓库。
-# jq 是有意内置的运行时工具，方便继承它的 CLI 变体与下游镜像处理结构化输出。
+# Git、Git LFS 与 jq 是内置运行时工具，供下游 CI 获取工程文件并处理结构化输出。
 RUN dpkg --add-architecture i386 && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
+        git \
+        git-lfs \
         jq \
         wget \
         gnupg \
@@ -137,6 +139,8 @@ RUN dpkg --add-architecture i386 && \
         fonts-noto-cjk \
         fonts-wqy-microhei \
         locales && \
+    git --version && \
+    git lfs version && \
     mkdir -pm755 /etc/apt/keyrings && \
     wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key && \
     wget -O /etc/apt/sources.list.d/winehq-jammy.sources https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources && \

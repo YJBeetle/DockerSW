@@ -442,6 +442,14 @@ elif program == "wineserver":
         )
         self.assertIn("        jq \\", dockerfile.splitlines())
 
+    def test_runtime_includes_git_and_lfs_with_build_time_checks(self) -> None:
+        dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(encoding="utf-8")
+        runtime = dockerfile.split("AS sw-runtime", 1)[1]
+        for package in ("git", "git-lfs"):
+            self.assertIn("        " + package + " \\", runtime.splitlines())
+        self.assertIn("    git --version &&", runtime)
+        self.assertIn("    git lfs version &&", runtime)
+
     def test_runtime_configures_noto_for_ui_without_replacing_drawing_fonts(self) -> None:
         dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(encoding="utf-8")
         init_script = (RUNTIME_ROOT / "init_wineprefix.sh").read_text(
