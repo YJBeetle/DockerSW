@@ -148,6 +148,10 @@ class RuntimeWrapperTests(unittest.TestCase):
 
 
 class LinuxToWinePathTests(unittest.TestCase):
+    def test_unicode_directory_and_filename_are_preserved(self):
+        value = "/workspace/中文 路径/垫片 导出.STEP"
+        self.assertEqual(self._run([value]), "W:" + value + "\n")
+
     def test_posix_path_goes_through_winepath(self):
         output = self._run(["/workspace/model.SLDPRT"])
         self.assertEqual(output.strip(), "W:/workspace/model.SLDPRT")
