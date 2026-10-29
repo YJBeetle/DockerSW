@@ -49,8 +49,271 @@
     "delivery_exports": 6
   },
   "docker_promotion_runs": {
-    "2025": 40963021712,
-    "main": 40963021823
+    "main": {
+      "run_id": 40963021823,
+      "job_id": 123762478779,
+      "conclusion": "success",
+      "mode": "verified-same-sha-fast-path",
+      "log_sha256": "58ed6c3ad2b8b9b4f355122df888450208c4a9644d6f0a05534e4a7164bfdf63"
+    },
+    "2025": {
+      "run_id": 40963021712,
+      "job_id": 123765526358,
+      "conclusion": "success",
+      "mode": "verified-same-sha-fast-path",
+      "log_sha256": "e21b4f90bef3ed943823613dc3c7af68d1707d7e2f006237e225f868ab3e4263"
+    }
   },
-  "macsw_changed": false
+  "macsw_changed": false,
+  "docker_promotion_status": "completed-success",
+  "docker_promotion_verified_at_date": "2026-10-30 Asia/Shanghai",
+  "docker_registry_verification": {
+    "success": true,
+    "candidate": "aef7424864acddfe2d41664daa427199536ca907",
+    "aliases": [
+      {
+        "repository": "sw-runtime",
+        "candidate": "sha-aef7424",
+        "alias": "2025",
+        "expected_digest": "sha256:6cb9e520146b9186d21c2910cad61a1895dabb8cc09e0a2bc58e2742d04429a7",
+        "actual_digest": "sha256:6cb9e520146b9186d21c2910cad61a1895dabb8cc09e0a2bc58e2742d04429a7",
+        "match": true
+      },
+      {
+        "repository": "sw-runtime",
+        "candidate": "sha-aef7424",
+        "alias": "main",
+        "expected_digest": "sha256:6cb9e520146b9186d21c2910cad61a1895dabb8cc09e0a2bc58e2742d04429a7",
+        "actual_digest": "sha256:6cb9e520146b9186d21c2910cad61a1895dabb8cc09e0a2bc58e2742d04429a7",
+        "match": true
+      },
+      {
+        "repository": "sw-runtime",
+        "candidate": "sha-aef7424",
+        "alias": "latest",
+        "expected_digest": "sha256:6cb9e520146b9186d21c2910cad61a1895dabb8cc09e0a2bc58e2742d04429a7",
+        "actual_digest": "sha256:6cb9e520146b9186d21c2910cad61a1895dabb8cc09e0a2bc58e2742d04429a7",
+        "match": true
+      },
+      {
+        "repository": "sw-runtime",
+        "candidate": "sha-aef7424-cli",
+        "alias": "2025-cli",
+        "expected_digest": "sha256:0c5c3c101ea89f8e21e52ae4afea48a9d568d017a322a1ca3f41d75697f3b567",
+        "actual_digest": "sha256:0c5c3c101ea89f8e21e52ae4afea48a9d568d017a322a1ca3f41d75697f3b567",
+        "match": true
+      },
+      {
+        "repository": "sw-runtime",
+        "candidate": "sha-aef7424-cli",
+        "alias": "main-cli",
+        "expected_digest": "sha256:0c5c3c101ea89f8e21e52ae4afea48a9d568d017a322a1ca3f41d75697f3b567",
+        "actual_digest": "sha256:0c5c3c101ea89f8e21e52ae4afea48a9d568d017a322a1ca3f41d75697f3b567",
+        "match": true
+      },
+      {
+        "repository": "sw-runtime",
+        "candidate": "sha-aef7424-cli",
+        "alias": "latest-cli",
+        "expected_digest": "sha256:0c5c3c101ea89f8e21e52ae4afea48a9d568d017a322a1ca3f41d75697f3b567",
+        "actual_digest": "sha256:0c5c3c101ea89f8e21e52ae4afea48a9d568d017a322a1ca3f41d75697f3b567",
+        "match": true
+      },
+      {
+        "repository": "sw-preinstalled",
+        "candidate": "sha-aef7424",
+        "alias": "2025",
+        "expected_digest": "sha256:0d766c3cf673978f30f6b1eb45f223bcdef78d156f085bd6edc024271660a944",
+        "actual_digest": "sha256:0d766c3cf673978f30f6b1eb45f223bcdef78d156f085bd6edc024271660a944",
+        "match": true
+      },
+      {
+        "repository": "sw-preinstalled",
+        "candidate": "sha-aef7424",
+        "alias": "main",
+        "expected_digest": "sha256:0d766c3cf673978f30f6b1eb45f223bcdef78d156f085bd6edc024271660a944",
+        "actual_digest": "sha256:0d766c3cf673978f30f6b1eb45f223bcdef78d156f085bd6edc024271660a944",
+        "match": true
+      },
+      {
+        "repository": "sw-preinstalled",
+        "candidate": "sha-aef7424",
+        "alias": "latest",
+        "expected_digest": "sha256:0d766c3cf673978f30f6b1eb45f223bcdef78d156f085bd6edc024271660a944",
+        "actual_digest": "sha256:0d766c3cf673978f30f6b1eb45f223bcdef78d156f085bd6edc024271660a944",
+        "match": true
+      },
+      {
+        "repository": "sw-preinstalled",
+        "candidate": "sha-aef7424-cli",
+        "alias": "2025-cli",
+        "expected_digest": "sha256:b6b8d3d987266c68aa3c592690446ec3a02df09e4475d9d697080da8b55b57ce",
+        "actual_digest": "sha256:b6b8d3d987266c68aa3c592690446ec3a02df09e4475d9d697080da8b55b57ce",
+        "match": true
+      },
+      {
+        "repository": "sw-preinstalled",
+        "candidate": "sha-aef7424-cli",
+        "alias": "main-cli",
+        "expected_digest": "sha256:b6b8d3d987266c68aa3c592690446ec3a02df09e4475d9d697080da8b55b57ce",
+        "actual_digest": "sha256:b6b8d3d987266c68aa3c592690446ec3a02df09e4475d9d697080da8b55b57ce",
+        "match": true
+      },
+      {
+        "repository": "sw-preinstalled",
+        "candidate": "sha-aef7424-cli",
+        "alias": "latest-cli",
+        "expected_digest": "sha256:b6b8d3d987266c68aa3c592690446ec3a02df09e4475d9d697080da8b55b57ce",
+        "actual_digest": "sha256:b6b8d3d987266c68aa3c592690446ec3a02df09e4475d9d697080da8b55b57ce",
+        "match": true
+      },
+      {
+        "repository": "sw-preinstalled",
+        "candidate": "sha-aef7424-zh-cn",
+        "alias": "2025-zh-cn",
+        "expected_digest": "sha256:f9c7fca17109d1afb794a4316e889bb87c7bb6ce3c3a6735a1fa1a35ddaabc44",
+        "actual_digest": "sha256:f9c7fca17109d1afb794a4316e889bb87c7bb6ce3c3a6735a1fa1a35ddaabc44",
+        "match": true
+      },
+      {
+        "repository": "sw-preinstalled",
+        "candidate": "sha-aef7424-zh-cn",
+        "alias": "main-zh-cn",
+        "expected_digest": "sha256:f9c7fca17109d1afb794a4316e889bb87c7bb6ce3c3a6735a1fa1a35ddaabc44",
+        "actual_digest": "sha256:f9c7fca17109d1afb794a4316e889bb87c7bb6ce3c3a6735a1fa1a35ddaabc44",
+        "match": true
+      },
+      {
+        "repository": "sw-preinstalled",
+        "candidate": "sha-aef7424-zh-cn",
+        "alias": "latest-zh-cn",
+        "expected_digest": "sha256:f9c7fca17109d1afb794a4316e889bb87c7bb6ce3c3a6735a1fa1a35ddaabc44",
+        "actual_digest": "sha256:f9c7fca17109d1afb794a4316e889bb87c7bb6ce3c3a6735a1fa1a35ddaabc44",
+        "match": true
+      },
+      {
+        "repository": "sw-preinstalled",
+        "candidate": "sha-aef7424-zh-cn-cli",
+        "alias": "2025-zh-cn-cli",
+        "expected_digest": "sha256:7fa3589e9397bbc368603339152364b86a7285fbb08c274bc7cea124fb4275aa",
+        "actual_digest": "sha256:7fa3589e9397bbc368603339152364b86a7285fbb08c274bc7cea124fb4275aa",
+        "match": true
+      },
+      {
+        "repository": "sw-preinstalled",
+        "candidate": "sha-aef7424-zh-cn-cli",
+        "alias": "main-zh-cn-cli",
+        "expected_digest": "sha256:7fa3589e9397bbc368603339152364b86a7285fbb08c274bc7cea124fb4275aa",
+        "actual_digest": "sha256:7fa3589e9397bbc368603339152364b86a7285fbb08c274bc7cea124fb4275aa",
+        "match": true
+      },
+      {
+        "repository": "sw-preinstalled",
+        "candidate": "sha-aef7424-zh-cn-cli",
+        "alias": "latest-zh-cn-cli",
+        "expected_digest": "sha256:7fa3589e9397bbc368603339152364b86a7285fbb08c274bc7cea124fb4275aa",
+        "actual_digest": "sha256:7fa3589e9397bbc368603339152364b86a7285fbb08c274bc7cea124fb4275aa",
+        "match": true
+      },
+      {
+        "repository": "sw-executable",
+        "candidate": "sha-aef7424",
+        "alias": "2025",
+        "expected_digest": "sha256:67b795665be09c445e59c6e9002483ca8d0aeefa665a10343796ba0fda84b3af",
+        "actual_digest": "sha256:67b795665be09c445e59c6e9002483ca8d0aeefa665a10343796ba0fda84b3af",
+        "match": true
+      },
+      {
+        "repository": "sw-executable",
+        "candidate": "sha-aef7424",
+        "alias": "main",
+        "expected_digest": "sha256:67b795665be09c445e59c6e9002483ca8d0aeefa665a10343796ba0fda84b3af",
+        "actual_digest": "sha256:67b795665be09c445e59c6e9002483ca8d0aeefa665a10343796ba0fda84b3af",
+        "match": true
+      },
+      {
+        "repository": "sw-executable",
+        "candidate": "sha-aef7424",
+        "alias": "latest",
+        "expected_digest": "sha256:67b795665be09c445e59c6e9002483ca8d0aeefa665a10343796ba0fda84b3af",
+        "actual_digest": "sha256:67b795665be09c445e59c6e9002483ca8d0aeefa665a10343796ba0fda84b3af",
+        "match": true
+      },
+      {
+        "repository": "sw-executable",
+        "candidate": "sha-aef7424-cli",
+        "alias": "2025-cli",
+        "expected_digest": "sha256:f2e156bf5dab68fbf98146dd52ed141fed57bc1f06d3b51fbc5d1b0dde1c8f76",
+        "actual_digest": "sha256:f2e156bf5dab68fbf98146dd52ed141fed57bc1f06d3b51fbc5d1b0dde1c8f76",
+        "match": true
+      },
+      {
+        "repository": "sw-executable",
+        "candidate": "sha-aef7424-cli",
+        "alias": "main-cli",
+        "expected_digest": "sha256:f2e156bf5dab68fbf98146dd52ed141fed57bc1f06d3b51fbc5d1b0dde1c8f76",
+        "actual_digest": "sha256:f2e156bf5dab68fbf98146dd52ed141fed57bc1f06d3b51fbc5d1b0dde1c8f76",
+        "match": true
+      },
+      {
+        "repository": "sw-executable",
+        "candidate": "sha-aef7424-cli",
+        "alias": "latest-cli",
+        "expected_digest": "sha256:f2e156bf5dab68fbf98146dd52ed141fed57bc1f06d3b51fbc5d1b0dde1c8f76",
+        "actual_digest": "sha256:f2e156bf5dab68fbf98146dd52ed141fed57bc1f06d3b51fbc5d1b0dde1c8f76",
+        "match": true
+      },
+      {
+        "repository": "sw-executable",
+        "candidate": "sha-aef7424-zh-cn",
+        "alias": "2025-zh-cn",
+        "expected_digest": "sha256:e9d087786d28defbd9dc589cb6fbcbcdbf7d85a9ebad6be7f94410b7119e49a5",
+        "actual_digest": "sha256:e9d087786d28defbd9dc589cb6fbcbcdbf7d85a9ebad6be7f94410b7119e49a5",
+        "match": true
+      },
+      {
+        "repository": "sw-executable",
+        "candidate": "sha-aef7424-zh-cn",
+        "alias": "main-zh-cn",
+        "expected_digest": "sha256:e9d087786d28defbd9dc589cb6fbcbcdbf7d85a9ebad6be7f94410b7119e49a5",
+        "actual_digest": "sha256:e9d087786d28defbd9dc589cb6fbcbcdbf7d85a9ebad6be7f94410b7119e49a5",
+        "match": true
+      },
+      {
+        "repository": "sw-executable",
+        "candidate": "sha-aef7424-zh-cn",
+        "alias": "latest-zh-cn",
+        "expected_digest": "sha256:e9d087786d28defbd9dc589cb6fbcbcdbf7d85a9ebad6be7f94410b7119e49a5",
+        "actual_digest": "sha256:e9d087786d28defbd9dc589cb6fbcbcdbf7d85a9ebad6be7f94410b7119e49a5",
+        "match": true
+      },
+      {
+        "repository": "sw-executable",
+        "candidate": "sha-aef7424-zh-cn-cli",
+        "alias": "2025-zh-cn-cli",
+        "expected_digest": "sha256:fd112f211865e8f9bf9c5c000c7806e7423131674921d0a22babec747a464747",
+        "actual_digest": "sha256:fd112f211865e8f9bf9c5c000c7806e7423131674921d0a22babec747a464747",
+        "match": true
+      },
+      {
+        "repository": "sw-executable",
+        "candidate": "sha-aef7424-zh-cn-cli",
+        "alias": "main-zh-cn-cli",
+        "expected_digest": "sha256:fd112f211865e8f9bf9c5c000c7806e7423131674921d0a22babec747a464747",
+        "actual_digest": "sha256:fd112f211865e8f9bf9c5c000c7806e7423131674921d0a22babec747a464747",
+        "match": true
+      },
+      {
+        "repository": "sw-executable",
+        "candidate": "sha-aef7424-zh-cn-cli",
+        "alias": "latest-zh-cn-cli",
+        "expected_digest": "sha256:fd112f211865e8f9bf9c5c000c7806e7423131674921d0a22babec747a464747",
+        "actual_digest": "sha256:fd112f211865e8f9bf9c5c000c7806e7423131674921d0a22babec747a464747",
+        "match": true
+      }
+    ],
+    "aliases_checked": 30,
+    "mismatches": 0,
+    "report_sha256": "93dcda2edd956d10bbbfcc57fef133f8fbf40099170b95408fff5cb4769ea8db"
+  }
 }

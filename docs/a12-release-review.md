@@ -34,6 +34,17 @@ MacSW 本轮未参与；既有 a11 软件渲染复杂工程图重开超时的接
 
 SWCLI main 已快进到发布提交。用户同时授权 Docker 更新，DockerSW 的正式 main / 2025
 已原子快进到完整 Wine 验收通过的 `aef7424`，固定同一 SWCLI 提交。
-正式 CI 分别为 main `40963021823` 和 2025 `40963021712`，使用已经验收的
-`sha-aef7424` 英文及中文候选镜像进行标签晋升。最终状态在完成后记录。
+正式 CI 分别为 [main 40963021823](https://github.com/YJBeetle/DockerSW/actions/runs/40963021823)
+和 [2025 40963021712](https://github.com/YJBeetle/DockerSW/actions/runs/40963021712)，
+均已成功。实际日志确认 `SW_PROMOTE_IMAGES=true`，使用此前完整验收通过的
+`sha-aef7424` 英文及中文候选镜像快进晋升；此处没有将跳过的原生测试冒充新运行的验收。
+
+2026-10-30（Asia/Shanghai）另行直接读取 GHCR registry，核对 `sw-runtime`、
+`sw-preinstalled`、`sw-executable` 的 `2025` / `main` / `latest` 默认与 CLI 别名，
+以及后两仓库的 zh-cn / zh-cn-cli 别名，共 30 个 manifest digest，全部与相应
+已验收 SHA 候选完全一致，无不匹配项。逐项摘要及两个作业日志摘要保存于
+[发布来源记录](a12-release-provenance.json)，本地原始核对记录为
+`/private/tmp/swcli-a12-release-ready/docker-aliases.json`。
+
+a12 发布与 Docker 正式镜像更新均已完成。
 MacSW 按用户明确要求保持不动。
