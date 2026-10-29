@@ -150,4 +150,39 @@ wheel RECORD 的 65 个带摘要条目正确。已安装客户端的 42 个操�
 内容复核 SHA-256 `dad5d6abfab12a4428c9e7e6ec3217bfe20f776644644aed935a1ff57da46c26`。
 
 现将候选分支 gitlink 固定至此最终版本提交，再以 `promote_images=false` 验收匹配 Wine 候选。
-最终版本 Wine 回执及用户发布确认仍待完成。
+最终版本 Wine 回执已完成核对，用户发布确认仍待完成。
+
+## 最终版本 Wine 验收与发布准备
+
+[DockerSW CI 40951622619](https://github.com/YJBeetle/DockerSW/actions/runs/40951622619)
+在 `aef7424864acddfe2d41664daa427199536ca907` 固定 SWCLI `4fcf5b2` 后整条成功。
+实际 daemon 版本 `0.1.0a12`，19 组 / 20 步 full-plan 全通过，清理无错误、
+server exit 0、各组启动前和停止后均无残留原生进程。
+
+公共贯穿 12 例的完整独立复核通过：公共 CLI 创建和增厚 10→25、拒绝编辑贯穿且无副作用、
+保存后只读重开、fresh 文档 / 特征 ID、旧句柄拒绝、原生定义及干净诊断、文件哈希一致。
+初始 / 增厚 / 重开后的解析几何和质心方向均符合预期，最大绝对差
+`7.275957614183426e-12`，save/open 无错误或警告，同组宿主连续且没有失败重试。
+
+15 个共享导出、六个交付导出、中文本地化一个 STEP，共 22 个实体均与回执大小匹配，
+通过文件头 / ZIP / XML 格式检查。visible-open 成功且宿主前后相同、visible=true；
+中文 smoke 的真实 daemon 语言匹配守卫通过。候选日志为 `SW_PROMOTE_IMAGES=false`，
+仅发布 `sha-aef7424` 系列镜像，没有执行 branch/latest 别名晋升。
+
+原始证据 ZIP 摘要与 GitHub 一致：
+
+| artifact | ID | ZIP SHA-256 |
+| --- | --- | --- |
+| `sw-cli-export-smoke-40951622619` | 12935401372 | `fed16267cc7fbb1bf022a1807360e84c3e8580da3a97a043decd328daa9a99ac` |
+| `sw-language-smoke-40951622619` | 12936215555 | `b67dda70a70817ad4088f6f61cad87d9e03e1170085b03cbd2b997bcbdcb85de` |
+
+归档于 `/private/tmp/swcli-wine-ci-40951622619`。贯穿回执 SHA-256 为
+`458a357877800188459d4adc25b684a154d9ba39553579f0f4080a59d5e18857`；
+12 例独立复核 SHA-256 `07d779ab0aa159b0010316f6b9a8f7dbf7864beae4bad64397d1632bb0c445f2`；
+完整复核 SHA-256 `6a9df77950fd5deacebab853e46fc0286942a709e5b3c67312242a4d65257f92`。
+
+发布准备目录 `/private/tmp/swcli-a12-release-ready` 包含原 CI wheel / sdist、
+`SHA256SUMS`、`provenance.json` 和待审阅发布说明。包文件仅复制原 CI 资产，摘要再次核对一致。
+拟发布 tag 为 `v0.1.0a12`，目标提交为已验收的 `4fcf5b2`，作为 pre-release。
+完整待确认范围见 [a12 发布审阅](a12-release-review.md)。尚未创建 tag / release、
+未推送正式分支或晋升现用镜像；MacSW 按用户要求暂不参与。
