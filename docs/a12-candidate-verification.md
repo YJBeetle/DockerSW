@@ -57,6 +57,24 @@ normal / reverse 的全部 12 例；并非只运行 test-only 原生校准。
 | `swcli-0.1.0a12.dev0-py3-none-any.whl` | `c87ca42ced219edd455ca9f143b8820ae7d755293a29be17eaa4d79686cafb3b` |
 | `swcli-0.1.0a12.dev0.tar.gz` | `aaa63b87aea065932f899a8d2675fd0be0e40419542f7f232ddff7907fe0f9e6` |
 
+对上述原始 CI 包另行完成隔离安装与内容复核（未重新构建）：
+
+- `twine check --strict` 检查 wheel / sdist 均通过；新建 Python 3.15 venv 安装原 wheel，
+  `pip check` 无依赖冲突，实际导入位置位于该 venv 的 site-packages。
+- wheel 与 sdist 的全部 60 个包源码 / schema / skill 文件，逐字节匹配提交 `2cd569c`；
+  sdist 的全部 160 个测试和 CI 文件匹配提交。wheel RECORD 的 65 个带摘要条目均通过
+  SHA-256 与文件大小校验，原始两个发布包的摘要仍与上表一致。
+- 已安装包的三个协议 schema 和 42 个操作 schema 均通过 JSON Schema 元校验；
+  公共贯穿 CLI 参数映射保留 document / lease / CAS，参数互斥及贯穿带深度（含 null）的
+  四项拒绝成立；`sw-cli feature cut-extrude --help` 和内置 skill / usage 资源可用。
+  检查期间主动阻止 COM 模块导入，确认客户端校验未加载原生 COM。
+
+安装检查与内容检查分别保存为原开发包归档目录中的 `installed-audit.json` 和
+`payload-audit.json`，SHA-256 分别为
+`255c3cfd333232b053a11829ed3293711adc99b2e3ef0ba4dd8829a229d85946` 和
+`f28db826d5437a5578036d4dcb7c93f02708fcc45966330549504e9870335f19`。
+此处仅为无 COM 客户端安装和包内容校验；原生运行证明见前述 Windows 完整门禁。
+
 ## Docker 候选边界与剩余验收
 
 DockerSW `codex/a12-candidate` 在 Windows 证据核对后固定上述 SWCLI 提交。
@@ -64,6 +82,10 @@ DockerSW `codex/a12-candidate` 在 Windows 证据核对后固定上述 SWCLI 提
 显式设置 `promote_images=false`、`languages=zh-cn`。可发布 SHA 候选镜像并复用安装/构建缓存，
 但仍运行完整 19 组、六个真实导出、可见宿主及本地化门禁。
 候选不会更新 `2025` / `main` / `latest` 及其 CLI、语言别名。
+
+候选固定提交为 `b3a754172a24a4008e924b1228a8f438ef4a36c9`，已启动
+[DockerSW #193 / 40936007854](https://github.com/YJBeetle/DockerSW/actions/runs/40936007854)。
+此后仅补充本文档，不替换正在验收的候选提交或重复触发运行。
 
 Docker/Wine 成功后仍须下载真实回执及导出实体，核对新贯穿 12 例、完整覆盖、清理与镜像身份。
 正式发布前须冻结 `0.1.0a12` 最终版本及提交，并验收该提交的原 CI 包；
