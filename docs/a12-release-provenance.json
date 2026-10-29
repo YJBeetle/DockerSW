@@ -1,0 +1,56 @@
+{
+  "release_url": "https://github.com/YJBeetle/SWCLI/releases/tag/v0.1.0a12",
+  "tag": "v0.1.0a12",
+  "commit": "4fcf5b2dac178dff1e00ad6864cbcd805baa4612",
+  "published_at": "2026-10-29T22:05:09Z",
+  "is_draft": false,
+  "is_prerelease": true,
+  "original_ci": {
+    "run_id": 40946119790,
+    "artifact_id": 12928413711,
+    "zip_sha256": "886ab00dc50ec4b75db33103106c7fbd27cf8ea6e510fb33fa0c65b3a1ba3d5b"
+  },
+  "assets": [
+    {
+      "name": "provenance.json",
+      "bytes": 2812,
+      "sha256": "sha256:06a963116e50f979e73edffbcd5ea99e22e743994b19a5bf673d20be0b822497",
+      "url": "https://github.com/YJBeetle/SWCLI/releases/download/v0.1.0a12/provenance.json",
+      "id": 690047922
+    },
+    {
+      "name": "SHA256SUMS",
+      "bytes": 186,
+      "sha256": "sha256:e70a5188f60bae660cd322a7c62224e45919f1432bdf30ba07335c519c23533d",
+      "url": "https://github.com/YJBeetle/SWCLI/releases/download/v0.1.0a12/SHA256SUMS",
+      "id": 690047923
+    },
+    {
+      "name": "swcli-0.1.0a12-py3-none-any.whl",
+      "bytes": 211194,
+      "sha256": "sha256:6a5c7c378b414a22b92c09698e5d54a572619a987de4cd214833018f6748c7d5",
+      "url": "https://github.com/YJBeetle/SWCLI/releases/download/v0.1.0a12/swcli-0.1.0a12-py3-none-any.whl",
+      "id": 690047931
+    },
+    {
+      "name": "swcli-0.1.0a12.tar.gz",
+      "bytes": 842099,
+      "sha256": "sha256:ca04cd156b3fe57108c89d505e546733f0961fd375e3bbf0b12b18e6fa77320b",
+      "url": "https://github.com/YJBeetle/SWCLI/releases/download/v0.1.0a12/swcli-0.1.0a12.tar.gz",
+      "id": 690047932
+    }
+  ],
+  "public_download_verified": true,
+  "wine_acceptance": {
+    "run_id": 40951622619,
+    "docker_commit": "aef7424864acddfe2d41664daa427199536ca907",
+    "full_sets": 19,
+    "public_through_all_cases": 12,
+    "delivery_exports": 6
+  },
+  "docker_promotion_runs": {
+    "2025": 40963021712,
+    "main": 40963021823
+  },
+  "macsw_changed": false
+}

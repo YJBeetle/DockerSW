@@ -1,6 +1,9 @@
 # SWCLI a12 发布审阅
 
-状态：最终版本 Windows / Wine 及原 CI 包验收完成，等待用户确认发布。
+状态：用户已确认发布；[v0.1.0a12](https://github.com/YJBeetle/SWCLI/releases/tag/v0.1.0a12)
+已于 2026-10-30（Asia/Shanghai）公开为 pre-release。tag 指向已验收的 `4fcf5b2`，
+四个公开下载资产已重新下载核对，其中 wheel/sdist 与原 CI 包逐字节一致。
+公开资产身份见 [发布来源记录](a12-release-provenance.json)。
 
 ## 待发布内容
 
@@ -27,9 +30,10 @@ Wine 还通过六个交付导出、可见和中文 smoke。原 CI 包严格 Twin
 MacSW 本轮未参与；既有 a11 软件渲染复杂工程图重开超时的接受边界继续保留。
 用户端需同时升级 client 和 daemon。
 
-## 用户确认后的动作
+## 正式集成
 
-确认后发布上述已验收提交和原包，并核对公开 tag、pre-release 状态、下载文件大小及摘要。
-Docker 正式分支固定及现用镜像别名晋升会影响现有使用者，应作为本次发布确认范围一并明确。
-当前只有 SHA 候选已发布，正式 2025/main 和现用别名尚未更新。
-MacSW 的固定和运行操作继续遵守用户“暂时别用”的限制，须另行授权。
+SWCLI main 已快进到发布提交。用户同时授权 Docker 更新，DockerSW 的正式 main / 2025
+已原子快进到完整 Wine 验收通过的 `aef7424`，固定同一 SWCLI 提交。
+正式 CI 分别为 main `40963021823` 和 2025 `40963021712`，使用已经验收的
+`sha-aef7424` 英文及中文候选镜像进行标签晋升。最终状态在完成后记录。
+MacSW 按用户明确要求保持不动。
