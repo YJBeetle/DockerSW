@@ -113,3 +113,41 @@ DockerSW #193 已整条成功，下载归档并核对：
 
 正式发布前须冻结 `0.1.0a12` 最终版本及提交，并验收该提交的原 CI 包；
 当前 dev0 包不能作为正式 a12 发布。MacSW 暂不参与，本机 App 和容器不操作。
+
+## 最终版本 Windows 验收
+
+最终候选 `4fcf5b2dac178dff1e00ad6864cbcd805baa4612` 冻结 `0.1.0a12`，
+产品代码仅版本号变化，新增未发布的说明文档。
+[Windows CI 40946119790](https://github.com/YJBeetle/SWCLI/actions/runs/40946119790)
+的双 Python 单测、打包及原生完整作业均成功。
+
+原生 artifact `12932360248` ZIP SHA-256 为
+`d18c02f214850ff42ff23c7b6a0f518e5fa8d35db4dcb923238fb2f242f8128e`，
+与 GitHub digest 一致，归档于 `/private/tmp/swcli-win-ci-40946119790`。
+完整 full-plan 19 组 / 20 步成功，实际 daemon 版本 `0.1.0a12`；各组清理无错误、
+server exit 0、前后原生进程为空。共享 15 个实际导出匹配回执大小并通过格式检查。
+公共贯穿 12 例再次逐项复核全部通过，包括公共增厚、只读重开、fresh handles、
+拒绝无副作用、原生定义、健康状态、文件摘要和解析几何。最大几何绝对差
+`7.275957614183426e-12`，保存 / 打开无错误或警告。
+贯穿回执 SHA-256 `e082c975901ed2cc78214efd2ec9ab6f4fe3834a128cd8186696363f22892d0c`，
+独立复核 SHA-256 `ac561e3c2324cd39ef0bdce61461c2b0722b1c899684e65f7f5ae163092c24fa`。
+
+原包 artifact `12928413711` ZIP SHA-256
+`886ab00dc50ec4b75db33103106c7fbd27cf8ea6e510fb33fa0c65b3a1ba3d5b` 与 GitHub 一致。
+未重新打包的原始文件为：
+
+| 最终版本原 CI 产物 | 字节 | SHA-256 |
+| --- | ---: | --- |
+| `swcli-0.1.0a12-py3-none-any.whl` | 211194 | `6a5c7c378b414a22b92c09698e5d54a572619a987de4cd214833018f6748c7d5` |
+| `swcli-0.1.0a12.tar.gz` | 842099 | `ca04cd156b3fe57108c89d505e546733f0961fd375e3bbf0b12b18e6fa77320b` |
+
+上述原包的严格 Twine、新 venv 安装、pip check、verify-installed 无 COM 检查通过。
+60 个包文件与固定提交逐字节一致；sdist 的 160 个测试 / CI 文件匹配；
+wheel RECORD 的 65 个带摘要条目正确。已安装客户端的 42 个操作 schema、三个协议 schema、
+参数互斥及贯穿 depth（含 null）拒绝和内置 skill 资源检查通过。
+原包及 provenance 位于 `/private/tmp/swcli-a12-ci-40946119790-dist`；
+安装复核 SHA-256 `bdcc65cafd2b101e0d34c702d60bcc22d196229ab1f2a5479868f24c3c7c7fc1`，
+内容复核 SHA-256 `dad5d6abfab12a4428c9e7e6ec3217bfe20f776644644aed935a1ff57da46c26`。
+
+现将候选分支 gitlink 固定至此最终版本提交，再以 `promote_images=false` 验收匹配 Wine 候选。
+最终版本 Wine 回执及用户发布确认仍待完成。
