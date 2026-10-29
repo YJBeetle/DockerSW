@@ -1,7 +1,7 @@
 # SWCLI a12 开发候选验收（2026-10-30）
 
 本候选固定 SWCLI `2cd569ccf99db6af0a5ef3cd07afa1c5b2d5d115`，版本为
-`0.1.0a12.dev0`。Windows 完整验收已完成；Docker/Wine 验收尚待取得对应回执。
+`0.1.0a12.dev0`。Windows 和 Docker/Wine 完整验收均已完成并核对回执。
 本记录不构成正式 a12 发布，也不构成 MacSW 验收。
 
 ## Windows 完整门禁
@@ -87,6 +87,29 @@ DockerSW `codex/a12-candidate` 在 Windows 证据核对后固定上述 SWCLI 提
 [DockerSW #193 / 40936007854](https://github.com/YJBeetle/DockerSW/actions/runs/40936007854)。
 此后仅补充本文档，不替换正在验收的候选提交或重复触发运行。
 
-Docker/Wine 成功后仍须下载真实回执及导出实体，核对新贯穿 12 例、完整覆盖、清理与镜像身份。
+DockerSW #193 已整条成功，下载归档并核对：
+
+- `sw-cli-export-smoke-40936007854` artifact `12928303209`，ZIP SHA-256
+  `b7a5dcd3b4593892938466e292c320e4ebac6d9a1051cc0324ab83c6e3312899`；
+  `sw-language-smoke-40936007854` artifact `12928916674`，ZIP SHA-256
+  `a4c816c0fb18fed6c34770d3aa0e8ef0397c4587f308bcd4a5bbe6a09ba7070b`。
+  两个摘要均与 GitHub artifact digest 一致。
+- 实际 daemon 为 `0.1.0a12.dev0`，Linux/Wine 的 full-plan 19 组 / 20 步全部成功；
+  各组无清理错误、server exit 0，启动前和停止后原生进程目录均确认为空。
+- 公共贯穿 12 例独立复核全部通过，包括 CLI 创建、公共增厚 10→25、贯穿编辑拒绝、
+  同路径保存只读重开、fresh handles、定义及健康状态、源文件摘要与解析几何；
+  最大几何绝对差为 `7.275957614183426e-12`，保存和打开均无错误或警告。
+  同组宿主连续，未重试或组内重启。
+- 共享 15 个导出、外层六个交付导出及中文本地化一个 STEP 共 22 个成功导出，
+  实体大小与回执一致，文件头 / 容器 / XML 结构检查通过。中文 smoke 的 daemon 语言
+  匹配守卫通过；visible-open 回执完成、宿主 visible=true 且前后一致、清理错误为空。
+- 构建日志中的实际镜像为 `sha-b3a7541` 候选（含 CLI / zh-cn），
+  `SW_PROMOTE_IMAGES=false`，未执行 branch/latest 别名晋升。
+
+归档目录为 `/private/tmp/swcli-wine-ci-40936007854`；贯穿回执 SHA-256
+`bdacdca33d3d90f951e533ad55588fb85662c1e502b5bbb816e73b8b77730a09`，
+独立 12 例复核 `a12-public-independent-audit.json` SHA-256
+`40da16aba5042e30fab7e971905065974930647a5727ac3317056eb93509760c`。
+
 正式发布前须冻结 `0.1.0a12` 最终版本及提交，并验收该提交的原 CI 包；
 当前 dev0 包不能作为正式 a12 发布。MacSW 暂不参与，本机 App 和容器不操作。
