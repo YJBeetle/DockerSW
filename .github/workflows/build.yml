@@ -12,6 +12,10 @@ on:
       - 'LICENSE'
   workflow_dispatch:
     inputs:
+      promote_images:
+        description: 'Promote verified images to main/20xx tags (false keeps SHA candidates only)'
+        type: boolean
+        default: false
       force_rebuild:
         description: 'Force full rebuild even if image for this commit SHA exists on GHCR'
         type: boolean
@@ -114,8 +118,21 @@ jobs:
 
       - name: Resolve image names
         shell: bash
+        env:
+          SW_REQUEST_PROMOTION: ${{ inputs.promote_images || 'false' }}
         run: |
           set -Eeuo pipefail
+          promote_images=false
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] || [ "${SW_REQUEST_PROMOTION}" = "true" ]; then
+            # Only release branches have mutable image aliases. Candidate refs
+            # may contain slashes and must never be used as Docker tags.
+            if [[ "${GITHUB_REF_TYPE}" != branch || ( "${GITHUB_REF_NAME}" != main && ! "${GITHUB_REF_NAME}" =~ ^20[0-9][0-9]$ ) ]]; then
+              echo "Image promotion requires main or a 20xx release branch." >&2
+              exit 1
+            fi
+            promote_images=true
+          fi
+          echo "SW_PROMOTE_IMAGES=${promote_images}" >> "${GITHUB_ENV}"
           commit_sha="$(git rev-parse --short=7 HEAD)"
           echo "SW_IMAGE_SHA_TAG=sha-${commit_sha}" >> "${GITHUB_ENV}"
           echo "SW_RUNTIME_IMAGE=${SW_RUNTIME_REPO}:sha-${commit_sha}" >> "${GITHUB_ENV}"
@@ -283,7 +300,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           force="${{ inputs.force_rebuild || 'false' }}"
-          target_tag="${{ github.ref_name }}"
+          target_tag="${GITHUB_REF_NAME}"
 
           all_images_exist=true
           for image in \
@@ -303,11 +320,14 @@ jobs:
             done
           done < "${SW_LANGUAGE_PLAN}"
 
-          if [ "${force}" != "true" ] && [ "${all_images_exist}" = "true" ]; then
+          # Candidate acceptance always produces fresh CAD receipts, while still
+          # reusing build/installation layers below. Existing tags alone are not
+          # a receipt for this candidate run.
+          if [ "${SW_PROMOTE_IMAGES}" = "true" ] && [ "${force}" != "true" ] && [ "${all_images_exist}" = "true" ]; then
             echo "[CI fast-path] 检测到当前提交 (${SW_IMAGE_SHA_TAG}) 的英文及本地化镜像均已完成验证！"
             echo "[CI fast-path] 跳过 30+ 分钟的 ISO 挂载、预安装与冒烟测试，秒级晋升标签..."
 
-            if [ -n "${target_tag}" ]; then
+            if [ "${SW_PROMOTE_IMAGES}" = "true" ]; then
               promote_image() {
                 local source_image="$1"
                 local branch_tag="$2"
@@ -1018,8 +1038,8 @@ jobs:
               "${SW_EXECUTABLE_REPO}:buildcache-${language_tag}-cli"
           done < "${SW_LANGUAGE_BUILD_PLAN}"
 
-          target_tag="${{ github.ref_name }}"
-          if [ -n "${target_tag}" ]; then
+          target_tag="${GITHUB_REF_NAME}"
+          if [ "${SW_PROMOTE_IMAGES}" = "true" ]; then
             promote_image() {
               local source_image="$1"
               local branch_tag="$2"
@@ -1064,6 +1084,8 @@ jobs:
                 "${SW_EXECUTABLE_REPO}:${target_tag}-${language_tag}-cli" \
                 "${SW_EXECUTABLE_REPO}:latest-${language_tag}-cli"
             done < "${SW_LANGUAGE_BUILD_PLAN}"
+          else
+            echo "[CI candidate] Verified SHA images retained; release aliases unchanged."
           fi
 
       - name: Show storage usage

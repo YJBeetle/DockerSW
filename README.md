@@ -197,6 +197,11 @@ rclone config show gdrive | base64 | tr -d '\n'
 gh workflow run build.yml --ref main
 ```
 
+手动运行默认只发布 `sha-<commit>` 候选镜像，不更新 `2025`、`main`、`latest`
+及其 CLI／本地化标签；即使该提交已有镜像，也会重新执行完整 CAD 门禁并保留本轮回执，
+构建层与 SOLIDWORKS 安装层仍可复用。需要正式晋升时，在 `main` 或 `20xx` 发布分支上
+显式传入 `-f promote_images=true`。这些发布分支的 push 保留完整验收后自动晋升行为。
+
 自动构建和手动 CI 均执行共享隐藏完整门禁，再运行独立的共享轻量可见冒烟；
 不再提供 `runtime_suite` 选项。每个业务测试组使用新 daemon／SW 会话，组内不重启，
 逐组核对文档清空。Toolbox、六产物交付和可见冒烟都通过后才提升正式镜像标签。
