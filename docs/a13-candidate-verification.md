@@ -228,3 +228,23 @@ save_errors=0/save_warnings=null，open errors/warnings=0；不把未输出warni
 `awaiting-owner-approval`，原 wheel/sdist 不改字节；未创建 tag/release/draft，未推正式
 main/2025，未改现用别名或 MacSW。需用户最后确认后才执行正式发布及镜像更新，
 公开后还需匿名下载核对与正式别名哈希检查。
+
+
+## 已批准发布与正式镜像晋升
+
+用户于 2026-10-30 回复“批准发布”后，公开
+[v0.1.0a13](https://github.com/YJBeetle/SWCLI/releases/tag/v0.1.0a13)，
+tag 精确指向最终验收源码 `8d6e5d319becc4b8a76691ea6dadbde50290e71c`。
+pre-release 非 draft，不更改 latest 正式发行版选择。原 wheel/sdist 已匿名下载，
+字节数及 SHA256 均与原 CI 包完全相同；来源清单和哈希清单随 release 公开。
+
+Docker main/2025 先快进至完整验收的 `a3a5976`，执行已有同 SHA 镜像快速晋升；
+源代码未改变，不重复完整原生门禁。实际执行日志、run/head/event 和清单摘要已核对：
+
+- 2025：push run `41021426153`，success，同 SHA fast-path 晋升。
+- main：push run `41021426274`，success，同 SHA fast-path 晋升。
+
+GHCR 独立校验30个2025/main/latest普通/CLI/中文别名，全部匹配
+`sha-a3a5976` 对应清单 digest；正式镜像发布完成。纯文档记录随后同步，
+不将文档提交当作新的验收镜像。详情及全部摘要见 `a13-release-provenance.json`。
+MacSW App/主容器/CI 未操作。

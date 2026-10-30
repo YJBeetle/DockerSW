@@ -1,11 +1,11 @@
-# SWCLI a13 发布审阅（最终验收完成，待用户确认）
+# SWCLI a13 发布记录（已批准并公开）
 
-状态：最终版本 Windows/Wine 与原 CI 包独立验收完成；未发布、未创建 tag/release，等待最后发布确认。
-此材料用于提前审阅，不表示现用 Docker 镜像或 MacSW 已更新。
+状态：用户于 2026-10-30 明确批准发布；GitHub pre-release 已公开，原包匿名下载校验和 Docker 正式镜像晋升均已完成。
+MacSW 未操作；此前验收与等待批准的历史保留在 Git 记录中。
 
-## 拟发布内容
+## 已发布内容
 
-- GitHub pre-release：`SWCLI v0.1.0a13 — simple closed polygon sketches`。
+- GitHub pre-release：[SWCLI v0.1.0a13](https://github.com/YJBeetle/SWCLI/releases/tag/v0.1.0a13)。
 - tag `v0.1.0a13`，精确冻结提交 `8d6e5d319becc4b8a76691ea6dadbde50290e71c`。
 - 原包来自最终 Windows CI `40997158405`、artifact `12952146065`，不重新构建。
 - wheel `swcli-0.1.0a13-py3-none-any.whl`，217190 字节，SHA256
@@ -39,15 +39,24 @@ Twine/全新隔离安装/43请求43结果3协议 Schema/资源和无 COM 校验�
 精确 daemon `0.1.0a13`、full19/20步、polygon48/throughall12、22真实导出、visible/localized、
 逐例几何/保存重开/句柄拒绝/清理/进程与组内宿主连续性全部通过。
 实际日志验证 `SW_PROMOTE_IMAGES=false`、`sha-a3a5976` CLI/中文候选镜像清单及
-`[CI candidate] Verified SHA images retained; release aliases unchanged.`，未晋升现用标签。
+`[CI candidate] Verified SHA images retained; release aliases unchanged.`，候选验收阶段未晋升现用标签；用户批准后的正式晋升另见下文。
 
 详细证据见 [候选验收记录](a13-candidate-verification.md)；机器来源记录见
-[发布来源记录](a13-release-provenance.json)，验收状态为 verified=true；release_created/public_download_verified 仍为 false，等待批准后实际发布与公开下载验证。
+[发布来源记录](a13-release-provenance.json)，运行与发布状态均已核验；release_created/public_download_verified 为 true，原包公开下载与正式别名摘要已独立核对。
 
-## 最后发布确认的范围
+## 用户批准与正式集成
 
-全部最终证据已通过，现需用户确认 SWCLI pre-release 和 Docker 正式集成/镜像更新。
-确认前不创建 GitHub tag/release（含 draft）、不推正式 main/2025 或晋升现用别名。
-正式集成应先使用已经完整验收的 Docker 候选提交和同 SHA 镜像，随后再同步纯文档记录，
-避免把文档提交误当新验收镜像。公开后还须匿名重新下载核对原包哈希，并核对正式镜像别名。
-MacSW 按用户要求保持不动。
+用户明确回复“批准发布”后，公开 pre-release（不设为 latest 正式版），tag 精确指向
+`8d6e5d319becc4b8a76691ea6dadbde50290e71c`。wheel/sdist 从最终 Windows 原 CI 包
+上传，匿名重新下载逐字节和 SHA256 匹配；provenance/清单同步公开。
+
+Docker main/2025 先快进至完整验收的 `a3a5976`，两条 push CI 复用该 SHA 的已验证镜像，
+执行正式标签晋升；未触发重复原生完整矩阵。随后才同步纯文档验收/发布记录，
+避免把文档提交 SHA 冒充运行验收镜像。
+
+- 2025：[CI 41021426153](https://github.com/YJBeetle/DockerSW/actions/runs/41021426153) 成功，实际日志验证同 SHA 快速晋升。
+- main：[CI 41021426274](https://github.com/YJBeetle/DockerSW/actions/runs/41021426274) 成功，实际日志验证同 SHA 快速晋升。
+
+独立从 GHCR 读取 2025/main/latest 的普通/CLI/中文组合共30个别名，全部与
+`sha-a3a5976` 对应清单 digest 一致，差异0。正式原始镜像和 CLI 变体均有检查，
+未把 registry push 或源码打印当作验收证明。MacSW 保持不动。
