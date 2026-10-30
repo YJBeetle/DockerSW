@@ -113,3 +113,39 @@ native-model 组耗时 1599.823 秒（约 27 分钟），仍在每组 1800 秒�
 的公共多边形矩阵和原有全部功能组。产品原生 600 秒、共享请求/每组 1800 秒限制、
 几何断言、首失败退出、组内不重启及不重试原生失败的策略均不变。
 没有修改 SWCLI 产品或重新校准；后续候选仍须完整重新验收，不以本次部分通过晋升镜像。
+
+## 修复后 Wine 开发候选完整通过
+
+[DockerSW 40988415338](https://github.com/YJBeetle/DockerSW/actions/runs/40988415338)
+在候选 `449eb72c8c9e7136ba6f79912eddbf68a7028406`、同一 SWCLI `1ffc750` 整条成功。
+整步完整矩阵耗时约 65 分钟，90 分钟外层预算足够；没有改原生请求或每组期限。
+
+- 导出/完整功能 artifact `12951911017`，ZIP SHA256
+  `54b523cc34dec914b9b5ecf9b3a2d059b1832ee11ad5df50dcce574ed529ab88`；
+  中文 artifact `12951248578`，ZIP SHA256
+  `3c77b87c4039aa822df04422408b09b3b8ae3738371d34574dac12c8e882a5a8`。
+  均下载并匹配 GitHub digest，归档 `/private/tmp/swcli-wine-ci-40988415338` 及 `-language`。
+- full/full-plan 19 组/20 步全部 completed/success，diagnostic_set=null，实际 daemon dev0；
+  每组 cleanup=[]、server exit 0，启动前/停止后原生进程目录为空，组内宿主保持。
+- 48 个公共多边形全部独立复核通过，包含解析体积/表面积/固定平面世界质心、完整闭环、
+  lease/CAS/跨文档及旧句柄拒绝、24 次贯穿范围拒绝、48 次深度拒绝且 mutation 全 false、
+  同路径只读重开后的 fresh doc/sketch/feature IDs、健康/未截断/rebuild0/clean、48 文件哈希。
+  最大绝对差 `1.8189894035458565e-12`。原 through-all 12 例全部通过。
+- 15 个共享导出、六个交付导出与一个中文 STEP 共 22 个实体，与回执 size/格式头/容器
+  结构一致；visible 回执完成，visible=true/前后宿主一致/cleanup=[]。实际日志明确
+  `[CI language] zh-cn UI language and real STEP export verified.`
+- 实际推送清单为 `sha-449eb72`（含 CLI/zh-cn），日志环境 `SW_PROMOTE_IMAGES=false`，
+  最后执行 `[CI candidate] Verified SHA images retained; release aliases unchanged.`
+  未执行 2025/main/latest 或语言/CLI 现用别名晋升。
+
+多边形回执 SHA256：
+`0b4c971776f6fb62df9b83642d0d2f37021ac454a7e4b798289330d0cca54fb7`；
+完整运行摘要 SHA256：
+`1762db62deb82e7fd281c7515c66fbc1a20274c3c1c9c30a1ded66a44e4df5f6`；
+`a13-wine-independent-audit.json` SHA256：
+`3c7ab85416e1a624883b6b96e278e5ac7f89f0585f6449cc745119a5f4db899a`；
+`delivery-audit.json` SHA256：
+`f16e9124981dd7289599ab18058ebd22cf8b795bcecc433e8788c5eabc03b244`。
+
+以上完成 dev0 源码候选的 Windows/Wine 双宿主证明。正式 a13 仍须冻结最终版本/提交、
+核验对应原 CI 包与最终版本运行回执，再由用户确认发布；不以 dev0 包冒充最终版。
