@@ -84,3 +84,32 @@ artifact `12941382148` 原 ZIP SHA256：
 `0c85b26f340e4c47fec75305a992f4db61ca86560e846c4e6d95bff734e819b2`。
 两份记录保存于原 CI 开发包归档目录，原始 wheel/sdist 摘要保持不变。
 正在验收的 Docker 运行仍固定候选 `d0d0676`，不因这项文档收尾替换提交或重复触发。
+
+## 首次 Wine 完整运行：外层 CI 预算耗尽
+
+[DockerSW 40979321141](https://github.com/YJBeetle/DockerSW/actions/runs/40979321141)
+固定 `d0d0676` / SWCLI `1ffc750`。未通过完整验收，失败原因是 GitHub Actions
+`Shared isolated functional test sets` 整步 60 分钟截止：
+`2026-10-30T01:42:30Z The action ... has timed out after 60 minutes`。
+此时前 17 组成功，第 18 组 rectangle-right 刚开始，toolbox 未运行；没有已记录的
+原生调用超时或 CAD 断言失败。visible/localized/promotion 后续步骤未运行，不能宣称整条通过。
+
+下载 artifact `12947293565`，ZIP SHA256
+`5068e3cd1f556f7736da9a15708ecaf2435b7639d2edb41c7033658595f13d21`
+与 GitHub digest 一致，保存在 `/private/tmp/swcli-wine-ci-40979321141`。
+`runtime-sets.json` 明确 `completed=false`、`success=false`。
+native-model 组耗时 1599.823 秒（约 27 分钟），仍在每组 1800 秒限制内；
+该组全部 48 个公共多边形案例已完成，同宿主、完整边闭环、解析几何/质心、拒绝边界、
+保存只读重开及 48 文件哈希独立复核通过，最大差 `1.8189894035458565e-12`。
+原贯穿组及其他前 17 组也完成，已完成组清理无误；中断组没有完整退出证明。
+这份部分证据不替代缺失的完整 19 组、visible/localized 和镜像验收。
+
+多边形回执 SHA256：
+`d8748c41bf69c9ea0461d129113cca51a3bc8c523c10af3ac7996b6a5f9c3335`；
+`a13-wine-partial-audit.json` SHA256：
+`487ad78277ec9d18ca0d9ecf2139299b89e9866d8b4bed5d3ec7eb81383e9741`。
+
+修复仅将 GitHub Actions 完整矩阵外层预算从 60 调整到 90 分钟，以容纳新增约 27 分钟
+的公共多边形矩阵和原有全部功能组。产品原生 600 秒、共享请求/每组 1800 秒限制、
+几何断言、首失败退出、组内不重启及不重试原生失败的策略均不变。
+没有修改 SWCLI 产品或重新校准；后续候选仍须完整重新验收，不以本次部分通过晋升镜像。

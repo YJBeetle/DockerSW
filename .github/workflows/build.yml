@@ -881,7 +881,11 @@ jobs:
         shell: bash
         # One prepared container; fresh daemon/owned SW between shared sets.
         # The full CAD assertions remain in SWCLI, not in platform wrappers.
-        timeout-minutes: 60
+        # a13 adds 48 public polygon roundtrips (~27 min in Wine). Run 40979321141
+        # passed 17 sets before the former 60 min job-step cap interrupted set 18.
+        # Extend only the whole-matrix envelope; request and per-set limits stay
+        # owned by the shared runner, with no retry or restart inside a set.
+        timeout-minutes: 90
         run: |
           set -Eeuo pipefail
           smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"

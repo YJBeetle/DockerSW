@@ -310,12 +310,12 @@ class SmokeEvidenceTests(unittest.TestCase):
         for name in PHASES:
             with self.subTest(phase=name):
                 step = self.step(name)
-                minutes = 60 if name == GENERIC_STEP else 10
+                minutes = 90 if name == GENERIC_STEP else 10
                 self.assertIn(f"timeout-minutes: {minutes}", step)
                 self.assertIn("if: success() &&", step)
                 self.assertNotIn("continue-on-error", step)
                 self.assertNotIn(
-                    f"timeout-minutes: {10 if minutes == 60 else 60}", step
+                    f"timeout-minutes: {10 if name == GENERIC_STEP else 90}", step
                 )
         self.assertIn(
             "steps.smoke-exports.outcome == 'success'", self.step(GENERIC_STEP)
