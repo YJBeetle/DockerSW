@@ -1,0 +1,70 @@
+{
+  "version": "0.1.0a13",
+  "tag": "v0.1.0a13",
+  "commit": "8d6e5d319becc4b8a76691ea6dadbde50290e71c",
+  "status": "awaiting-final-wine-and-owner-approval",
+  "release_created": false,
+  "release_url": null,
+  "published_at": null,
+  "is_prerelease": true,
+  "original_ci": {
+    "run_id": 40997158405,
+    "artifact_id": 12952146065,
+    "zip_sha256": "dc97548517b9928d1d1c76e58fb939f343d342c38fb84ccd9f4069ddf4d4d138"
+  },
+  "assets": [
+    {
+      "name": "swcli-0.1.0a13-py3-none-any.whl",
+      "bytes": 217190,
+      "sha256": "3f0687617de8f50e8e96cc1c1aeb619c1b0fb4e239de8f0d8bbc240f7c6131c5"
+    },
+    {
+      "name": "swcli-0.1.0a13.tar.gz",
+      "bytes": 865011,
+      "sha256": "3d87a8f716b3ebb8646267d33b2ed3d63b924bb58365df0a6033eb326d04c11d"
+    }
+  ],
+  "original_packages_unchanged": true,
+  "public_download_verified": false,
+  "package_audit": {
+    "wheel_source_files": 62,
+    "sdist_source_files": 62,
+    "sdist_test_ci_files": 166,
+    "record_hash_entries": 67,
+    "twine_strict": true,
+    "isolated_install": true,
+    "no_com_imports": true,
+    "request_schemas": 43,
+    "result_schemas": 43,
+    "protocol_schemas": 3,
+    "installed_audit_sha256": "6aebb0ecb358d05bcd6f48aa2527568ad025be330475802190d8da3b5a42b691"
+  },
+  "windows_acceptance": {
+    "run_id": 40997158405,
+    "verified": true,
+    "version": "0.1.0a13",
+    "full_sets": 19,
+    "steps": 20,
+    "public_polygon_cases": 48,
+    "public_through_all_cases": 12,
+    "exports": 15,
+    "visible_smoke": true,
+    "cleanup_errors": [],
+    "artifact_id": 12953127000,
+    "zip_sha256": "7d90d5b789e9091e5948341669e9c6856bc6b05bc7f89b5aba21e1edc6af8227",
+    "polygon_receipt_sha256": "2d0cea9e4416fe38128373f4b1d532f21c2c0eb4b62a430796de228331baa347",
+    "independent_audit_sha256": "3f53bd9a681015197260bba9b118ea216095d42e0eabc9c7b633127c97f000a3"
+  },
+  "wine_acceptance": {
+    "run_id": 41001608607,
+    "docker_commit": "a3a5976fd37d6ca098bc28b915b44d90541c1014",
+    "swcli_commit": "8d6e5d319becc4b8a76691ea6dadbde50290e71c",
+    "expected_version": "0.1.0a13",
+    "verified": false,
+    "conclusion": null,
+    "expected_sha_tag": "sha-a3a5976",
+    "promote_images": false
+  },
+  "docker_promotion_runs": {},
+  "macsw_updated": false
+}
