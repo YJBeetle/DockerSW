@@ -189,3 +189,42 @@ pip check/隔离 CLI 与资源/43请求43结果3协议 Schema 元校验、嵌套
 `6aebb0ecb358d05bcd6f48aa2527568ad025be330475802190d8da3b5a42b691`。
 没有使用本地重打包代替原 CI 包。最终版本 Wine 仍须同一冻结版本的完整运行证明，
 不以 dev0 Wine 回执代替；未创建 tag/release 或晋升正式镜像。
+
+## 最终版本 Wine 与发布审阅
+
+[Wine 41001608607](https://github.com/YJBeetle/DockerSW/actions/runs/41001608607)
+以 Docker `a3a5976fd37d6ca098bc28b915b44d90541c1014` 固定 SWCLI
+`8d6e5d319becc4b8a76691ea6dadbde50290e71c`，精确版本 `0.1.0a13`，整条成功。
+下载原 export artifact `12956743639` 和 language artifact `12956952389`，ZIP SHA256：
+
+- export：`1a23c0d1b51a298241dd546b2f38f606cac85f4ba162cea0d6271dc267baf0eb`。
+- language：`34d17e34e44355aa07338551af78d133260e9ee2fb70963ba1b3c30c961ca38b`。
+
+均与 GitHub digest/head 匹配，归档 `/private/tmp/swcli-wine-ci-41001608607` 及 `-language`。
+独立核验 full/full-plan/completed/success、diagnostic_set=null、19组20步全部成功，
+每组 cleanup=[]/server exit0、启动前停止后原生进程为空；组内 owned 隐藏宿主连续，
+实际 daemon `0.1.0a13`。48公共多边形每例的闭环/单contour/3或6边、参数/后台/current、
+解析体积/表面积/固定平面世界质心、lease/CAS/跨文档和旧句柄拒绝、保存只读重开、
+fresh文档/草图/特征ID、blind定义、健康未截断/rebuild0/clean与48原生文件哈希均通过。
+最大绝对差 `1.8189894035458565e-12`；24次贯穿与48次深度范围拒绝保持，mutation四flag均false。
+save_errors=0/save_warnings=null，open errors/warnings=0；不把未输出warnings伪造为0。
+原through-all12全部成功；15共享导出、6交付导出、1中文STEP共22实体的size/格式结构通过。
+独立visible完成/visible=true/宿主一致/cleanup=[]；实际中文语言守卫输出成功。
+
+实际执行日志环境 `SW_PROMOTE_IMAGES=false`，CLI与中文交付镜像推送清单均为
+`sha-a3a5976`，最后执行 `[CI candidate] Verified SHA images retained; release aliases unchanged.`。
+脚本源码打印行已排除，不以源码文本冒充执行证据；没有晋升现用别名。
+
+多边形回执 SHA256：
+`c15e8ba0d2af593c0e8e756464f4b03f219e3309d7aa73ba2ff953341dfc6bd5`；
+完整运行摘要 SHA256：
+`c1797ed576867c16985fee436a4057d6c5761524d5b2394ab5b3e5d4eed7f0b9`；
+独立 `a13-wine-independent-audit.json` SHA256：
+`38c9338782fc3820bb8fe192e50554431d07886e262c5dc4a67fc374d44809df`；
+`delivery-audit.json` SHA256：
+`c891a64c5818c32e381a6729b989221784970cd6ee16fbb4199883bb6e8909e4`。
+
+最终 Windows、Wine、原 CI 包的证据闭环已完成。发布审阅与来源清单已更新为
+`awaiting-owner-approval`，原 wheel/sdist 不改字节；未创建 tag/release/draft，未推正式
+main/2025，未改现用别名或 MacSW。需用户最后确认后才执行正式发布及镜像更新，
+公开后还需匿名下载核对与正式别名哈希检查。
