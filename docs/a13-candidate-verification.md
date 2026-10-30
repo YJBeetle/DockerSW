@@ -1,7 +1,8 @@
 # SWCLI a13 多边形开发候选验收（2026-10-30）
 
-固定 SWCLI `1ffc7508761845a730f3be494e01edc9328597ef`，版本
-`0.1.0a13.dev0`。本候选已完成 Windows 完整验收，Docker/Wine 尚待对应运行的完整回执。
+最新候选固定 SWCLI `8d6e5d319becc4b8a76691ea6dadbde50290e71c`，版本
+`0.1.0a13`。最终版本 Windows 完整验收已通过，最终版本 Docker/Wine 尚待对应运行的完整回执。
+下文保留 dev0 版本 `1ffc750` 的双宿主证明与首次外层 CI 超时历史。
 此记录不构成 a13 发布，不改变正式 a12 镜像，也不涉及 MacSW 验收。
 
 ## Windows 原 CI 与公共路径
@@ -149,3 +150,42 @@ native-model 组耗时 1599.823 秒（约 27 分钟），仍在每组 1800 秒�
 
 以上完成 dev0 源码候选的 Windows/Wine 双宿主证明。正式 a13 仍须冻结最终版本/提交、
 核验对应原 CI 包与最终版本运行回执，再由用户确认发布；不以 dev0 包冒充最终版。
+
+## 最终版本 Windows 与原 CI 包
+
+冻结提交 `8d6e5d319becc4b8a76691ea6dadbde50290e71c`，精确版本 `0.1.0a13`，
+产品仅变更版本字串，CAD 代码与 dev0 已验收源码一致。
+[Windows 40997158405](https://github.com/YJBeetle/SWCLI/actions/runs/40997158405)
+整条成功；最终版本原生 artifact `12953127000` 的原 ZIP SHA256：
+`7d90d5b789e9091e5948341669e9c6856bc6b05bc7f89b5aba21e1edc6af8227`，与 GitHub digest 匹配。
+
+独立下载检查最终版本 full19/20 步、全部 48 公共多边形、原贯穿12及15真实导出均通过。
+各组清理为空、server exit 0、前后原生进程为空；实际 daemon 版本为 `0.1.0a13`。
+48 例端点闭环、解析体积/面积/世界质心、拒绝边界及 mutation=false、保存只读重开、
+fresh/retired 文档/草图/特征句柄、完整健康诊断/clean/48 原生文件哈希逐项通过。
+最大绝对差 `1.8189894035458565e-12`；独立 visible 检查前后宿主一致且清理为空。
+
+多边形回执 SHA256：
+`2d0cea9e4416fe38128373f4b1d532f21c2c0eb4b62a430796de228331baa347`；
+完整运行摘要 SHA256：
+`7353c2d5ea686561a3c2019ee04a673ae7309837f1c58eef2616b32c1d454c65`；
+独立 `a13-public-independent-audit.json` SHA256：
+`3f53bd9a681015197260bba9b118ea216095d42e0eabc9c7b633127c97f000a3`。
+归档 `/private/tmp/swcli-win-ci-40997158405`。
+
+同一运行的最终版本原始包 artifact `12952146065` 已独立核验：
+
+| 原始产物 | 字节数 | SHA256 |
+| --- | ---: | --- |
+| `swcli-0.1.0a13-py3-none-any.whl` | 217190 | `3f0687617de8f50e8e96cc1c1aeb619c1b0fb4e239de8f0d8bbc240f7c6131c5` |
+| `swcli-0.1.0a13.tar.gz` | 865011 | `3d87a8f716b3ebb8646267d33b2ed3d63b924bb58365df0a6033eb326d04c11d` |
+
+原 ZIP SHA256：`dc97548517b9928d1d1c76e58fb939f343d342c38fb84ccd9f4069ddf4d4d138`，
+与 GitHub digest 一致。62 包文件、sdist 62包/166测试CI及最终 release note 逐字节匹配
+冻结提交；67 RECORD 哈希/大小全部通过。Twine严格/verify-sdist、新 venv 原包安装/
+pip check/隔离 CLI 与资源/43请求43结果3协议 Schema 元校验、嵌套参数拒绝/无 COM 均通过。
+`provenance.json` 在 `/private/tmp/swcli-a13-ci-40997158405-dist` 记录原 run/artifact/head/资产；
+`installed-audit.json` SHA256：
+`6aebb0ecb358d05bcd6f48aa2527568ad025be330475802190d8da3b5a42b691`。
+没有使用本地重打包代替原 CI 包。最终版本 Wine 仍须同一冻结版本的完整运行证明，
+不以 dev0 Wine 回执代替；未创建 tag/release 或晋升正式镜像。
