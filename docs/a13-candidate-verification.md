@@ -65,3 +65,22 @@ artifact `12941382148` 原 ZIP SHA256：
 完整 Wine19/公共多边形48/原贯穿12、六个交付导出、visible/localized 门禁与镜像身份仍须核对。
 没有对应 Wine 证据前不宣称 Wine 已验收，不更新 2025/main/latest 或语言/CLI 现用别名。
 最终版本冻结与原 CI 包/双宿主验收完成后再提交发布确认。MacSW 保持不动。
+
+## 原开发包独立安装与载荷收尾
+
+在 Wine 候选运行期间对上述原始 CI wheel/sdist 完成独立校验，没有重新打包：
+
+- Twine 严格检查通过；wheel 的 67 个 RECORD 带摘要条目全部校验 SHA256 和字节数。
+  sdist 中 62 个包源码/资源及 166 个测试/CI 文件逐字节匹配 `1ffc750`。
+- 全新 `/private/tmp/swcli-a13-original-ci-install` venv 安装原 CI wheel，`pip check`
+  无依赖冲突，`-I` 隔离 CLI、包资源与安装元数据一致；43 个请求、43 个结果、3 个协议
+  Schema 均通过元校验。多边形 CLI 保留 document/lease/CAS，并拒绝四类非法嵌套顶点请求。
+- 检查期间主动阻止 pythoncom/win32com/pywintypes 导入，客户端未请求加载原生 COM。
+  此处证明客户端安装/包契约，原生建模证明仍见 Windows 完整回执与待完成的 Wine 门禁。
+
+`installed-audit.json` SHA256：
+`1367a050cf7d5fee870465ed6f848426564bc755b14ab06850c0fbcfdec717b7`；
+`payload-audit.json` SHA256：
+`0c85b26f340e4c47fec75305a992f4db61ca86560e846c4e6d95bff734e819b2`。
+两份记录保存于原 CI 开发包归档目录，原始 wheel/sdist 摘要保持不变。
+正在验收的 Docker 运行仍固定候选 `d0d0676`，不因这项文档收尾替换提交或重复触发。
