@@ -56,4 +56,16 @@
 | full 回执 | `46ba4e2ba08bd567878ff553135e773bb21ff2bb5954f8c1e6eb4c14ccf70f9a` |
 | polygon 回执 | `576af093a7b76673c2918660a4c2e0668879ac8976cb571037cd7ae9c4931782` |
 
-最终 Wine 完整验收待完成。手动构建使用 `promote_images=false`、`force_rebuild=false`、`languages=zh-cn`，正式发布须用户最终确认。
+[最终 Wine 完整门禁 41891585806](https://github.com/YJBeetle/DockerSW/actions/runs/41891585806) 成功。运行的 DockerSW 提交为 `6aff19651d31ae7ac2aa4d24c9f1525b528c5560`，固定同一 SWCLI 最终提交。原始回执确认 19 组 20 步、48 个多边形、四次深度写入与四次同深度调用、12 个贯穿切除、96 个完整端点环、96 次旧句柄拒绝。复核通过选择释放、解析几何、保存重开深度和方向、文件哈希、进程清理及 visible。22 个真实导出包括 15 个共享导出、6 个交付导出和 1 个中文 STEP。
+
+实际日志确认中文 UI、`SW_PROMOTE_IMAGES=false` 和 `sha-6aff196` 镜像摘要，并记录候选保留、未晋升发布别名。
+
+| 最终 Wine 证据 | SHA-256 |
+| --- | --- |
+| 导出及原生回执 ZIP，artifact 13359343244 | `afc7b6180c89c6805dd65f6e1974f05121a2262f6ea8d4e95526fec210265911` |
+| 中文冒烟 ZIP，artifact 13359862003 | `33eeee0af4b1ce339a14ec82d7839e1e64a36eda815d6c1eb5840365534b24df` |
+| full 回执 | `a73dd7a8844b66f957213c4e8b8a2818010036ab0bdd67a5f45134483b1ecb30` |
+| polygon 回执 | `8525454bec46695ec46114b38c77eb81ed4860bd8ce6473afd3856a61d47ca97` |
+| 构建日志 | `eb9e77c9179b5a3ad3e3bab07238a26f03fa6dabfdd2cfe799ad5627a52958e7` |
+
+最终双宿主及原始安装包已验收，正式发布待用户确认。发布来源与候选镜像摘要见 [a14-release-provenance.json](a14-release-provenance.json)。
