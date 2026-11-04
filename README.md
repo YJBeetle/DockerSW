@@ -136,7 +136,7 @@ sw-install \
 
 官方构建流水线从私有 Google Drive 的 `Share/Software/solidworks-fonts` 读取
 SOLIDWORKS 模板和资源使用的宋体、Segoe UI，再从
-`Share/Software/solidworks-custom-fonts` 读取公司设计使用的等线 Light、微软雅黑。
+`Share/Software/solidworks-custom-fonts` 读取公司设计使用的等线（常规、粗体、细体）、微软雅黑、OCR A 和 SWTxt。
 两组字体都进入 `sw-preinstalled`，由所有语言层和后续镜像继承；字体文件不进入
 公开 Git 仓库。`solidworks-custom-fonts` 保持为 SOLIDWORKS 安装和基础字体之后的
 独立字体层。
