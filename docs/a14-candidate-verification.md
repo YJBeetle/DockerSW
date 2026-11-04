@@ -26,4 +26,15 @@
 
 ## Wine 候选门禁
 
-同一提交等待 DockerSW 完整 Wine 门禁。候选分支使用 `promote_images=false`、`force_rebuild=false`、`languages=zh-cn` 手动触发，仅产出按提交 SHA 标识的镜像。正式发布另行确认。
+[Wine 完整门禁 41858683707](https://github.com/YJBeetle/DockerSW/actions/runs/41858683707) 通过。验收提交为 DockerSW `0bff69cedc813ead9d1cb95070b6bec4209e70e1`，其中 SWCLI 固定为本页开头的开发版提交。
+
+从原始 ZIP 复核 19 组 20 步、48 个多边形、四次深度写入和四次同深度调用、12 个贯穿切除。四个改深度样件的保存重开定义、方向、几何、文件哈希均匹配，组内宿主身份、进程清理和 visible 冒烟通过。实际验证 15 个共享导出、6 个交付导出和 1 个中文 STEP。运行日志确认中文 UI 验证、`SW_PROMOTE_IMAGES=false` 和按 SHA 保留候选镜像，未晋升正式别名。
+
+| 原始证据 | SHA-256 |
+| --- | --- |
+| 导出及原生回执 ZIP，artifact 13343973644 | `03e8ac7cdefb8da84958dfe7ae668175e4e0a59a346b8403f35b1474300eaece` |
+| 中文冒烟 ZIP，artifact 13345171370 | `b9cc682145a2114b93236657ea2833b226380ef99081d3e7be812435e72eefa9` |
+| 完整矩阵回执 | `5fe2f0b2d218f086e89b8a5f4e2d50e6c3e4ef7b6653bba0a1aa4b70c88d9738` |
+| 多边形回执 | `7f683621ddeadc8c5a70b15accdc0d2eeb64030d575280c58b76264683f2c50c` |
+
+正式版本 `0.1.0a14` 须重新验收精确版本的双宿主和原始 Windows CI 安装包，发布另行确认。
