@@ -38,3 +38,30 @@ The complete local logic chain passed: 114 runtime tests, 33 adapter tests and
 1598 SWCLI tests (21 platform skips on macOS). No VM was used. CI and native
 Wine acceptance remain separate results, not inferred from these unit tests.
 Original failed-job log SHA-256: `bbc308e5db907dc105ba5c1111da5c83e32dcbb82b3b21dae4b3825cf10faa12`.
+
+## Wine descendant pipe EOF startup fix
+
+[Push run 42116004763](https://github.com/YJBeetle/DockerSW/actions/runs/42116004763)
+passed runtime unit checks but failed the shared native step. The owned hidden
+SW was healthy and already processing CAD work when, at 300+30 seconds, the
+entrypoint received HostLauncherTimeout. Its exit interrupted docker exec (137).
+The exit code does not prove OOM or a Wine native API failure.
+
+SWCLI 3eba5c4 changes daemon utils capture to private temporary files, waiting
+only for the utility process rather than EOF from resident Wine descendants.
+The timeout, host ownership, unknown-outcome guard and no-retry policy remain.
+1600 source unit tests passed (21 platform skips). A separate workspaceroot
+Wine 11.16 / Windows Python 3.11.9 probe reproduced the difference: PIPE returned
+at 4.060 s although the leader exited at 0.816 s; file stdio returned at 0.616 s
+with the background child still alive. No SW was used in that probe.
+
+Original failed build log SHA-256:
+`323ecc83184662e139a1c5ecec4a37a36d668654d036a50e4a6b1b43536763b8`.
+Original artifact 13458160476 SHA-256:
+`644e5fbd235cfe57125946c2edcba7556d69df6810a2b1e33afe1021ddc59053`.
+SSH Wine probe result SHA-256:
+`eccc915099d1f980764fde8ec8a97ad305d58ec100b9f0b53a9800f2bdb8e21d`.
+
+The new push retains complete build/Wine validation and promotion policy.
+Its native outcome and independent MCP runtime acceptance are separate evidence;
+the probe and portable tests do not stand in for a completed CAD matrix.
