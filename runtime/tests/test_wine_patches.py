@@ -126,7 +126,7 @@ int main(void) {
 
         self.assertIn("previous != hwnd || !compat_no_capture_resend", patch)
         self.assertIn("WINE_NOCAPTURERESEND", patch)
-        self.assertIn('"sldworks.exe"="WINE_NOCAPTURERESEND"', registry)
+        self.assertIn('"sldworks.exe"="WINE_NOCAPTURERESEND WINE_PRINTWINDOW_SURFACE"', registry)
 
     def test_solidworks_document_caption_buttons_use_one_theme(self) -> None:
         registry = (RUNTIME_ROOT / "registry" / "headless_tweaks.reg").read_text(
