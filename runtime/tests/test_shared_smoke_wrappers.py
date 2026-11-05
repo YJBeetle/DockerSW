@@ -117,6 +117,22 @@ class SharedSmokeWrapperTests(unittest.TestCase):
         self.assertEqual(output.stat().st_mode & 0o777, 0o755)
         self.assertIn("native diagnostic stderr", result.stderr)
 
+    def test_property_failure_stops_before_full_sets_and_preserves_host_paths(self):
+        fixtures = self.directory / "property fixtures"
+        fixtures.mkdir()
+        output = self.evidence / "runtime-sets"
+        result = self.run_wrapper(
+            "verify-swcli.sh", str(self.workspace), str(output),
+            SWCLI_PROPERTY_FIXTURES=str(fixtures), EXIT_CODE="23",
+        )
+        self.assertEqual(result.returncode, 23, result.stderr)
+        self.assertEqual(self.call()["args"][0], "/opt/swcli/scripts/ci/verify-properties.py")
+        self.assertEqual(self.value("--fixture-dir"), str(fixtures))
+        self.assertEqual(self.value("--host-fixture-dir"),
+                         "C:\\mapped" + str(fixtures).replace("/", "\\"))
+        self.assertIn("--save-copy", self.call()["args"])
+        self.assertIn("native diagnostic stderr", result.stderr)
+
     def test_suite_is_forwarded_without_weakening_default_promotion(self):
         for suite in ("core", "full"):
             for script, args in (("verify-swcli.sh", (str(self.workspace),)),

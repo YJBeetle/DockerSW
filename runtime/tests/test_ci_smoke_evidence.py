@@ -352,6 +352,7 @@ class SmokeEvidenceTests(unittest.TestCase):
         self.assertIn("sleep infinity", main)
         self.assertIn("--env 'WINEDEBUG=-all,+seh,+loaddll'", main)
         self.assertIn("--env SWCLID_VISIBLE=false", main)
+        self.assertIn("--env SWCLI_PROPERTY_FIXTURES=/ci-smoke/properties-input", main)
         self.assertNotIn("--env SWCLID_VISIBLE=true", main)
         self.assertIn("--env SWCLID_RUNTIME_LOG_DIR=" + NATIVE_STDERR_DIR, main)
         self.assertIn("--env SW_SMOKE_EVIDENCE_DIR=/ci-smoke", main)

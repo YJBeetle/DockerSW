@@ -799,6 +799,7 @@ jobs:
             --env SW_SMOKE_EVIDENCE_DIR=/ci-smoke \
             --env 'SW_SMOKE_OUTDIR=/ci-smoke/output/中文 路径' \
             --env SWCLID_VISIBLE=false \
+            --env SWCLI_PROPERTY_FIXTURES=/ci-smoke/properties-input \
             --env "SWCLI_RUNTIME_SUITE=${SWCLI_RUNTIME_SUITE:-full}" \
             --env SWCLID_RUNTIME_LOG_DIR=/ci-smoke/native-runtime-stderr \
             --env 'WINEDEBUG=-all,+seh,+loaddll' \
@@ -919,7 +920,7 @@ jobs:
           set -Eeuo pipefail
           smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
-          docker exec --env SWCLI_PROPERTY_FIXTURES=/ci-smoke/properties-input "${smoke_container}" \
+          docker exec "${smoke_container}" \
             bash /opt/dockersw-smoke/verify-swcli.sh /root/.wine/drive_c /ci-smoke/runtime-sets 2>&1 \
             | tee "${smoke_root}/sw-cli-runtime-sets.log"
 

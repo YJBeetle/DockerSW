@@ -37,3 +37,16 @@ GitHub token 和 Actions 只读权限。样件为临时测试输入，随证据�
 
 候选手动构建使用 `promote_images=false`、`force_rebuild=false`、
 `languages=zh-cn`。正式发布待最终版本验收及用户确认。
+
+## 首次候选 CI 接线失败
+
+[42001380892](https://github.com/YJBeetle/DockerSW/actions/runs/42001380892)
+在逻辑测试阶段失败，镜像构建和原生 CAD 步骤未执行。
+首个失败为 `test_each_phase_preserves_its_failure_code_and_log_after_collection`，
+另一个失败为 `test_successful_phases_share_container_without_daemon_restart`。
+新增的 `docker exec --env` 参数改变了证据测试识别命令的位置，测试模拟器因而未识别
+共享验收命令。
+
+将属性样件环境变量移至已有的常驻容器创建参数，与其他验收环境变量一同传入。
+恢复共享步骤原有的 exec 命令形式，并在证据测试中检查该容器环境变量。
+相关 37 项检查通过。额外覆盖属性验证失败时传播错误码、保留诊断并停止完整矩阵。
