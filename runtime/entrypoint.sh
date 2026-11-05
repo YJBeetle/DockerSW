@@ -15,7 +15,7 @@ VNC_PASSWORD="${VNC_PASSWORD:-}"
 export SW_FLEXNET_DIR="${SW_FLEXNET_DIR:-/opt/SolidWorks_Flexnet_Server}"
 export SW_LICENSE_SERVER="${SW_LICENSE_SERVER:-}"
 
-export WINEDLLOVERRIDES="concrt140=n,b;msvcp140=n,b;msvcp140_1=n,b;msvcp140_2=n,b;msvcp140_atomic_wait=n,b;msvcp140_codecvt_ids=n,b;vcruntime140=n,b;vcruntime140_1=n,b;vcomp140=n,b;mfc140u=n,b;d3dcompiler_47=n,b;d3d11=n,b;dxgi=n,b"
+export WINEDLLOVERRIDES="winemenubuilder.exe=d;concrt140=n,b;msvcp140=n,b;msvcp140_1=n,b;msvcp140_2=n,b;msvcp140_atomic_wait=n,b;msvcp140_codecvt_ids=n,b;vcruntime140=n,b;vcruntime140_1=n,b;vcomp140=n,b;mfc140u=n,b;d3dcompiler_47=n,b;d3d11=n,b;dxgi=n,b"
 
 is_enabled() {
     case "${1,,}" in
