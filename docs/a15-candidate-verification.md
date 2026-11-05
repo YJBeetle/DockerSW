@@ -6,9 +6,10 @@
 [41987588899](https://github.com/YJBeetle/DockerSW/actions/runs/41987588899)
 已成功。候选开发版完整 Wine 验收也已通过并独立复核。
 
-固定 SWCLI `f8155e12b7b9e1aada2a53bdff3a1e498f9cfff0`，
-版本 `0.1.0a15.dev0`。相对 Windows 已验收提交只修改测试路径映射、可选
-Wine 另存验证和验收记录，产品代码与原生读取适配层相同。
+当前固定最终 SWCLI `86b6b38e6cc78810463130c2e141bb22da9ed621`，
+版本 `0.1.0a15`，与下文最终 Windows 已验收提交一致。
+早期开发版为 `f8155e12b7b9e1aada2a53bdff3a1e498f9cfff0`（`0.1.0a15.dev0`），
+其证据独立保留。
 
 ## Windows 公共验收
 
@@ -83,3 +84,40 @@ GitHub token 和 Actions 只读权限。样件为临时测试输入，随证据�
 Windows 原 CI wheel/sdist 另已通过 Twine strict、sdist 检查、全新隔离环境安装、
 `verify-installed.py`（不激活 COM）和 `pip check`。开发版证据齐全，接下来冻结精确
 `0.1.0a15` 并进行最终 Windows/Wine 及最终原 CI 包验收；尚未发布或晋升镜像。
+
+## 精确最终版 Windows 与原 CI 包
+
+[42022223755](https://github.com/YJBeetle/SWCLI/actions/runs/42022223755)
+在 `86b6b38e6cc78810463130c2e141bb22da9ed621`、精确 `0.1.0a15` 完成。
+独立核验确认公共 CLI 的 2 类样件、16 次读取、2 次 CAS 拒绝、配置 shadow 隔离、
+空值/缺失名、跨会话租约下后台读取及描述符不变、只读重开新句柄和输入哈希。
+私有校准 report/trace 单独核验，`full_acceptance_eligible=false`，不代替公共门禁。
+现有 full19/20、polygon48、4 次深度写入/4 次同深度、12 贯穿、15 导出和 visible
+全部通过，原生组内同宿主、清理无错误、server exit 0、前后进程边界为空。
+
+| 最终原始证据 | SHA-256 |
+| --- | --- |
+| 原生 ZIP，artifact 13415297444 | `381d8d7fd8c47ded640c05c11ac1b89a9a9d1ee37f01d30370cc70ca00d0194e` |
+| 公共属性回执 | `01986a79662db51861cb5ace4575473698420633fd598f1ffcd5ead697f9058b` |
+| 校准 report | `1c3a3047a421d23f14f25b3b79bdec433fa6da4fd6799c68c9408f2f8d7b2f4e` |
+| 校准 trace | `3ee2333658a64335b4c5ce6cce7abfae83bc81867b0460cad5c4cb5a48a500bd` |
+| full 摘要 | `804232b93e2b988b08bbc62199c16a860809f5426712ea152709d1705d080b7e` |
+| polygon 回执 | `3853e365388cb8fc2fc139b0753df0b74c92284d690ed3d1408f4525b3a2f16b` |
+| 原始包 ZIP，artifact 13412022527 | `fd04e3a3a277d90d46bd45fd8a6200947005a127618ab4d47b92ca241c737efa` |
+| 原 wheel，222274 字节 | `15a6ef0641ca4fedf959c8b03be57adb1cc28522162cea3190f7b3ee92e5089a` |
+| 原 sdist，889837 字节 | `b3a2f0331af2767ecf2dde3eb90c3996de597bd87dfabc49868d4d4cb0096030` |
+
+原包精确版本、64 个包文件、70 行 RECORD、234 个 sdist 源码/测试/CI 文件和最终版
+发布说明逐字节匹配测试提交。Twine strict、verify-sdist、全新环境原 wheel 安装、
+隔离 verify-installed/CLI schemas/随包官方 API 指南、pip check 均通过。
+
+本候选现固定该最终 SWCLI，属性输入改为本次 Windows 原生 artifact 中的文件：
+SLDPRT `1f27aacf27f922eff980df7bd9904c12beb47f6d8e5f0a5469a1a656e812b861`，
+SLDASM `ecd73b1f37afadbdd4eecee5457ab1ec9286b84edb2e1167a8853083005a3e03`。
+开发版证据不替代此最终候选的 Wine 验收，最终 Wine 尚待完成。
+手动候选继续 `promote_images=false`、`force_rebuild=false`、`languages=zh-cn`；
+当前未发布，正式分支/现用 aliases 保持，发布仍须最终确认。
+
+候选固定更新后，40 项相关接线/候选策略/证据测试通过；YAML 解析、30 个 Bash
+步骤语法和 diff 检查通过。执行工作流原始 fixture 提取 Python 块，使用本次原生 ZIP
+验证两种实际输入均与最终 Windows 文件逐字节一致。
