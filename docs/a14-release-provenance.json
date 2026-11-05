@@ -1,0 +1,392 @@
+{
+  "status": "published",
+  "release_created": true,
+  "public_download_verified": true,
+  "version": "0.1.0a14",
+  "proposed_tag": "v0.1.0a14",
+  "source_commit": "0d966ec067f94560737bdb383fef5db314dcb54b",
+  "required_merged_ancestor": "16075bd5c68f8f2898310a8b5763c6eb85972b87",
+  "original_package": {
+    "run_id": 41877115880,
+    "head": "0d966ec067f94560737bdb383fef5db314dcb54b",
+    "artifact_id": 13347202298,
+    "version": "0.1.0a14",
+    "wheel_source_files": 63,
+    "record_rows": 69,
+    "sdist_checked": 230,
+    "assets": {
+      "swcli-0.1.0a14.tar.gz": {
+        "size": 878777,
+        "sha256": "b6db70c1c857f893a5d5640455e5471711c6bcabaa3081f3c58944a7bd6cd97d"
+      },
+      "swcli-0.1.0a14-py3-none-any.whl": {
+        "size": 220008,
+        "sha256": "04b215ef680c68ac4065b0cc55d7588791d8ff688a005c40b1adb332a491107e"
+      }
+    },
+    "archive_sha256": "729493e7dd2b12b91f090f21905c94c860eb59fa13135fd3c773d67b2934f7bc"
+  },
+  "windows": {
+    "run_id": 41877115880,
+    "native_artifact_id": 13352561867,
+    "archive_sha256": "ead33143a52261343af4d23711769a0ca71a24f31ecb93ae4965fb4f9e42d484",
+    "audit": {
+      "groups": 19,
+      "steps": 20,
+      "polygon": 48,
+      "writes": 4,
+      "equal": 4,
+      "through_all": 12,
+      "visible": true,
+      "exports": {
+        "STEP": 3,
+        "STL": 2,
+        "3MF": 2,
+        "AMF": 2,
+        "GLB": 2,
+        "PDF": 2,
+        "DWG": 2
+      },
+      "full_sha256": "46ba4e2ba08bd567878ff553135e773bb21ff2bb5954f8c1e6eb4c14ccf70f9a",
+      "polygon_sha256": "576af093a7b76673c2918660a4c2e0668879ac8976cb571037cd7ae9c4931782"
+    }
+  },
+  "wine": {
+    "run_id": 41891585806,
+    "docker_commit": "6aff19651d31ae7ac2aa4d24c9f1525b528c5560",
+    "promote_images": false,
+    "export_artifact_id": 13359343244,
+    "export_archive_sha256": "afc7b6180c89c6805dd65f6e1974f05121a2262f6ea8d4e95526fec210265911",
+    "language_artifact_id": 13359862003,
+    "language_archive_sha256": "33eeee0af4b1ce339a14ec82d7839e1e64a36eda815d6c1eb5840365534b24df",
+    "audit": {
+      "groups": 19,
+      "steps": 20,
+      "polygon": 48,
+      "writes": 4,
+      "equal": 4,
+      "through_all": 12,
+      "visible": true,
+      "exports": {
+        "STEP": 3,
+        "STL": 2,
+        "3MF": 2,
+        "AMF": 2,
+        "GLB": 2,
+        "PDF": 2,
+        "DWG": 2
+      },
+      "full_sha256": "a73dd7a8844b66f957213c4e8b8a2818010036ab0bdd67a5f45134483b1ecb30",
+      "polygon_sha256": "8525454bec46695ec46114b38c77eb81ed4860bd8ce6473afd3856a61d47ca97"
+    },
+    "delivery_evidence": {
+      "delivery": {
+        "PDF": 2,
+        "STEP": 2,
+        "DWG": 2
+      },
+      "localized_step_sha256": "dfb12b7d58e5fc444d38207a7f6c134a24059e68d2a7cacf8aebda1a73825dd4",
+      "log_sha256": "eb9e77c9179b5a3ad3e3bab07238a26f03fa6dabfdd2cfe799ad5627a52958e7",
+      "images": {
+        "ghcr.io/yjbeetle/sw-preinstalled:sha-6aff196": "sha256:0d766c3cf673978f30f6b1eb45f223bcdef78d156f085bd6edc024271660a944",
+        "ghcr.io/yjbeetle/sw-preinstalled:sha-6aff196-cli": "sha256:15b529da8bf6da44cec3e56f9f7c039524dfcff9aff615512df660d9f05dc004",
+        "ghcr.io/yjbeetle/sw-preinstalled:sha-6aff196-zh-cn": "sha256:f9c7fca17109d1afb794a4316e889bb87c7bb6ce3c3a6735a1fa1a35ddaabc44",
+        "ghcr.io/yjbeetle/sw-preinstalled:sha-6aff196-zh-cn-cli": "sha256:1a28908a542fc207d37061e1d052184c6289d8f59d2e4801f84e190c4a45b2b5",
+        "ghcr.io/yjbeetle/sw-executable:sha-6aff196": "sha256:45faf1addaf755496dd83c34c9c32b366f57f76a20facb8b9ad445d715f513cf",
+        "ghcr.io/yjbeetle/sw-executable:sha-6aff196-cli": "sha256:ab1035085d4f6413fea348dab5bb1880a3b4f78ac37b1ad74362bab5d73782ab",
+        "ghcr.io/yjbeetle/sw-executable:sha-6aff196-zh-cn": "sha256:cdc24a6c212dc6777d738f0920d0181cc7e8f79017e30a00c0d09f49cd008c81",
+        "ghcr.io/yjbeetle/sw-executable:sha-6aff196-zh-cn-cli": "sha256:12a460a1200275574cb91fae26f7dc648e4f7af6af84a72a925780f67e0e6e8e"
+      }
+    }
+  },
+  "docker_promotion": {
+    "alias_matches": 30,
+    "alias_mismatches": 0,
+    "main": {
+      "run_id": 41906410883,
+      "head": "6aff19651d31ae7ac2aa4d24c9f1525b528c5560",
+      "event": "push",
+      "branch": "main",
+      "fast_path_verified": true,
+      "log_sha256": "85ce50b1b7b8e6e5c28480dee77dbadedd082a8a9a7e08f9396c9d6cb31aee3d",
+      "aliases": {
+        "matches": 20,
+        "mismatches": 0,
+        "entries": [
+          {
+            "repository": "ghcr.io/yjbeetle/sw-runtime",
+            "candidate": "sha-6aff196",
+            "tag": "main",
+            "expected": "sha256:6cb9e520146b9186d21c2910cad61a1895dabb8cc09e0a2bc58e2742d04429a7",
+            "actual": "sha256:6cb9e520146b9186d21c2910cad61a1895dabb8cc09e0a2bc58e2742d04429a7"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-runtime",
+            "candidate": "sha-6aff196",
+            "tag": "latest",
+            "expected": "sha256:6cb9e520146b9186d21c2910cad61a1895dabb8cc09e0a2bc58e2742d04429a7",
+            "actual": "sha256:6cb9e520146b9186d21c2910cad61a1895dabb8cc09e0a2bc58e2742d04429a7"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-runtime",
+            "candidate": "sha-6aff196-cli",
+            "tag": "main-cli",
+            "expected": "sha256:ade918f4ae7dbb055b89e3b20eebcce8c60d0e88e029ea9848e512b6708d28ad",
+            "actual": "sha256:ade918f4ae7dbb055b89e3b20eebcce8c60d0e88e029ea9848e512b6708d28ad"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-runtime",
+            "candidate": "sha-6aff196-cli",
+            "tag": "latest-cli",
+            "expected": "sha256:ade918f4ae7dbb055b89e3b20eebcce8c60d0e88e029ea9848e512b6708d28ad",
+            "actual": "sha256:ade918f4ae7dbb055b89e3b20eebcce8c60d0e88e029ea9848e512b6708d28ad"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-preinstalled",
+            "candidate": "sha-6aff196",
+            "tag": "main",
+            "expected": "sha256:0d766c3cf673978f30f6b1eb45f223bcdef78d156f085bd6edc024271660a944",
+            "actual": "sha256:0d766c3cf673978f30f6b1eb45f223bcdef78d156f085bd6edc024271660a944"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-preinstalled",
+            "candidate": "sha-6aff196",
+            "tag": "latest",
+            "expected": "sha256:0d766c3cf673978f30f6b1eb45f223bcdef78d156f085bd6edc024271660a944",
+            "actual": "sha256:0d766c3cf673978f30f6b1eb45f223bcdef78d156f085bd6edc024271660a944"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-preinstalled",
+            "candidate": "sha-6aff196-cli",
+            "tag": "main-cli",
+            "expected": "sha256:15b529da8bf6da44cec3e56f9f7c039524dfcff9aff615512df660d9f05dc004",
+            "actual": "sha256:15b529da8bf6da44cec3e56f9f7c039524dfcff9aff615512df660d9f05dc004"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-preinstalled",
+            "candidate": "sha-6aff196-cli",
+            "tag": "latest-cli",
+            "expected": "sha256:15b529da8bf6da44cec3e56f9f7c039524dfcff9aff615512df660d9f05dc004",
+            "actual": "sha256:15b529da8bf6da44cec3e56f9f7c039524dfcff9aff615512df660d9f05dc004"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-preinstalled",
+            "candidate": "sha-6aff196-zh-cn",
+            "tag": "main-zh-cn",
+            "expected": "sha256:f9c7fca17109d1afb794a4316e889bb87c7bb6ce3c3a6735a1fa1a35ddaabc44",
+            "actual": "sha256:f9c7fca17109d1afb794a4316e889bb87c7bb6ce3c3a6735a1fa1a35ddaabc44"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-preinstalled",
+            "candidate": "sha-6aff196-zh-cn",
+            "tag": "latest-zh-cn",
+            "expected": "sha256:f9c7fca17109d1afb794a4316e889bb87c7bb6ce3c3a6735a1fa1a35ddaabc44",
+            "actual": "sha256:f9c7fca17109d1afb794a4316e889bb87c7bb6ce3c3a6735a1fa1a35ddaabc44"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-preinstalled",
+            "candidate": "sha-6aff196-zh-cn-cli",
+            "tag": "main-zh-cn-cli",
+            "expected": "sha256:1a28908a542fc207d37061e1d052184c6289d8f59d2e4801f84e190c4a45b2b5",
+            "actual": "sha256:1a28908a542fc207d37061e1d052184c6289d8f59d2e4801f84e190c4a45b2b5"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-preinstalled",
+            "candidate": "sha-6aff196-zh-cn-cli",
+            "tag": "latest-zh-cn-cli",
+            "expected": "sha256:1a28908a542fc207d37061e1d052184c6289d8f59d2e4801f84e190c4a45b2b5",
+            "actual": "sha256:1a28908a542fc207d37061e1d052184c6289d8f59d2e4801f84e190c4a45b2b5"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-executable",
+            "candidate": "sha-6aff196",
+            "tag": "main",
+            "expected": "sha256:45faf1addaf755496dd83c34c9c32b366f57f76a20facb8b9ad445d715f513cf",
+            "actual": "sha256:45faf1addaf755496dd83c34c9c32b366f57f76a20facb8b9ad445d715f513cf"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-executable",
+            "candidate": "sha-6aff196",
+            "tag": "latest",
+            "expected": "sha256:45faf1addaf755496dd83c34c9c32b366f57f76a20facb8b9ad445d715f513cf",
+            "actual": "sha256:45faf1addaf755496dd83c34c9c32b366f57f76a20facb8b9ad445d715f513cf"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-executable",
+            "candidate": "sha-6aff196-cli",
+            "tag": "main-cli",
+            "expected": "sha256:ab1035085d4f6413fea348dab5bb1880a3b4f78ac37b1ad74362bab5d73782ab",
+            "actual": "sha256:ab1035085d4f6413fea348dab5bb1880a3b4f78ac37b1ad74362bab5d73782ab"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-executable",
+            "candidate": "sha-6aff196-cli",
+            "tag": "latest-cli",
+            "expected": "sha256:ab1035085d4f6413fea348dab5bb1880a3b4f78ac37b1ad74362bab5d73782ab",
+            "actual": "sha256:ab1035085d4f6413fea348dab5bb1880a3b4f78ac37b1ad74362bab5d73782ab"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-executable",
+            "candidate": "sha-6aff196-zh-cn",
+            "tag": "main-zh-cn",
+            "expected": "sha256:cdc24a6c212dc6777d738f0920d0181cc7e8f79017e30a00c0d09f49cd008c81",
+            "actual": "sha256:cdc24a6c212dc6777d738f0920d0181cc7e8f79017e30a00c0d09f49cd008c81"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-executable",
+            "candidate": "sha-6aff196-zh-cn",
+            "tag": "latest-zh-cn",
+            "expected": "sha256:cdc24a6c212dc6777d738f0920d0181cc7e8f79017e30a00c0d09f49cd008c81",
+            "actual": "sha256:cdc24a6c212dc6777d738f0920d0181cc7e8f79017e30a00c0d09f49cd008c81"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-executable",
+            "candidate": "sha-6aff196-zh-cn-cli",
+            "tag": "main-zh-cn-cli",
+            "expected": "sha256:12a460a1200275574cb91fae26f7dc648e4f7af6af84a72a925780f67e0e6e8e",
+            "actual": "sha256:12a460a1200275574cb91fae26f7dc648e4f7af6af84a72a925780f67e0e6e8e"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-executable",
+            "candidate": "sha-6aff196-zh-cn-cli",
+            "tag": "latest-zh-cn-cli",
+            "expected": "sha256:12a460a1200275574cb91fae26f7dc648e4f7af6af84a72a925780f67e0e6e8e",
+            "actual": "sha256:12a460a1200275574cb91fae26f7dc648e4f7af6af84a72a925780f67e0e6e8e"
+          }
+        ]
+      }
+    },
+    "2025": {
+      "run_id": 41941600066,
+      "head": "24663ff24339abafc78aec78ba7d36aebc07708b",
+      "event": "push",
+      "branch": "2025",
+      "fast_path_verified": true,
+      "log_sha256": "a88ca93617db0b86ae2d7b8a1fb35d51cddef03cd09e45411c305486abb4f1a5",
+      "aliases": {
+        "matches": 10,
+        "mismatches": 0,
+        "entries": [
+          {
+            "repository": "ghcr.io/yjbeetle/sw-runtime",
+            "candidate": "sha-24663ff",
+            "tag": "2025",
+            "expected": "sha256:6cb9e520146b9186d21c2910cad61a1895dabb8cc09e0a2bc58e2742d04429a7",
+            "actual": "sha256:6cb9e520146b9186d21c2910cad61a1895dabb8cc09e0a2bc58e2742d04429a7"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-runtime",
+            "candidate": "sha-24663ff-cli",
+            "tag": "2025-cli",
+            "expected": "sha256:ade918f4ae7dbb055b89e3b20eebcce8c60d0e88e029ea9848e512b6708d28ad",
+            "actual": "sha256:ade918f4ae7dbb055b89e3b20eebcce8c60d0e88e029ea9848e512b6708d28ad"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-preinstalled",
+            "candidate": "sha-24663ff",
+            "tag": "2025",
+            "expected": "sha256:7a743595f6169b1825475b8e49565493c4859e83724fede14ca384c4fc3ffb80",
+            "actual": "sha256:7a743595f6169b1825475b8e49565493c4859e83724fede14ca384c4fc3ffb80"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-preinstalled",
+            "candidate": "sha-24663ff-cli",
+            "tag": "2025-cli",
+            "expected": "sha256:36e1372f0137b5862d8af62ef779286e33d21529959d965ef360841c0165f50c",
+            "actual": "sha256:36e1372f0137b5862d8af62ef779286e33d21529959d965ef360841c0165f50c"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-preinstalled",
+            "candidate": "sha-24663ff-zh-cn",
+            "tag": "2025-zh-cn",
+            "expected": "sha256:bf4587fcbdfb4e8f45a3757034ffe007888ec6486564a30b8a568945302c7698",
+            "actual": "sha256:bf4587fcbdfb4e8f45a3757034ffe007888ec6486564a30b8a568945302c7698"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-preinstalled",
+            "candidate": "sha-24663ff-zh-cn-cli",
+            "tag": "2025-zh-cn-cli",
+            "expected": "sha256:0e2d74a36c4bb1f9ac3945eb001957869bdeff44ec4e39feedf09df7f1ef61bb",
+            "actual": "sha256:0e2d74a36c4bb1f9ac3945eb001957869bdeff44ec4e39feedf09df7f1ef61bb"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-executable",
+            "candidate": "sha-24663ff",
+            "tag": "2025",
+            "expected": "sha256:c9669a6d44958e5f6cbb8abf98728b1fe7395f58ac3eec0d65433c745206e75c",
+            "actual": "sha256:c9669a6d44958e5f6cbb8abf98728b1fe7395f58ac3eec0d65433c745206e75c"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-executable",
+            "candidate": "sha-24663ff-cli",
+            "tag": "2025-cli",
+            "expected": "sha256:fb7a9c3f02250d03dd7fc3cbcfa0311af514124e8b307c1e15281d753cdc6177",
+            "actual": "sha256:fb7a9c3f02250d03dd7fc3cbcfa0311af514124e8b307c1e15281d753cdc6177"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-executable",
+            "candidate": "sha-24663ff-zh-cn",
+            "tag": "2025-zh-cn",
+            "expected": "sha256:5e0164eaf6f4d6f8e93cc3709dd6d155b33f8a07362472bb2b82cbce124d6cfd",
+            "actual": "sha256:5e0164eaf6f4d6f8e93cc3709dd6d155b33f8a07362472bb2b82cbce124d6cfd"
+          },
+          {
+            "repository": "ghcr.io/yjbeetle/sw-executable",
+            "candidate": "sha-24663ff-zh-cn-cli",
+            "tag": "2025-zh-cn-cli",
+            "expected": "sha256:93d78bd12cc481c64cec8ce8702c899799a6c9ee35378a310356c6d3bc51716b",
+            "actual": "sha256:93d78bd12cc481c64cec8ce8702c899799a6c9ee35378a310356c6d3bc51716b"
+          }
+        ]
+      }
+    }
+  },
+  "wine_2025": {
+    "run_id": 41906433810,
+    "docker_commit": "24663ff24339abafc78aec78ba7d36aebc07708b",
+    "promote_images": false,
+    "export_artifact_id": 13365789213,
+    "export_archive_sha256": "f0e148c6b25ca7f2314c2d5efc8241dbc2df38baf258c1bc032181ea37f63d82",
+    "language_artifact_id": 13366123497,
+    "language_archive_sha256": "11af0b0c5e0cc7729f2f40b67cbb93bffaeef8a7763cd9a53d01383c5e4effa3",
+    "audit": {
+      "groups": 19,
+      "steps": 20,
+      "polygon": 48,
+      "writes": 4,
+      "equal": 4,
+      "through_all": 12,
+      "visible": true,
+      "exports": {
+        "STEP": 3,
+        "STL": 2,
+        "3MF": 2,
+        "AMF": 2,
+        "GLB": 2,
+        "PDF": 2,
+        "DWG": 2
+      },
+      "full_sha256": "ea1b119dcd4b526a4eaf8f23ac00ddffc718283b5d3eff5d67356a8a17c8ada5",
+      "polygon_sha256": "7159375bd93a86cdafdfac1af73de4a3f36b6c0e7815e0bbe57f8e9e1d9441b7"
+    },
+    "delivery_evidence": {
+      "delivery": {
+        "PDF": 2,
+        "STEP": 2,
+        "DWG": 2
+      },
+      "localized_step_sha256": "b3330c3752c5ed2ff24cb9172a5decbe833020169a455c085441158d0667c898",
+      "log_sha256": "c647bd9a5a30b5b06a90a1267ed95a691e4d78db80939a2b798c1b0235a8c275",
+      "images": {
+        "ghcr.io/yjbeetle/sw-preinstalled:sha-24663ff": "sha256:7a743595f6169b1825475b8e49565493c4859e83724fede14ca384c4fc3ffb80",
+        "ghcr.io/yjbeetle/sw-preinstalled:sha-24663ff-cli": "sha256:36e1372f0137b5862d8af62ef779286e33d21529959d965ef360841c0165f50c",
+        "ghcr.io/yjbeetle/sw-preinstalled:sha-24663ff-zh-cn": "sha256:bf4587fcbdfb4e8f45a3757034ffe007888ec6486564a30b8a568945302c7698",
+        "ghcr.io/yjbeetle/sw-preinstalled:sha-24663ff-zh-cn-cli": "sha256:0e2d74a36c4bb1f9ac3945eb001957869bdeff44ec4e39feedf09df7f1ef61bb",
+        "ghcr.io/yjbeetle/sw-executable:sha-24663ff": "sha256:c9669a6d44958e5f6cbb8abf98728b1fe7395f58ac3eec0d65433c745206e75c",
+        "ghcr.io/yjbeetle/sw-executable:sha-24663ff-cli": "sha256:fb7a9c3f02250d03dd7fc3cbcfa0311af514124e8b307c1e15281d753cdc6177",
+        "ghcr.io/yjbeetle/sw-executable:sha-24663ff-zh-cn": "sha256:5e0164eaf6f4d6f8e93cc3709dd6d155b33f8a07362472bb2b82cbce124d6cfd",
+        "ghcr.io/yjbeetle/sw-executable:sha-24663ff-zh-cn-cli": "sha256:93d78bd12cc481c64cec8ce8702c899799a6c9ee35378a310356c6d3bc51716b"
+      }
+    }
+  }
+}

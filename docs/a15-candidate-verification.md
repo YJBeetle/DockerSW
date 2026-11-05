@@ -114,10 +114,44 @@ Windows 原 CI wheel/sdist 另已通过 Twine strict、sdist 检查、全新隔�
 本候选现固定该最终 SWCLI，属性输入改为本次 Windows 原生 artifact 中的文件：
 SLDPRT `1f27aacf27f922eff980df7bd9904c12beb47f6d8e5f0a5469a1a656e812b861`，
 SLDASM `ecd73b1f37afadbdd4eecee5457ab1ec9286b84edb2e1167a8853083005a3e03`。
-开发版证据不替代此最终候选的 Wine 验收，最终 Wine 尚待完成。
+开发版证据不替代此最终候选的 Wine 验收；该最终验收已完成，详见下节。
 手动候选继续 `promote_images=false`、`force_rebuild=false`、`languages=zh-cn`；
 当前未发布，正式分支/现用 aliases 保持，发布仍须最终确认。
 
 候选固定更新后，40 项相关接线/候选策略/证据测试通过；YAML 解析、30 个 Bash
 步骤语法和 diff 检查通过。执行工作流原始 fixture 提取 Python 块，使用本次原生 ZIP
 验证两种实际输入均与最终 Windows 文件逐字节一致。
+
+## 精确最终版 Wine 与发布就绪
+
+[42031035051](https://github.com/YJBeetle/DockerSW/actions/runs/42031035051)
+在 Docker `0130790989c37679bdb008db255ac195cd735d5b`、最终 SWCLI `86b6b38`、
+精确 `0.1.0a15` 完成。原始导出及中文 ZIP 均匹配 GitHub 摘要。
+独立核验公共属性回执：16 次读取、2 次 CAS 拒绝、两类各 5 行属性，配置 shadow 隔离、
+中文/空值/缺失名、原生类型/原值/求值/解析标志、跨 session 租约下后台读取和描述符
+保持均通过。两种文件真实另存到新路径，原生 errors=0、warnings=null；关闭后新句柄
+只读重开，属性值与类型保持，输入和另存文件哈希分别一致。属性门禁在同一 owned
+隐藏宿主完成，清理无错误。
+
+现有 full19/20、polygon48（4 次深度写入/4 次同深度）、12 贯穿、15 共享导出、
+6 交付导出、1 中文 STEP、visible、中文 UI 均通过。组内宿主连续、server exit 0、
+前后进程边界为空，96 完整端点环/48 fresh sketch/96 旧句柄拒绝、解析 V/S/世界质心
+及保存重开深度方向/文件哈希通过。
+
+实际日志确认 `SW_PROMOTE_IMAGES=false`、中文 UI 和真实 STEP 成功，且输出
+`Verified SHA images retained; release aliases unchanged.`。8 个候选普通/CLI/中文
+镜像及 2 个 runtime 镜像的实际 push/resolve 摘要已记入来源清单；未晋升别名。
+
+| 最终 Wine 原始证据 | SHA-256 |
+| --- | --- |
+| 导出 ZIP，artifact 13423021678 | `9a7ecbd225c5f8195ee53cea8667881edfcf0d8ce6b140bfe5d7ff27f88216bd` |
+| 中文 ZIP，artifact 13424041877 | `0607df89c0d4dc73750aa8f73810b837deeed6fd040d28666a6860b2988d8c81` |
+| 公共属性回执 | `98fdf8e1057ff57cb12e62932a8c380e78e9f4adf3814286091437d928fa5f6f` |
+| full 摘要 | `9e6ebfe223ae1268e5604282338d50a3129af7efca4015df25948ae2f189482c` |
+| polygon 回执 | `966cd930f06118e440e7cef718031b1f7baeb3c3b58c724f580a14dc9fe6ac7d` |
+| 另存 SLDPRT | `f1d8a6b150d750d563f85586a1b9869365cba658a5fda24ea0a48a42e17f0133` |
+| 另存 SLDASM | `71d0ebae33a68e940b50099108f2341b9a853531b9cc1507f9fb4343e82bf883` |
+| 实际执行日志 | `5c417799c7e5b2f78c605ad02ef7f248770741b6aad77b58a3a0a86156ffe88f` |
+
+a15 已公开预发布，匿名下载的 wheel/sdist 与最终 Windows CI 原包逐字节一致。
+发布记录和证据摘要见 [发布审阅](a15-release-review.md) 和 [来源清单](a15-release-provenance.json)。
