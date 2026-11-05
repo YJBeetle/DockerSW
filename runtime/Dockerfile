@@ -195,7 +195,7 @@ RUN --mount=type=bind,from=wine-unix-builder,source=/build/probes,target=/mnt/wi
     cat /tmp/msxml-schema-probe.log && \
     tr -d '\r' < /tmp/msxml-schema-probe.log > /tmp/msxml-schema-probe.txt && \
     grep -qx 'XML_NAMESPACE_PROBE_PASS' /tmp/msxml-schema-probe.txt && \
-    test "$(grep -c '^case=' /tmp/msxml-schema-probe.txt)" -eq 7 && \
+    test "$(grep -c '^case=' /tmp/msxml-schema-probe.txt)" -eq 8 && \
     bash /mnt/mono-gates/verify.sh /mnt/mono-gates/probe.cs && \
     timeout --foreground 60 wineserver -w && \
     rm -rf /tmp/* /root/.cache/*

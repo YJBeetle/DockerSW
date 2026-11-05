@@ -37,7 +37,7 @@ class MSXMLSchemaPatchTests(unittest.TestCase):
             "timeout --foreground 120 wine /mnt/wine-probes/msxml-schema.exe",
             "cat /tmp/msxml-schema-probe.log >&2",
             "grep -qx 'XML_NAMESPACE_PROBE_PASS'",
-            "grep -c '^case='", '" -eq 7',
+            "grep -c '^case='", '" -eq 8',
         ):
             self.assertIn(fragment, source)
         # The diagnostic executable is bind-mounted, not shipped in the image.
@@ -52,6 +52,14 @@ class MSXMLSchemaPatchTests(unittest.TestCase):
         ):
             self.assertIn(fragment, source)
         self.assertEqual(source.count('    test("'), 7)
+
+    def test_serialization_patch_and_roundtrip_probe(self):
+        patch = (ROOT / "runtime/wine-patches/0020-msxml-preserve-empty-element-namespace.patch").read_text()
+        self.assertIn("dlls/msxml3/node.c", patch)
+        source = (ROOT / "runtime/tests/native/msxml_schema_namespace_probe.c").read_text()
+        self.assertIn("case=serialize-empty-default-namespace", source)
+        self.assertIn('L"//propertySection/property"', source)
+        self.assertIn("    test_serialization();", source)
 
     def test_probe_uses_jammy_headers_but_requests_msxml6(self):
         source = (ROOT / "runtime/tests/native/msxml_schema_namespace_probe.c").read_text()

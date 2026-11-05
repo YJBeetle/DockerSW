@@ -105,3 +105,12 @@ ASM SHA-256 `2796c667c02fc0786644112916680e62c329b7c1161cb344a19f63e78f589cd9`
 37 个安装样本源文件哈希不变，宿主 PID 616 未变；原始证据保存在
 `/tmp/swcli-asm-stage1-20261011.Zn9G4t/evidence/modeling.json`。
 这是样例准备流程的 Linux 独立实测，不替代新源码的完整镜像/Windows CI。
+
+
+## 自定义属性序列化
+
+沿用 MacSW 的 `0020-msxml-preserve-empty-element-namespace.patch`，
+为处于非空默认命名空间下、实际没有命名空间的子元素正确写入 `xmlns=""`。
+这使 SOLIDWORKS 保存的自定义属性节点在重新读取 XML 后仍可被原有 XPath 找到。
+构建增加第八项原生探针，检查序列化、重新加载和 XPath 查询的完整往返。
+这项探针验证 MSXML 行为，真实 SOLIDWORKS 属性保存仍需镜像运行验证。
