@@ -63,6 +63,7 @@ class ImageLayeringTests(unittest.TestCase):
     def test_swcli_payload_runs_the_pinned_source_instead_of_an_installed_wheel(self) -> None:
         payload = self.read("swcli/Dockerfile")
         wrapper = self.read("swcli/bin/sw-cli")
+        utilities = self.read("swcli/bin/swcli-daemon-utils")
         wine_setup = self.read("runtime/init_wineprefix.sh")
 
         self.assertIn("COPY --link swcli/SWCLI/ /opt/swcli/", payload)
@@ -70,7 +71,9 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn("--target /deps/windows 'jsonschema>=4.18'", payload)
         self.assertNotRegex(payload, r"pip install[^\n]*\bswcli\b")
         self.assertIn('SWCLI_SOURCE="${SWCLI_SOURCE:-/opt/swcli/src}"', wrapper)
-        self.assertIn('PYTHONPATH="${WINDOWS_SWCLI_SOURCE};${WINDOWS_SWCLI_DEPS}"', wrapper)
+        self.assertIn("swcli/bin/swcli-daemon-utils", payload)
+        self.assertIn('SWCLI_SOURCE="${SWCLI_SOURCE:-/opt/swcli/src}"', utilities)
+        self.assertIn('PYTHONPATH="${WINDOWS_SWCLI_SOURCE};${WINDOWS_SWCLI_DEPS}"', utilities)
         self.assertIn('PYTHONPATH="${SWCLI_SOURCE}:${SWCLI_DEPS}/linux${PYTHONPATH:+:${PYTHONPATH}}"', wrapper)
         self.assertNotRegex(wine_setup, r"pip install[^\n]*\bswcli\b")
 

@@ -21,3 +21,20 @@ official MCP SDK transport tests passed on native Python 3.11 and 3.14, and
 its original Windows evidence covers hidden start, document shutdown refusal,
 disconnect retention and explicit stop. Local wrapper tests use fake runtimes;
 image/native Wine acceptance remains the separate build workflow's result.
+
+## CI contract follow-up
+
+[Push run 42114936792](https://github.com/YJBeetle/DockerSW/actions/runs/42114936792)
+failed in the runtime image-layer unit test before any image build or native CAD
+acceptance. Its fixed-source check still looked for Windows PYTHONPATH wiring
+in the now-native-only frontend wrapper. The assertion now checks the separate
+daemon utilities and confirms the payload includes that executable. The native
+client source check and the no-installed-wheel checks are retained.
+
+The SWCLI pointer advances to 1204621910fecc42a9694f9df94ad77c90ee8da5, whose
+only changes fix the Windows-specific test assertion and record that evidence.
+No runtime, wrapper, workflow, native timeout or acceptance guard changed here.
+The complete local logic chain passed: 114 runtime tests, 33 adapter tests and
+1598 SWCLI tests (21 platform skips on macOS). No VM was used. CI and native
+Wine acceptance remain separate results, not inferred from these unit tests.
+Original failed-job log SHA-256: `bbc308e5db907dc105ba5c1111da5c83e32dcbb82b3b21dae4b3825cf10faa12`.
