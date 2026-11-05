@@ -68,4 +68,9 @@
 | polygon 回执 | `8525454bec46695ec46114b38c77eb81ed4860bd8ce6473afd3856a61d47ca97` |
 | 构建日志 | `eb9e77c9179b5a3ad3e3bab07238a26f03fa6dabfdd2cfe799ad5627a52958e7` |
 
-最终双宿主及原始安装包已验收，正式发布待用户确认。发布来源与候选镜像摘要见 [a14-release-provenance.json](a14-release-provenance.json)。
+## 正式发布
+
+[v0.1.0a14](https://github.com/YJBeetle/SWCLI/releases/tag/v0.1.0a14) 已发布。公开 wheel 和 sdist 与原 Windows CI 包逐字节一致。发布来源与镜像摘要见 [a14-release-provenance.json](a14-release-provenance.json)。
+
+- `main` 和 `latest` 指向候选 `sha-6aff196` 的相应镜像。快路径晋升成功，GHCR 复核 20 个标签全部匹配。[晋升 41906410883](https://github.com/YJBeetle/DockerSW/actions/runs/41906410883)
+- `2025` 指向合入字体更新后验证的候选 `sha-24663ff` 的相应镜像。合并候选原始产物复核通过完整矩阵、22 个导出、可见模式及中文 UI 和 STEP。快路径晋升成功，GHCR 复核 10 个标签全部匹配。[合并候选 41906433810](https://github.com/YJBeetle/DockerSW/actions/runs/41906433810) · [晋升 41941600066](https://github.com/YJBeetle/DockerSW/actions/runs/41941600066)
