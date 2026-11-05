@@ -65,3 +65,33 @@ SSH Wine probe result SHA-256:
 The new push retains complete build/Wine validation and promotion policy.
 Its native outcome and independent MCP runtime acceptance are separate evidence;
 the probe and portable tests do not stand in for a completed CAD matrix.
+
+## Independent Linux/Wine MCP acceptance
+
+The exact fixed SWCLI source `3eba5c42776c6714d1a36a6458fab47aa7c3ff6d`
+with the unchanged `882cc964` native wrapper/daemon utilities and MCP SDK 1.30.0
+passed a real Linux/Wine lifecycle test on workspaceroot. A separately named
+Podman container used cached SW2025/Wine11.16; it published no ports and changed
+no existing service or container. This was not the complete CAD matrix.
+
+- MCP initialization, five-tool discovery and offline status left SW and the
+  Windows daemon absent, confirmed by independent process snapshots.
+- One explicit start succeeded after 79.013 seconds with hidden owned SW PID612.
+- The first stdio connection closed; SW and daemon remained. The second
+  connection observed the same ready owned PID612 and an empty document list.
+- One explicit stop succeeded; the MCP connection still answered ping. Final
+  SW/WindowsPython processes were empty. The isolated container exited0 and was
+  removed normally, with its full container ID recorded.
+
+The original `mcp-lifecycle.json` SHA-256 is
+`ffd8e1a6640bd7fb0310b344e08834290705a1ca1f003c36658765f594c7d782`.
+The source archive's daemon_manager.py was independently compared byte for byte
+with the fixed commit. Raw lifecycle, startup/daemon logs, process snapshots,
+container identity and cleanup receipt are retained under the local evidence
+directory `/private/tmp/swcli-mcp-3eba5c4-20261106`.
+
+The complete image/Wine matrix is independently tracked by
+[2025 push run42123274873](https://github.com/YJBeetle/DockerSW/actions/runs/42123274873)
+at image-source commit `89a742d9da657ea6e1cc97592a7e7a8bdc8b68c8`.
+Its outcome has not been inspected after dispatch; this document commit is not
+an accepted image SHA or a claim that the complete matrix passed.
