@@ -49,6 +49,6 @@ RUN --mount=type=bind,source=preinstall/install-fonts.sh,target=/mnt/install-fon
         solidworks-custom
 
 LABEL io.yjbeetle.dockersw.fonts.solidworks="SimSun, Segoe UI" \
-      io.yjbeetle.dockersw.fonts.custom="DengXian, Microsoft YaHei, OCR A, SWTxt"
+      io.yjbeetle.dockersw.fonts.custom="DengXian, Microsoft YaHei, OCR A, SWTxt, SWLink"
 
 ENV SW_LICENSE_SERVER=
