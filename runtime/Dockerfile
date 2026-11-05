@@ -88,16 +88,18 @@ RUN . /build/managed_com.env && \
         --with-opengl \
         --with-vulkan \
         --with-x && \
-    make -j"$(nproc)" dlls/win32u/win32u.so dlls/winex11.drv/winex11.so dlls/opengl32/opengl32.so dlls/combase/x86_64-windows/combase.dll dlls/msxml3/x86_64-windows/msxml3.dll && \
+    make -j"$(nproc)" dlls/win32u/win32u.so dlls/winex11.drv/winex11.so dlls/opengl32/opengl32.so dlls/combase/x86_64-windows/combase.dll dlls/msxml3/x86_64-windows/msxml3.dll dlls/comctl32_v6/x86_64-windows/comctl32_v6.dll && \
     strip --strip-unneeded dlls/ntdll/ntdll.so dlls/win32u/win32u.so dlls/winex11.drv/winex11.so dlls/opengl32/opengl32.so && \
     x86_64-w64-mingw32-strip --strip-debug dlls/combase/x86_64-windows/combase.dll && \
     x86_64-w64-mingw32-strip --strip-debug dlls/msxml3/x86_64-windows/msxml3.dll && \
+    x86_64-w64-mingw32-strip --strip-debug dlls/comctl32_v6/x86_64-windows/comctl32_v6.dll && \
     install -m 0644 dlls/ntdll/ntdll.so /build/output/ntdll.so && \
     install -m 0644 dlls/win32u/win32u.so /build/output/win32u.so && \
     install -m 0644 dlls/winex11.drv/winex11.so /build/output/winex11.so && \
     install -m 0644 dlls/opengl32/opengl32.so /build/output/opengl32.so && \
     install -m 0644 dlls/combase/x86_64-windows/combase.dll /build/output/combase.dll && \
     install -m 0644 dlls/msxml3/x86_64-windows/msxml3.dll /build/output/msxml3.dll && \
+    install -m 0644 dlls/comctl32_v6/x86_64-windows/comctl32_v6.dll /build/output/comctl32_v6.dll && \
     x86_64-w64-mingw32-gcc -O2 -Wall /build/probes/source.c \
         -o /build/probes/msxml-schema.exe -lole32 -loleaut32 && \
     x86_64-w64-mingw32-gcc -O2 -Wall /build/probes/fontlink.c \
@@ -188,6 +190,8 @@ RUN --mount=type=bind,from=wine-unix-builder,source=/build/probes,target=/mnt/wi
         /opt/wine-devel/lib/wine/x86_64-windows/combase.dll && \
     install -m 0644 /opt/sw-runtime/wine-unix/msxml3.dll \
         /opt/wine-devel/lib/wine/x86_64-windows/msxml3.dll && \
+    install -m 0644 /opt/sw-runtime/wine-unix/comctl32_v6.dll \
+        /opt/wine-devel/lib/wine/x86_64-windows/comctl32_v6.dll && \
     rm -rf /opt/sw-runtime/wine-unix && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
