@@ -1,0 +1,174 @@
+{
+  "version": "0.1.0a15",
+  "status": "awaiting-owner-approval",
+  "release_created": false,
+  "public_download_verified": false,
+  "swcli_head": "86b6b38e6cc78810463130c2e141bb22da9ed621",
+  "windows": {
+    "run_id": 42022223755,
+    "native_artifact_id": 13415297444,
+    "native_zip_sha256": "381d8d7fd8c47ded640c05c11ac1b89a9a9d1ee37f01d30370cc70ca00d0194e",
+    "dist_artifact_id": 13412022527,
+    "dist_zip_sha256": "fd04e3a3a277d90d46bd45fd8a6200947005a127618ab4d47b92ca241c737efa",
+    "conclusion": "success",
+    "independently_verified": true,
+    "property_reads": 16,
+    "cas_refusals": 2,
+    "fixtures": [
+      "SLDPRT",
+      "SLDASM"
+    ],
+    "full_groups": 19,
+    "full_steps": 20,
+    "polygon_cases": 48,
+    "depth_writes": 4,
+    "depth_equal": 4,
+    "through_all": 12,
+    "shared_exports": 15,
+    "visible": true,
+    "url": "https://github.com/YJBeetle/SWCLI/actions/runs/42022223755",
+    "head_sha": "86b6b38e6cc78810463130c2e141bb22da9ed621",
+    "full_summary_sha256": "804232b93e2b988b08bbc62199c16a860809f5426712ea152709d1705d080b7e",
+    "property_receipt_sha256": "01986a79662db51861cb5ace4575473698420633fd598f1ffcd5ead697f9058b",
+    "package_checks": {
+      "run_id": 42022223755,
+      "head": "86b6b38e6cc78810463130c2e141bb22da9ed621",
+      "artifact_id": 13412022527,
+      "version": "0.1.0a15",
+      "wheel_source_files": 64,
+      "record_rows": 70,
+      "sdist_checked": 234,
+      "assets": {
+        "swcli-0.1.0a15-py3-none-any.whl": {
+          "size": 222274,
+          "sha256": "15a6ef0641ca4fedf959c8b03be57adb1cc28522162cea3190f7b3ee92e5089a"
+        },
+        "swcli-0.1.0a15.tar.gz": {
+          "size": 889837,
+          "sha256": "b3a2f0331af2767ecf2dde3eb90c3996de597bd87dfabc49868d4d4cb0096030"
+        }
+      },
+      "release_note_exact": true,
+      "twine_strict": true,
+      "sdist_verified": true,
+      "isolated_original_wheel_install": true,
+      "installed_resources_verified": true,
+      "pip_check": true
+    }
+  },
+  "wine": {
+    "run_id": 42031035051,
+    "docker_head": "0130790989c37679bdb008db255ac195cd735d5b",
+    "conclusion": "success",
+    "independently_verified": true,
+    "promote_images": false,
+    "force_rebuild": false,
+    "languages": [
+      "zh-cn"
+    ],
+    "url": "https://github.com/YJBeetle/DockerSW/actions/runs/42031035051",
+    "event": "workflow_dispatch",
+    "head_branch": "codex/a15-candidate",
+    "export_artifact_id": 13423021678,
+    "export_zip_sha256": "9a7ecbd225c5f8195ee53cea8667881edfcf0d8ce6b140bfe5d7ff27f88216bd",
+    "language_artifact_id": 13424041877,
+    "language_zip_sha256": "0607df89c0d4dc73750aa8f73810b837deeed6fd040d28666a6860b2988d8c81",
+    "execution_log_sha256": "5c417799c7e5b2f78c605ad02ef7f248770741b6aad77b58a3a0a86156ffe88f",
+    "full_summary_sha256": "9e6ebfe223ae1268e5604282338d50a3129af7efca4015df25948ae2f189482c",
+    "polygon_receipt_sha256": "966cd930f06118e440e7cef718031b1f7baeb3c3b58c724f580a14dc9fe6ac7d",
+    "property_receipt_sha256": "98fdf8e1057ff57cb12e62932a8c380e78e9f4adf3814286091437d928fa5f6f",
+    "property_checks": {
+      "run_id": 42031035051,
+      "docker_head": "0130790989c37679bdb008db255ac195cd735d5b",
+      "swcli_head": "86b6b38e6cc78810463130c2e141bb22da9ed621",
+      "version": "0.1.0a15",
+      "property_reads": 16,
+      "cas_refusals": 2,
+      "native_save_and_readonly_reopen": 2,
+      "host": {
+        "language": "english",
+        "owned_by_daemon": true,
+        "platform": "linux-wine",
+        "process_id": 608,
+        "revision": "33.5.0",
+        "shared_interactive": false,
+        "solidworks_revision": "33.5.0",
+        "startup_wait_seconds": 18.19100000000003,
+        "visible": false
+      },
+      "receipt_sha256": "98fdf8e1057ff57cb12e62932a8c380e78e9f4adf3814286091437d928fa5f6f",
+      "source_sha256": {
+        "SLDPRT": "1f27aacf27f922eff980df7bd9904c12beb47f6d8e5f0a5469a1a656e812b861",
+        "SLDASM": "ecd73b1f37afadbdd4eecee5457ab1ec9286b84edb2e1167a8853083005a3e03"
+      },
+      "saved_sha256": {
+        "SLDPRT": "f1d8a6b150d750d563f85586a1b9869365cba658a5fda24ea0a48a42e17f0133",
+        "SLDASM": "71d0ebae33a68e940b50099108f2341b9a853531b9cc1507f9fb4343e82bf883"
+      },
+      "success": true,
+      "diagnostic_scope": "public CLI gate, independently audited; no private seeding in Wine"
+    },
+    "full_groups": 19,
+    "full_steps": 20,
+    "polygon_cases": 48,
+    "depth_writes": 4,
+    "depth_equal": 4,
+    "through_all": 12,
+    "shared_exports": 15,
+    "delivery_exports": 6,
+    "localized_step_exports": 1,
+    "localized_step_sha256": "683024c599dda6af790d9c3f0765fec7c779908e1e31b6026f2f081a8dfee19f",
+    "visible": true,
+    "localized_ui_verified": true,
+    "candidate_aliases_unchanged_execution_verified": true,
+    "image_manifests_from_execution": {
+      "ghcr.io/yjbeetle/sw-preinstalled:sha-0130790": "sha256:ebdb0cc41265201b69c0f2817b033ecf89506179b766694468d0e03f96eae18b",
+      "ghcr.io/yjbeetle/sw-preinstalled:sha-0130790-cli": "sha256:18c857e905a28958d537664a9eac7fe5a3102ba15920323a9a2505505e3e7a83",
+      "ghcr.io/yjbeetle/sw-preinstalled:sha-0130790-zh-cn": "sha256:86e0b734b2e0178eef69fcd588192a39de4c117b701ee1eccb8c1ce9a99804be",
+      "ghcr.io/yjbeetle/sw-preinstalled:sha-0130790-zh-cn-cli": "sha256:1a44e9744c80547a25ee04c8c123d51f9af60945fc1ff231aeea704ab9165a44",
+      "ghcr.io/yjbeetle/sw-executable:sha-0130790": "sha256:2264f836bb3adf594251286a7e15cfb9d52ba73a0503cf2e8754fc269928eab6",
+      "ghcr.io/yjbeetle/sw-executable:sha-0130790-cli": "sha256:b78348abb08b7c08dfe591f53fa747a69b7e68924387a9b6d2d6afd9f97db800",
+      "ghcr.io/yjbeetle/sw-executable:sha-0130790-zh-cn": "sha256:4d99076faaea5cba6e0f7661b93739e726ac822552220bc484c442306d8e38a0",
+      "ghcr.io/yjbeetle/sw-executable:sha-0130790-zh-cn-cli": "sha256:22cda91dad6438886586c31860bb071219d65b970e01a81a200bdaaba2316304",
+      "ghcr.io/yjbeetle/sw-runtime:sha-0130790": "sha256:3cb98d901902185a868ffccdac9e3722b21aede78ed9fe6d8df63ba28032a5dd",
+      "ghcr.io/yjbeetle/sw-runtime:sha-0130790-cli": "sha256:a6b5babc874a6fcb106da428a0b917bdf395b8daa7db0528e9556a14a06f4598"
+    }
+  },
+  "original_ci_assets": {
+    "swcli-0.1.0a15-py3-none-any.whl": {
+      "size": 222274,
+      "sha256": "15a6ef0641ca4fedf959c8b03be57adb1cc28522162cea3190f7b3ee92e5089a"
+    },
+    "swcli-0.1.0a15.tar.gz": {
+      "size": 889837,
+      "sha256": "b3a2f0331af2767ecf2dde3eb90c3996de597bd87dfabc49868d4d4cb0096030"
+    }
+  },
+  "scope": "Document-level read-only custom properties; part and assembly fixtures. Configuration reads, drawing proof and public writes deferred.",
+  "planned_release": {
+    "tag": "v0.1.0a15",
+    "tag_target": "86b6b38e6cc78810463130c2e141bb22da9ed621",
+    "prerelease": true,
+    "create_only_after_owner_approval": true,
+    "publish_original_ci_assets_unchanged": true
+  },
+  "planned_docker_promotion": {
+    "verified_runtime_sha": "0130790989c37679bdb008db255ac195cd735d5b",
+    "promoted": false,
+    "create_only_after_owner_approval": true,
+    "remote_heads_observed": {
+      "main": "6aff19651d31ae7ac2aa4d24c9f1525b528c5560",
+      "2025": "7ad8caf7e5af28e1c85c03e3a24a643b80be902c"
+    },
+    "both_heads_are_ancestors_of_verified_runtime": true,
+    "recheck_heads_and_preserve_concurrent_changes": true,
+    "verify_actual_fast_path_and_all_30_aliases": true
+  },
+  "release_notes_sha256": "d75f17b0e18ad96404cdd06376ec256db6d79b45aea1b82a917fde9afb021afe",
+  "independent_audits": {
+    "audit-a15-final-wine-full.py": "2e48fc2857fb88cd8fab64c3a7714f9c01edfdf868127983703edfa7d4ac0674",
+    "audit-a15-final-wine-properties.py": "775af09044f1dbc2cee227f7f49a761c90a90ec41dadaa63dff914e2288e0507",
+    "a15-final-wine-full-audit.txt": "3a52c7a648858a80c759d8b624d45fadf5959c35b2987918299ecd282b9c9221",
+    "a15-final-wine-properties-audit.json": "a6e86d5ef212e478d01a74c65e22f6bad37be05ef9510764a1b7e6cabe0096d3"
+  }
+}
