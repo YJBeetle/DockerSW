@@ -11,6 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_ROOT = PROJECT_ROOT / "runtime"
 SWCLI_ROOT = PROJECT_ROOT / "swcli"
 SWCLI_SCRIPT = SWCLI_ROOT / "bin" / "sw-cli"
+UTILS_SCRIPT = SWCLI_ROOT / "bin" / "swcli-daemon-utils"
 TRANSLATOR_SCRIPT = SWCLI_ROOT / "bin" / "linux-to-wine-path"
 RUNTIME_ENTRYPOINT = RUNTIME_ROOT / "entrypoint.sh"
 CLI_ENTRYPOINT = SWCLI_ROOT / "entrypoint-cli.sh"
@@ -20,6 +21,7 @@ class RuntimeWrapperTests(unittest.TestCase):
     def test_scripts_are_executable_and_valid_bash(self):
         for script in (
             SWCLI_SCRIPT,
+            UTILS_SCRIPT,
             TRANSLATOR_SCRIPT,
             RUNTIME_ENTRYPOINT,
             CLI_ENTRYPOINT,
@@ -57,51 +59,38 @@ class RuntimeWrapperTests(unittest.TestCase):
         self.assertNotIn("translate_positional_path", script)
         self.assertNotIn("translate_first_positional", script)
 
-    def test_windows_python_loads_swcli_from_shared_source(self):
-        invocation = self._run_with_fake_wine(["daemon", "status", "--json"])
-        self.assertIn("PYTHONPATH=Z:\\opt\\swcli\\src", invocation)
+    def test_public_commands_are_forwarded_unchanged_to_native_python(self):
+        for args in (["doctor","--json"], ["daemon","status","--json"],
+                     ["daemon","start","--json"], ["daemon","serve","--port","19000"],
+                     ["--endpoint","127.0.0.1:19000","daemon","stop","--json"], ["mcp","serve"]):
+            with self.subTest(args=args):
+                invocation=self._run_with_fake_wine(args)
+                self.assertIn("-m swcli " + " ".join(args),invocation)
+                self.assertIn("python3:",invocation)
+                self.assertNotIn("wine:",invocation)
+                self.assertIn(f"UTILS={UTILS_SCRIPT}\n",invocation)
 
-    def test_doctor_runs_under_wine_python(self):
-        invocation = self._run_with_fake_wine(["doctor", "--json"])
-        self.assertIn(
-            "C:\\Python311\\python.exe -m swcli doctor --json",
-            invocation,
-        )
+    def test_configured_daemon_utils_overrides_wrapper_default(self):
+        invocation=self._run_with_fake_wine(["mcp","serve"],{"SWCLI_DAEMON_UTILS":"/custom/daemon utils"})
+        self.assertIn("UTILS=/custom/daemon utils\n",invocation)
 
-    def test_daemon_status_runs_under_wine_python(self):
-        invocation = self._run_with_fake_wine(["daemon", "status", "--json"])
-        self.assertIn(
-            "C:\\Python311\\python.exe -m swcli daemon status --json",
-            invocation,
-        )
-
-    def test_daemon_start_marks_child_host_as_linux_wine(self):
-        invocation = self._run_with_fake_wine(["daemon", "start", "--json"])
-        self.assertIn("HOST_PLATFORM=linux-wine", invocation)
-
-    def test_daemon_serve_marks_docker_host_as_linux_wine(self):
-        invocation = self._run_with_fake_wine(["daemon", "serve", "--port", "19000"])
-        self.assertIn(
-            "-m swcli daemon serve --host-platform linux-wine --port 19000",
-            invocation,
-        )
-
-    def test_daemon_serve_respects_explicit_host_platform(self):
-        invocation = self._run_with_fake_wine(
-            ["daemon", "serve", "--host-platform", "macos-wine", "--port", "19000"]
-        )
-        self.assertIn(
-            "-m swcli daemon serve --host-platform macos-wine --port 19000",
-            invocation,
-        )
-        self.assertEqual(invocation.count("--host-platform"), 1)
+    def test_daemon_utils_selects_windows_runtime_without_public_argument_interception(self):
+        for action in ("start","serve","restart","doctor"):
+            with self.subTest(action=action):
+                invocation=self._run_with_fake_wine([action,"--json"],backend=True)
+                command="doctor" if action=="doctor" else "daemon "+action
+                self.assertIn("C:\\Python311\\python.exe -m swcli "+command+" --json",invocation)
+                self.assertIn("DELEGATED=1\n",invocation)
+                self.assertIn("HOST_PLATFORM=linux-wine",invocation)
+                self.assertIn("PYTHONPATH=Z:\\opt\\swcli\\src",invocation)
+                self.assertNotIn("python3:",invocation)
 
     def test_typed_cli_does_not_manage_daemon_lifecycle(self):
         script = SWCLI_SCRIPT.read_text(encoding="utf-8")
         self.assertNotIn("start_daemon", script)
         self.assertIn("SWCLI_ENDPOINT", script)
 
-    def _run_with_fake_wine(self, args):
+    def _run_with_fake_wine(self, args, extra_env=None, backend=False):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             binary_dir = root / "bin"
@@ -112,7 +101,8 @@ class RuntimeWrapperTests(unittest.TestCase):
             wine.write_text(
                 "#!/usr/bin/env bash\n"
                 f"printf 'wine: PYTHONPATH=%s %s HOST_PLATFORM=%s\\n' "
-                f"\"$PYTHONPATH\" \"$*\" \"$SWCLI_HOST_PLATFORM\" > '{wine_log}'\n",
+                f"\"$PYTHONPATH\" \"$*\" \"$SWCLI_HOST_PLATFORM\" > '{wine_log}'\n"
+                f"printf 'DELEGATED=%s\\n' \"${{SWCLI_DAEMON_UTILS_ACTIVE:-}}\" >> '{wine_log}'\n",
                 encoding="utf-8",
             )
             wine.chmod(0o755)
@@ -127,14 +117,18 @@ class RuntimeWrapperTests(unittest.TestCase):
                 "#!/usr/bin/env bash\n"
                 f"printf 'python3: TRANSLATOR=%s %s\\n' "
                 "\"$SWCLI_PATH_TRANSLATE_CMD\" \"$*\" "
-                f"> '{python_log}'\n",
+                f"> '{python_log}'\n"
+                f"printf 'UTILS=%s\\n' \"${{SWCLI_DAEMON_UTILS:-}}\" >> '{python_log}'\n",
                 encoding="utf-8",
             )
             python3.chmod(0o755)
             environment = dict(os.environ)
             environment["PATH"] = f"{binary_dir}:{environment['PATH']}"
+            environment.pop("SWCLI_DAEMON_UTILS", None)
+            environment.pop("SWCLI_DAEMON_UTILS_ACTIVE", None)
+            environment.update(extra_env or {})
             result = subprocess.run(
-                [str(SWCLI_SCRIPT), *args],
+                [str(UTILS_SCRIPT if backend else SWCLI_SCRIPT), *args],
                 capture_output=True,
                 text=True,
                 env=environment,
