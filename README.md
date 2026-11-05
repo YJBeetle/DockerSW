@@ -414,6 +414,8 @@ entrypoint 中通过 `sw-cli daemon start` 预热 daemon，后续调用通过本
 
 ## CI 真实导出门禁
 
+开发新能力时的原生 API 专项校准在本地 Windows 虚拟机完成，工作文件统一位于 `C:\Workspace`。完整 Windows/SOLIDWORKS 功能验收保留在 SWCLI CI，完整 Wine/SOLIDWORKS 验收保留在 DockerSW CI；本地校准报告与完整门禁回执分别记录。
+
 [`.github/workflows/build.yml`](.github/workflows/build.yml) 直接负责启动容器、收集
 日志并验证产物。六产物导出保留 10 分钟预算；共享功能测试组总预算 90 分钟（容纳 a13 新增的 48 例多边形矩阵），复用
 同一个已部署容器，每组新建 CLI daemon／SW 会话，组内不重启；任何组失败都阻止镜像晋升。
