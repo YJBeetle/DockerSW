@@ -4,6 +4,8 @@ set -euo pipefail
 FONTS_KEY='HKLM\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
 SUBSTITUTES_KEY='HKLM\Software\Microsoft\Windows NT\CurrentVersion\FontSubstitutes'
 SYSTEM_LINK_KEY='HKLM\Software\Microsoft\Windows NT\CurrentVersion\FontLink\SystemLink'
+UNISCRIBE_FALLBACK_KEY='HKCU\Software\Wine\Uniscribe\Fallback'
+HAN_SCRIPT_TAG='696e6168' # OpenType 的 hani 脚本标签。
 NOTO_LINK='NotoSansCJK-Regular.ttc,Noto Sans CJK SC'
 
 font_registry="$(wine reg query "${FONTS_KEY}" /s 2>/dev/null)" \
@@ -34,6 +36,16 @@ esac
 wine reg add "${SUBSTITUTES_KEY}" /v 'MS Shell Dlg' /t REG_SZ /d Tahoma /f >/dev/null
 wine reg add "${SUBSTITUTES_KEY}" /v 'MS Shell Dlg 2' /t REG_SZ /d Tahoma /f >/dev/null
 wine reg add "${SYSTEM_LINK_KEY}" /v Tahoma /t REG_MULTI_SZ /d "${tahoma_links}" /f >/dev/null
+
+# 下拉框等使用 Uniscribe 的控件有独立的汉字回退设置。
+if wine reg query "${UNISCRIBE_FALLBACK_KEY}" /v "${HAN_SCRIPT_TAG}" >/dev/null 2>&1; then
+    :
+else
+    query_status=$?
+    [ "${query_status}" -eq 1 ] || exit "${query_status}"
+    wine reg add "${UNISCRIBE_FALLBACK_KEY}" /v "${HAN_SCRIPT_TAG}" \
+        /t REG_SZ /d 'Noto Sans CJK SC' /f >/dev/null
+fi
 
 verified_link="$(wine reg query "${SYSTEM_LINK_KEY}" /v Tahoma 2>/dev/null)"
 grep -Fq "${NOTO_LINK}" <<< "${verified_link}" \
