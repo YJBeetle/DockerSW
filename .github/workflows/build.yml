@@ -884,17 +884,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -Eeuo pipefail
-          fixture_zip="${RUNNER_TEMP}/swcli-properties-42022223755.zip"
-          gh api repos/YJBeetle/SWCLI/actions/artifacts/13415297444/zip > "${fixture_zip}"
-          echo "381d8d7fd8c47ded640c05c11ac1b89a9a9d1ee37f01d30370cc70ca00d0194e  ${fixture_zip}" | sha256sum -c -
+          fixture_zip="${RUNNER_TEMP}/swcli-properties-42089485924.zip"
+          gh api repos/YJBeetle/SWCLI/actions/artifacts/13448106095/zip > "${fixture_zip}"
+          echo "685ca373612c263c3a4cc2431a354eecb0ee60cabe932070ccdf668c583c1681  ${fixture_zip}" | sha256sum -c -
           python3 - "${fixture_zip}" "${RUNNER_TEMP}/sw-cli-export-smoke/properties-input" <<'PYFIXTURE'
           import hashlib
           import pathlib
           import sys
           import zipfile
           expected = {
-              "properties.SLDPRT": "1f27aacf27f922eff980df7bd9904c12beb47f6d8e5f0a5469a1a656e812b861",
-              "properties.SLDASM": "ecd73b1f37afadbdd4eecee5457ab1ec9286b84edb2e1167a8853083005a3e03",
+              "properties.SLDPRT": "c3fb3aa8a4864c4f5fdcf154447bc9037b3c217a6afa4cc9bc2b92b527d6a2dd",
+              "properties.SLDASM": "2b228565a7be95f91a62b1b88605c47a491baf55a93319cee8c5bc356787f4a5",
           }
           destination = pathlib.Path(sys.argv[2])
           destination.mkdir()
