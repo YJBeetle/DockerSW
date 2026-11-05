@@ -23,6 +23,17 @@ if [[ "${SWCLI_RUNTIME_SUITE:-full}" == full ]]; then
         python3 /opt/swcli/scripts/ci/gate_support/drawing_template.py --program-data "${workspace}/ProgramData")"
     drawing_template_args=(--drawing-template "$(winepath -w "${drawing_template}")")
 fi
+if [[ -n "${SWCLI_PROPERTY_FIXTURES:-}" ]]; then
+    properties_outdir="${modeling_outdir}/../properties"
+    PYTHONPATH="${SWCLI_SOURCE:-/opt/swcli/src}:${SWCLI_DEPS:-/opt/swcli-deps}/linux" \
+        python3 /opt/swcli/scripts/ci/verify-properties.py \
+        --fixture-dir "${SWCLI_PROPERTY_FIXTURES}" \
+        --host-fixture-dir "$(winepath -w "${SWCLI_PROPERTY_FIXTURES}")" \
+        --output-dir "${properties_outdir}" \
+        --host-output-dir "$(winepath -w "${properties_outdir}")" \
+        --cli-command /usr/local/bin/sw-cli --save-copy
+fi
+
 PYTHONPATH="${SWCLI_SOURCE:-/opt/swcli/src}:${SWCLI_DEPS:-/opt/swcli-deps}/linux" \
     python3 /opt/swcli/scripts/ci/verify-runtime-sets.py \
     --suite "${SWCLI_RUNTIME_SUITE:-full}" \

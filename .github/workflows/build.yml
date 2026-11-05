@@ -42,6 +42,7 @@ on:
         default: 'zh-cn'
 
 permissions:
+  actions: read
   contents: read
   packages: write
 
@@ -875,6 +876,34 @@ jobs:
           done
           echo "SOLIDWORKS export smoke test passed: ${#expected_outputs[@]} files verified."
 
+      - name: Fetch verified Windows property fixtures
+        if: success() && steps.smoke-exports.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          fixture_zip="${RUNNER_TEMP}/swcli-properties-41990395318.zip"
+          gh api repos/YJBeetle/SWCLI/actions/artifacts/13401035862/zip > "${fixture_zip}"
+          echo "02bc051a35224b208b0abd51a8d525685fe754833a153dd2e8f3cea8538113cf  ${fixture_zip}" | sha256sum -c -
+          python3 - "${fixture_zip}" "${RUNNER_TEMP}/sw-cli-export-smoke/properties-input" <<'PYFIXTURE'
+          import hashlib
+          import pathlib
+          import sys
+          import zipfile
+          expected = {
+              "properties.SLDPRT": "46d4371fed78bf8a9e11b6fa1530a2620e0b100b58b702534dadfd629962304c",
+              "properties.SLDASM": "eeb7d0dd1e69ba2f1a2f1f00ce792742df9df526efa10862b76b62b0697df33f",
+          }
+          destination = pathlib.Path(sys.argv[2])
+          destination.mkdir()
+          with zipfile.ZipFile(sys.argv[1]) as archive:
+              for name, digest in expected.items():
+                  payload = archive.read("swcli-native-smoke/properties-calibration/" + name)
+                  assert hashlib.sha256(payload).hexdigest() == digest, name
+                  (destination / name).write_bytes(payload)
+          PYFIXTURE
+
       - name: Shared isolated functional test sets
         id: smoke-generic
         if: success() && steps.smoke-exports.outcome == 'success'
@@ -890,7 +919,7 @@ jobs:
           set -Eeuo pipefail
           smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
-          docker exec "${smoke_container}" \
+          docker exec --env SWCLI_PROPERTY_FIXTURES=/ci-smoke/properties-input "${smoke_container}" \
             bash /opt/dockersw-smoke/verify-swcli.sh /root/.wine/drive_c /ci-smoke/runtime-sets 2>&1 \
             | tee "${smoke_root}/sw-cli-runtime-sets.log"
 
