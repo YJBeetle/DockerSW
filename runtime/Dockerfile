@@ -40,6 +40,7 @@ RUN apt-get update && \
 COPY runtime/managed_com.env /build/managed_com.env
 COPY runtime/wine-patches/*.patch /patches/
 COPY runtime/tests/native/msxml_schema_namespace_probe.c /build/probes/source.c
+COPY runtime/tests/native/wine_fontlink_probe.c /build/probes/fontlink.c
 
 RUN . /build/managed_com.env && \
     mkdir -p /build/source /build/output && \
@@ -98,7 +99,9 @@ RUN . /build/managed_com.env && \
     install -m 0644 dlls/combase/x86_64-windows/combase.dll /build/output/combase.dll && \
     install -m 0644 dlls/msxml3/x86_64-windows/msxml3.dll /build/output/msxml3.dll && \
     x86_64-w64-mingw32-gcc -O2 -Wall /build/probes/source.c \
-        -o /build/probes/msxml-schema.exe -lole32 -loleaut32
+        -o /build/probes/msxml-schema.exe -lole32 -loleaut32 && \
+    x86_64-w64-mingw32-gcc -O2 -Wall /build/probes/fontlink.c \
+        -o /build/probes/fontlink.exe -lgdi32 -ladvapi32 -luser32
 
 # DockerSW: 无头 SOLIDWORKS Wine 运行时镜像
 FROM ubuntu:22.04 AS sw-runtime
@@ -159,6 +162,7 @@ COPY --from=wine-unix-builder /build/output/ /opt/sw-runtime/wine-unix/
 # runtime/ 树纳入缓存键；普通脚本与单测改动不应导致 Wine/Mono/Python 安装
 # 无谓重建。原生探针是有意输入，变更后必须重新验证运行时。
 RUN --mount=type=bind,from=wine-unix-builder,source=/build/probes,target=/mnt/wine-probes \
+    --mount=type=bind,source=runtime/verify_wine_fontlink.sh,target=/mnt/wine-probes-gate.sh \
     --mount=type=bind,source=runtime/verify_mono_ccw.sh,target=/mnt/mono-gates/verify.sh \
     --mount=type=bind,source=runtime/tests/native/mono_ccw_release_probe.cs,target=/mnt/mono-gates/probe.cs \
     --mount=type=bind,source=runtime/fetch_managed_com.sh,target=/mnt/runtime/fetch_managed_com.sh \
@@ -198,6 +202,7 @@ RUN --mount=type=bind,from=wine-unix-builder,source=/build/probes,target=/mnt/wi
     test "$(grep -c '^case=' /tmp/msxml-schema-probe.txt)" -eq 8 && \
     bash /mnt/mono-gates/verify.sh /mnt/mono-gates/probe.cs && \
     timeout --foreground 60 wineserver -w && \
+    bash /mnt/wine-probes-gate.sh /mnt/wine-probes/fontlink.exe && \
     rm -rf /tmp/* /root/.cache/*
 
 # 4. 仅加入执行 SOLIDWORKS 官方安装所需的稳定工具。频繁变化的 SWCLI、
