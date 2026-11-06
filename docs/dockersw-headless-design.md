@@ -69,8 +69,8 @@ swcli-payload
    - **本地自启许可模式（按需）**：在私有构建期内置或运行时挂载到 `SW_FLEXNET_DIR`（默认 `/opt/SolidWorks_Flexnet_Server`），只要目录下存在 `lmgrd.exe` 与许可文件即自动在后台拉起守护并等待端口就绪；
 7. **命令生命周期与构建支持**：
    - 支持 `--init-only` 参数，在 Docker 构建期刷新并持久化 Wine 注册表后干净退出；
-   - 检测到 SOLIDWORKS 的 `-cli` 镜像通过一次幂等的 `sw-cli daemon start --json` 显式启动服务；只有响应中的 `result.health.host_connected=true` 才执行用户命令，任一组件缺失的默认/运行时镜像自动跳过；
-   - 支持透明传递任意执行命令（如 `sw-cli`、`sw-install` 或 `bash`）。
+   - 检测到 SOLIDWORKS 的 `-cli` 镜像通过一次幂等的 `swcli daemon start --json` 显式启动服务；只有响应中的 `result.health.host_connected=true` 才执行用户命令，任一组件缺失的默认/运行时镜像自动跳过；
+   - 支持透明传递任意执行命令（如 `swcli`、`sw-install` 或 `bash`）。
 
 ### 3.2 官方介质安装引擎 (`sw-install`)
 
@@ -87,21 +87,21 @@ swcli-payload
 3. **私有镜像构建隔离**：
    - 配合 BuildKit 挂载机制（`--mount=type=bind`），安装介质在镜像构建完成后不会残留在任何镜像层中，保证产物整洁。
 
-### 3.3 SWCLI 与 CI 导出组合 (`sw-cli`)
+### 3.3 SWCLI 与 CI 导出组合 (`swcli`)
 
 1. **Linux / Windows 路径智能透明转换**：
-   - `sw-cli` 客户端在发送 typed 请求前，只对已知的路径字段（`path`、`output`、`template`）做转换；不依赖参数位置；
-   - DockerSW 薄入口 `sw-cli` 导出 `SWCLI_PATH_TRANSLATE_CMD=/usr/local/bin/linux-to-wine-path`，helper 将 POSIX 路径交给 `winepath -w`（例如 `/workspace/model.SLDPRT` -> `Z:\workspace\model.SLDPRT`），已是盘符形式的 Windows 路径原样透传；
+   - `swcli` 客户端在发送 typed 请求前，只对已知的路径字段（`path`、`output`、`template`）做转换；不依赖参数位置；
+   - DockerSW 薄入口 `swcli` 导出 `SWCLI_PATH_TRANSLATE_CMD=/usr/local/bin/linux-to-wine-path`，helper 将 POSIX 路径交给 `winepath -w`（例如 `/workspace/model.SLDPRT` -> `Z:\workspace\model.SLDPRT`），已是盘符形式的 Windows 路径原样透传；
    - 未设置该环境变量时（如原生 Windows 或 macOS-Wine 直连），客户端不做任何转换；
 2. **职责边界**：
    - typed 建模、检查、重建、渲染与原子导出均由独立 SWCLI 项目维护；
-   - `sw-cli document export` 只根据显式输出扩展名选择 STEP、GLB、PDF 或 DWG，不解释源文件名；
+   - `swcli document export` 只根据显式输出扩展名选择 STEP、GLB、PDF 或 DWG，不解释源文件名；
    - manifest、`.REND.SLDASM -> GLB` 及输出命名属于具体项目的 CI 配置，不进入 SWCLI；
    - DockerSW 只提供 daemon 预热、容器生命周期适配以及指向翻译 helper 的环境变量，不再解析 CLI 参数位置；
 3. **常驻 daemon 与 Wine COM worker**：
-   - `sw-preinstalled:*cli` 与 `sw-executable:*cli` 的 entrypoint 默认执行一次 `sw-cli daemon start --json`；该命令自身等待 daemon 与 COM worker 就绪，已有健康实例时幂等复用，不重复启动；
+   - `sw-preinstalled:*cli` 与 `sw-executable:*cli` 的 entrypoint 默认执行一次 `swcli daemon start --json`；该命令自身等待 daemon 与 COM worker 就绪，已有健康实例时幂等复用，不重复启动；
    - 自动启动只使用本地回环端点、独占隐藏实例，绝不自动传入 `--attach-existing`；`VNC_ENABLE=true` 时才显式增加 `--visible`；
-   - 非回环监听不属于默认容器入口契约；需要远程服务时应显式运行 `sw-cli daemon serve --allow-remote`，并配合可信网络边界或认证隧道；
+   - 非回环监听不属于默认容器入口契约；需要远程服务时应显式运行 `swcli daemon serve --allow-remote`，并配合可信网络边界或认证隧道；
    - `SWCLID_START_TIMEOUT` 默认 300 秒，直接交给 `daemon start` 作为 SOLIDWORKS 就绪期限，以容纳高 I/O 负载下的冷启动；入口解析启动 JSON，并要求 `result.health.host_connected=true`；
    - Docker 中由 entrypoint 负责 daemon 生命周期；typed 命令只连接已有服务，daemon 意外退出时返回 `DaemonUnavailable`，不会隐式启动或回退到直接 COM；
    - daemon 只调用一次 `win32com.client.DispatchEx("SldWorks.Application")` 创建独占实例，激活失败时直接报告错误，不进行 ROT 恢复或重复激活。Wine 补丁 `0007-combase-wait-solidworks-registration.patch` 在同一次激活内部等待 SOLIDWORKS class factory 注册；入口将 `SWCLID_START_TIMEOUT` 传入 `WINE_SOLIDWORKS_STARTUP_TIMEOUT`，小数秒向上取整；
@@ -174,5 +174,5 @@ DockerSW 保留不依赖旧 `sw-daemon` 的人类监看能力。设置 `VNC_ENAB
 
 - [x] **架构一致性**：公开基础镜像 `sw-runtime` 与私有安装镜像 `sw-preinstalled` 职责彻底分离；
 - [x] **版权合规性**：公开仓库无任何商业软件实体与许可凭据；
-- [x] **命名规范性**：全局统一使用标准命令名 `sw-install` 与 `sw-cli`，环境变量全项目对齐（`SW_INSTALL_DIR`, `SW_LICENSE_SERVER`, `SW_FLEXNET_DIR`）；
+- [x] **命名规范性**：全局统一使用标准命令名 `sw-install` 与 `swcli`，环境变量全项目对齐（`SW_INSTALL_DIR`, `SW_LICENSE_SERVER`, `SW_FLEXNET_DIR`）；
 - [x] **运行健壮性**：无头环境具备 Xvfb、OpenGL 24-bit 离屏渲染与 Wine-Mono 托管 COM 的三重稳定性保障。

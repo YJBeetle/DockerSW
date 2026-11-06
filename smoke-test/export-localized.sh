@@ -31,7 +31,7 @@ grep -Fq 'NotoSansCJK-Regular.ttc,Noto Sans CJK SC' <<<"${tahoma_links}" || {
     exit 1
 }
 
-status_json="$(sw-cli daemon status --json)"
+status_json="$(swcli daemon status --json)"
 actual_language="$(
     python3 -c 'import json, sys; print(json.load(sys.stdin)["result"]["host"]["language"])' \
         <<<"${status_json}"
@@ -42,10 +42,10 @@ if [ "${actual_language}" != "${expected_language}" ]; then
     exit 1
 fi
 
-sw-cli document open \
+swcli document open \
     "${workspace}/users/Public/Documents/SOLIDWORKS/SOLIDWORKS 2025/samples/learn/Paper Airplane.SLDPRT" --json
-sw-cli document export "${outdir}/Paper Airplane.STEP" --json
-sw-cli document close --discard --json
-sw-cli daemon stop --json
+swcli document export "${outdir}/Paper Airplane.STEP" --json
+swcli document close --discard --json
+swcli daemon stop --json
 
 test -s "${outdir}/Paper Airplane.STEP"

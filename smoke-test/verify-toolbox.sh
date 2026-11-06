@@ -9,4 +9,4 @@ chmod 755 "${outdir}"
 PYTHONPATH="${SWCLI_SOURCE:-/opt/swcli/src}:${SWCLI_DEPS:-/opt/swcli-deps}/linux" \
     python3 /opt/swcli/scripts/ci/verify-toolbox.py \
     --output-dir "${outdir}" --wine-prefix "${prefix}" --require-toolbox \
-    --cli-command /usr/local/bin/sw-cli
+    --cli-command /usr/local/bin/swcli

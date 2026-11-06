@@ -31,7 +31,7 @@ if [[ -n "${SWCLI_PROPERTY_FIXTURES:-}" ]]; then
         --host-fixture-dir "$(winepath -w "${SWCLI_PROPERTY_FIXTURES}")" \
         --output-dir "${properties_outdir}" \
         --host-output-dir "$(winepath -w "${properties_outdir}")" \
-        --cli-command /usr/local/bin/sw-cli --save-copy
+        --cli-command /usr/local/bin/swcli --save-copy
 fi
 
 PYTHONPATH="${SWCLI_SOURCE:-/opt/swcli/src}:${SWCLI_DEPS:-/opt/swcli-deps}/linux" \
@@ -40,7 +40,7 @@ PYTHONPATH="${SWCLI_SOURCE:-/opt/swcli/src}:${SWCLI_DEPS:-/opt/swcli-deps}/linux
     --mode hidden --wine-prefix "${WINEPREFIX:-/root/.wine}" \
     --output-dir "${modeling_outdir}" \
     --host-output-dir "$(winepath -w "${modeling_outdir}")" \
-    --cli-command /usr/local/bin/sw-cli \
+    --cli-command /usr/local/bin/swcli \
     --python-path "${SWCLI_SOURCE:-/opt/swcli/src}" \
     --python-path "${SWCLI_DEPS:-/opt/swcli-deps}/linux" \
     --sample-part "$(winepath -w "${part_path}")" \

@@ -10,7 +10,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_ROOT = PROJECT_ROOT / "runtime"
 SWCLI_ROOT = PROJECT_ROOT / "swcli"
-SWCLI_SCRIPT = SWCLI_ROOT / "bin" / "sw-cli"
+SWCLI_SCRIPT = SWCLI_ROOT / "bin" / "swcli"
 UTILS_SCRIPT = SWCLI_ROOT / "bin" / "swcli-daemon-utils"
 TRANSLATOR_SCRIPT = SWCLI_ROOT / "bin" / "linux-to-wine-path"
 RUNTIME_ENTRYPOINT = RUNTIME_ROOT / "entrypoint.sh"
@@ -196,14 +196,14 @@ class EntrypointTests(unittest.TestCase):
         self.assertIn("export SOLIDWORKS_INSTALLED=true", entrypoint)
         self.assertIn('exec "$@"', entrypoint)
         self.assertNotIn("SWCLI", entrypoint)
-        self.assertNotIn("sw-cli", entrypoint)
+        self.assertNotIn("swcli", entrypoint)
 
     def test_cli_entrypoint_eagerly_starts_daemon_for_installed_solidworks(self):
         entrypoint = CLI_ENTRYPOINT.read_text(encoding="utf-8")
         self.assertIn('[ "${SOLIDWORKS_INSTALLED:-false}" != true ]', entrypoint)
         self.assertIn("SWCLID_START_ARGS=(", entrypoint)
         self.assertIn("daemon start", entrypoint)
-        self.assertIn('sw-cli "${SWCLID_START_ARGS[@]}"', entrypoint)
+        self.assertIn('swcli "${SWCLID_START_ARGS[@]}"', entrypoint)
         self.assertIn('--endpoint "${SWCLI_ENDPOINT}"', entrypoint)
         self.assertIn("当前镜像未安装 SOLIDWORKS", entrypoint)
         self.assertNotIn("daemon serve", entrypoint)
@@ -403,7 +403,7 @@ class EntrypointTests(unittest.TestCase):
     ):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
-            fake_sw_cli = root / "sw-cli"
+            fake_sw_cli = root / "swcli"
             call_log = root / "calls.log"
             descendant_pid_file = root / "descendant.pid"
             capture_dir = root / "capture"
@@ -470,7 +470,7 @@ class EntrypointTests(unittest.TestCase):
                 environment["SWCLID_RUNTIME_LOG_DIR"] = str(runtime_log_dir)
             try:
                 result = subprocess.run(
-                    [str(CLI_ENTRYPOINT), "sw-cli", "document", "list", "--json"],
+                    [str(CLI_ENTRYPOINT), "swcli", "document", "list", "--json"],
                     capture_output=True,
                     text=True,
                     env=environment,

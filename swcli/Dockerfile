@@ -16,7 +16,7 @@ COPY --link --from=swcli-dependencies /deps/ /opt/swcli-deps/
 
 COPY --link swcli/SWCLI/ /opt/swcli/
 COPY --link --chmod=755 \
-    swcli/bin/sw-cli \
+    swcli/bin/swcli \
     swcli/bin/swcli-daemon-utils \
     swcli/bin/linux-to-wine-path \
     /usr/local/bin/

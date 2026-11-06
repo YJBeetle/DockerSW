@@ -107,7 +107,7 @@ class SharedSmokeWrapperTests(unittest.TestCase):
         self.assertFalse(Path(fixture).exists())
         self.assertEqual((self.mold / "bezel moldbase.slddrw").read_bytes(), b"source drawing")
         self.assertFalse((output / "Moldbase").exists())
-        self.assertEqual(self.value("--cli-command"), "/usr/local/bin/sw-cli")
+        self.assertEqual(self.value("--cli-command"), "/usr/local/bin/swcli")
         self.assertEqual(
             self.call()["pythonpath"], "/source with spaces/src:/deps with spaces/linux"
         )
@@ -223,7 +223,7 @@ class SharedSmokeWrapperTests(unittest.TestCase):
         self.assertEqual(self.call()["args"][0], "/opt/swcli/scripts/ci/verify-toolbox.py")
         self.assertEqual(self.value("--output-dir"), str(output))
         self.assertEqual(self.value("--wine-prefix"), "/actual wine prefix")
-        self.assertEqual(self.value("--cli-command"), "/usr/local/bin/sw-cli")
+        self.assertEqual(self.value("--cli-command"), "/usr/local/bin/swcli")
         self.assertIn("--require-toolbox", self.call()["args"])
         self.assertNotIn("--inventory-only", self.call()["args"])
         self.assertNotIn("--data-dir", self.call()["args"])

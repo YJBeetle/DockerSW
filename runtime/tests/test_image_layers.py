@@ -40,7 +40,7 @@ class ImageLayeringTests(unittest.TestCase):
 
         payload = self.read("swcli/Dockerfile")
         self.assertIn("COPY --link swcli/SWCLI/ /opt/swcli/", payload)
-        self.assertIn("swcli/bin/sw-cli", payload)
+        self.assertIn("swcli/bin/swcli", payload)
         self.assertIn("swcli/bin/linux-to-wine-path", payload)
         self.assertIn("swcli/entrypoint-cli.sh", payload)
         self.assertNotIn("runtime/entrypoint.sh", payload)
@@ -60,9 +60,17 @@ class ImageLayeringTests(unittest.TestCase):
         ):
             self.assertFalse((PROJECT_ROOT / removed_path).exists())
 
+    def test_cli_delivery_exposes_only_the_swcli_entrypoint(self) -> None:
+        self.assertTrue((PROJECT_ROOT / "swcli/bin/swcli").is_file())
+        self.assertFalse((PROJECT_ROOT / "swcli/bin/sw-cli").exists())
+        payload = self.read("swcli/Dockerfile")
+        self.assertIn("swcli/bin/swcli", payload)
+        self.assertNotIn("swcli/bin/sw-cli", payload)
+        self.assertIn("RUN rm -f /usr/local/bin/sw-cli", self.read("swcli/Dockerfile.delivery"))
+
     def test_swcli_payload_runs_the_pinned_source_instead_of_an_installed_wheel(self) -> None:
         payload = self.read("swcli/Dockerfile")
-        wrapper = self.read("swcli/bin/sw-cli")
+        wrapper = self.read("swcli/bin/swcli")
         utilities = self.read("swcli/bin/swcli-daemon-utils")
         wine_setup = self.read("runtime/init_wineprefix.sh")
 
@@ -91,7 +99,7 @@ class ImageLayeringTests(unittest.TestCase):
             runtime,
         )
         self.assertNotIn("runtime/bin/sw-install", payload)
-        self.assertNotIn("runtime/bin/sw-cli", payload)
+        self.assertNotIn("runtime/bin/swcli", payload)
         self.assertNotIn("runtime/bin/linux-to-wine-path", payload)
         self.assertNotIn("sw-install", delivery)
 
@@ -112,7 +120,7 @@ class ImageLayeringTests(unittest.TestCase):
             self.assertNotIn("/usr/local/bin/swclid", self.read(relative_path))
 
         export_script = self.read("smoke-test/export.sh")
-        self.assertNotIn("sw-cli daemon", export_script)
+        self.assertNotIn("swcli daemon", export_script)
         self.assertNotIn("\nswclid ", export_script)
 
     def test_real_smoke_delegates_shared_assertions_and_keeps_delivery_gates(self) -> None:
@@ -129,13 +137,13 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertNotIn("--inventory-only", toolbox_script)
         self.assertIn('--after-modeling "${modeling_record}"', driving_script)
         for script in (modeling_script, driving_script):
-            self.assertIn("--cli-command /usr/local/bin/sw-cli", script)
+            self.assertIn("--cli-command /usr/local/bin/swcli", script)
             self.assertIn('--host-output-dir "$(winepath -w', script)
             self.assertIn("SW_SMOKE_EVIDENCE_DIR", script)
             for duplicate in ("jq ", "document lease", "feature extrude", "document export"):
                 self.assertNotIn(duplicate, script)
         for script in (export_script, modeling_script, driving_script, toolbox_script):
-            for mutation in ("sw-cli daemon start", "sw-cli daemon restart", "sw-cli daemon stop"):
+            for mutation in ("swcli daemon start", "swcli daemon restart", "swcli daemon stop"):
                 self.assertNotIn(mutation, script)
         workflow = self.read(".github/workflows/build.yml")
         self.assertIn("bash -n smoke-test/verify-swcli.sh", workflow)

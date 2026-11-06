@@ -31,7 +31,7 @@ NATIVE_STDERR_FIND_ARGS = [
     "+",
 ]
 CONTAINER_ID = "d" * 64
-CONTAINER_NAME = "sw-cli-export-smoke-fixture-run-2"
+CONTAINER_NAME = "swcli-export-smoke-fixture-run-2"
 EXPORT_NAMES = (
     "bezel moldbase.PDF",
     "bezel moldbase.DWG",
@@ -41,10 +41,10 @@ EXPORT_NAMES = (
     "Paper Airplane.STEP",
 )
 PHASES = {
-    MAIN_STEP: ("export.sh", "sw-cli-export.log"),
-    GENERIC_STEP: ("verify-swcli.sh", "sw-cli-runtime-sets.log"),
+    MAIN_STEP: ("export.sh", "swcli-export.log"),
+    GENERIC_STEP: ("verify-swcli.sh", "swcli-runtime-sets.log"),
 }
-STATUS_COMMAND = ["sw-cli", "--request-timeout", "2", "daemon", "status", "--json"]
+STATUS_COMMAND = ["swcli", "--request-timeout", "2", "daemon", "status", "--json"]
 
 
 @unittest.skipUnless(
@@ -61,7 +61,7 @@ class SmokeEvidenceTests(unittest.TestCase):
         )
         self.trace = self.directory / "commands.jsonl"
         self.runner = self.directory / "runner"
-        self.smoke_root = self.runner / "sw-cli-export-smoke"
+        self.smoke_root = self.runner / "swcli-export-smoke"
         self.runtime_stderr_dir = self.smoke_root / "native-runtime-stderr"
         self.runtime_stderr_dir.mkdir(parents=True)
         self.fake_bin = self.directory / "bin"
@@ -76,9 +76,9 @@ class SmokeEvidenceTests(unittest.TestCase):
             with trace.open('a', encoding='utf-8') as stream:
                 stream.write(json.dumps([role, *args]) + '\\n')
             calls = [json.loads(line) for line in trace.read_text().splitlines()]
-            status = ['sw-cli', '--request-timeout', '2', 'daemon', 'status', '--json']
+            status = ['swcli', '--request-timeout', '2', 'daemon', 'status', '--json']
             probe_count = sum(
-                call[:3] == ['docker', 'exec', 'sw-cli-export-smoke-fixture-run-2']
+                call[:3] == ['docker', 'exec', 'swcli-export-smoke-fixture-run-2']
                 and call[3:] == status for call in calls
             )
             if role == 'timeout':
@@ -91,9 +91,9 @@ class SmokeEvidenceTests(unittest.TestCase):
                 print(Path(args[-1]).stat().st_size)
                 sys.exit(0)
             if role == 'sudo':
-                runtime = Path(os.environ['RUNNER_TEMP']) / 'sw-cli-export-smoke' / 'native-runtime-stderr'
+                runtime = Path(os.environ['RUNNER_TEMP']) / 'swcli-export-smoke' / 'native-runtime-stderr'
                 expected = ['find', str(runtime), *json.loads(os.environ['FAKE_NATIVE_STDERR_FIND_ARGS'])]
-                public_roots = ['sw-cli-export-smoke', 'sw-language-smoke']
+                public_roots = ['swcli-export-smoke', 'sw-language-smoke']
                 public_commands = [
                     ['find', '-P', str(Path(os.environ['RUNNER_TEMP']) / root),
                      '-type', kind, '-exec', 'chmod', mode, '{}', '+']
@@ -148,7 +148,7 @@ class SmokeEvidenceTests(unittest.TestCase):
                 if os.environ.get('FAKE_RUN_FAILURE'):
                     print('docker startup fixture failure', file=sys.stderr)
                     sys.exit(23)
-                runtime = Path(os.environ['RUNNER_TEMP']) / 'sw-cli-export-smoke' / 'native-runtime-stderr'
+                runtime = Path(os.environ['RUNNER_TEMP']) / 'swcli-export-smoke' / 'native-runtime-stderr'
                 runtime.mkdir(parents=True, exist_ok=True)
                 print('d' * 64)
             elif args[0] == 'exec':
@@ -187,7 +187,7 @@ class SmokeEvidenceTests(unittest.TestCase):
                     ))), file=sys.stderr)
                     sys.exit(int(os.environ.get('FAKE_PHASE_EXIT_CODE', '23')))
                 if script == 'export.sh':
-                    outdir = Path(os.environ['RUNNER_TEMP']) / 'sw-cli-export-smoke' / 'output' / '中文 路径'
+                    outdir = Path(os.environ['RUNNER_TEMP']) / 'swcli-export-smoke' / 'output' / '中文 路径'
                     for name in json.loads(os.environ['FAKE_EXPORT_NAMES']):
                         if name != os.environ.get('FAKE_MISSING_EXPORT'):
                             header = {'PDF':'%PDF-1.7', 'DWG':'AC1032', 'STEP':'ISO-10303-21;'}[name.rsplit('.', 1)[1]]
@@ -393,7 +393,7 @@ class SmokeEvidenceTests(unittest.TestCase):
             forbidden.write_text("#!/usr/bin/env bash\nexit 99\n", encoding="utf-8")
             forbidden.chmod(0o755)
         completed = subprocess.run(
-            ["bash", str(PROJECT_ROOT / "swcli/bin/sw-cli"), *STATUS_COMMAND[1:]],
+            ["bash", str(PROJECT_ROOT / "swcli/bin/swcli"), *STATUS_COMMAND[1:]],
             env=self.environment,
             text=True,
             capture_output=True,
@@ -458,7 +458,7 @@ class SmokeEvidenceTests(unittest.TestCase):
         probes = [
             index
             for index, call in enumerate(calls)
-            if call[1] == "exec" and call[3] == "sw-cli"
+            if call[1] == "exec" and call[3] == "swcli"
         ]
         business = [
             index
@@ -562,8 +562,8 @@ class SmokeEvidenceTests(unittest.TestCase):
         run = next(call for call in self.calls("docker") if call[1] == "run")
         self.assertIn("SW_SMOKE_OUTDIR=/ci-smoke/output/中文 路径", run)
         script = (PROJECT_ROOT / "smoke-test/export.sh").read_text()
-        self.assertEqual(script.count("sw-cli document export --json"), 6)
-        for forbidden in ("--strict", "sw-cli document save", "sw-cli document rebuild", "sw-cli daemon"):
+        self.assertEqual(script.count("swcli document export --json"), 6)
+        for forbidden in ("--strict", "swcli document save", "swcli document rebuild", "swcli daemon"):
             self.assertNotIn(forbidden, script)
 
     def test_missing_export_still_fails_the_original_six_file_gate(self) -> None:

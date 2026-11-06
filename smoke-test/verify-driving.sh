@@ -13,4 +13,4 @@ PYTHONPATH="${SWCLI_SOURCE:-/opt/swcli/src}:${SWCLI_DEPS:-/opt/swcli-deps}/linux
     --output-dir "${dimension_outdir}" \
     --after-modeling "${modeling_record}" \
     --host-output-dir "$(winepath -w "${dimension_outdir}")" \
-    --cli-command /usr/local/bin/sw-cli
+    --cli-command /usr/local/bin/swcli

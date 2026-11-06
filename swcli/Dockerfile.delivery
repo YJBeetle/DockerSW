@@ -6,6 +6,8 @@ FROM ${PAYLOAD_IMAGE} AS swcli-payload
 FROM ${IMAGE} AS swcli-delivery
 
 COPY --link --from=swcli-payload / /
+# Remove a superseded command if a caller supplies an older CLI-bearing base.
+RUN rm -f /usr/local/bin/sw-cli
 
 WORKDIR /workspace
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh", "/usr/local/bin/entrypoint-cli.sh"]

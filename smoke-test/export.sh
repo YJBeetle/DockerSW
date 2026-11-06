@@ -11,27 +11,27 @@ mkdir -p "${outdir}"
 # warnings. Do not rebuild/save samples; close discards exporter modifications.
 
 # Drawing: export one PDF and one DWG, then discard any exporter modifications.
-sw-cli document open \
+swcli document open \
     "${workspace}/Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/bezel moldbase.slddrw" --json
-sw-cli document export --json "${outdir}/bezel moldbase.PDF"
-sw-cli document export --json "${outdir}/bezel moldbase.DWG"
-sw-cli document close --discard --json
+swcli document export --json "${outdir}/bezel moldbase.PDF"
+swcli document export --json "${outdir}/bezel moldbase.DWG"
+swcli document close --discard --json
 
 # Assembly: export one neutral STEP artifact.
-sw-cli document open \
+swcli document open \
     "${workspace}/Program Files/SOLIDWORKS/sldBenchmarking/Macro/Mold/bezel moldbase.sldasm" --json
-sw-cli document export --json "${outdir}/bezel moldbase.STEP"
-sw-cli document close --discard --json
+swcli document export --json "${outdir}/bezel moldbase.STEP"
+swcli document close --discard --json
 
 # Drawing: the DWG exporter may mark the source as modified without saving it.
-sw-cli document open \
+swcli document open \
     "${workspace}/users/Public/Documents/SOLIDWORKS/SOLIDWORKS 2025/samples/introsw/cabinet_bath.slddrw" --json
-sw-cli document export --json "${outdir}/cabinet_bath.PDF"
-sw-cli document export --json "${outdir}/cabinet_bath.DWG"
-sw-cli document close --discard --json
+swcli document export --json "${outdir}/cabinet_bath.PDF"
+swcli document export --json "${outdir}/cabinet_bath.DWG"
+swcli document close --discard --json
 
 # Part: export one neutral STEP artifact.
-sw-cli document open \
+swcli document open \
     "${workspace}/users/Public/Documents/SOLIDWORKS/SOLIDWORKS 2025/samples/learn/Paper Airplane.SLDPRT" --json
-sw-cli document export --json "${outdir}/Paper Airplane.STEP"
-sw-cli document close --discard --json
+swcli document export --json "${outdir}/Paper Airplane.STEP"
+swcli document close --discard --json

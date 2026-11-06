@@ -281,8 +281,8 @@ jobs:
         if: steps.check-runtime.outputs.exists != 'true'
         run: |
           echo "[CI] 验证 CLI 镜像中的 Linux Python 客户端与 Wine daemon 命令行..."
-          docker run --rm sw-runtime-cli:local-test sw-cli version --json
-          docker run --rm sw-runtime-cli:local-test sw-cli daemon --help
+          docker run --rm sw-runtime-cli:local-test swcli version --json
+          docker run --rm sw-runtime-cli:local-test swcli daemon --help
 
           echo "[CI] 验证 CLI 镜像保留默认镜像中的安装器命令..."
           docker run --rm sw-runtime-cli:local-test sw-install --help
@@ -783,10 +783,10 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
+          smoke_container="swcli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          smoke_root="${RUNNER_TEMP}/swcli-export-smoke"
           output_dir="${smoke_root}/output/中文 路径"
-          log_file="${smoke_root}/sw-cli-export.log"
+          log_file="${smoke_root}/swcli-export.log"
 
           rm -rf "${smoke_root}"
           mkdir -p "${output_dir}"
@@ -828,7 +828,7 @@ jobs:
             if [ "${remaining}" -gt 20 ]; then remaining=20; fi
             # The leading global option routes this socket-only probe to Linux Python.
             if timeout --kill-after=2s "${remaining}s" \
-                docker exec "${smoke_container}" sw-cli --request-timeout 2 daemon status --json \
+                docker exec "${smoke_container}" swcli --request-timeout 2 daemon status --json \
                 >"${status_file}" 2>>"${probe_log}" \
                 && jq -e '.success == true and .result.host_connected == true
                   and .result.worker_alive == true and .result.recovery_required == false
@@ -887,7 +887,7 @@ jobs:
           fixture_zip="${RUNNER_TEMP}/swcli-properties-42089485924.zip"
           gh api repos/YJBeetle/SWCLI/actions/artifacts/13448106095/zip > "${fixture_zip}"
           echo "685ca373612c263c3a4cc2431a354eecb0ee60cabe932070ccdf668c583c1681  ${fixture_zip}" | sha256sum -c -
-          python3 - "${fixture_zip}" "${RUNNER_TEMP}/sw-cli-export-smoke/properties-input" <<'PYFIXTURE'
+          python3 - "${fixture_zip}" "${RUNNER_TEMP}/swcli-export-smoke/properties-input" <<'PYFIXTURE'
           import hashlib
           import pathlib
           import sys
@@ -918,19 +918,19 @@ jobs:
         timeout-minutes: 90
         run: |
           set -Eeuo pipefail
-          smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
+          smoke_container="swcli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          smoke_root="${RUNNER_TEMP}/swcli-export-smoke"
           docker exec "${smoke_container}" \
             bash /opt/dockersw-smoke/verify-swcli.sh /root/.wine/drive_c /ci-smoke/runtime-sets 2>&1 \
-            | tee "${smoke_root}/sw-cli-runtime-sets.log"
+            | tee "${smoke_root}/swcli-runtime-sets.log"
 
       - name: Collect native daemon diagnostics & clean smoke container
         if: always() && steps.check-images.outputs.already_verified != 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
-          smoke_container="sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
+          smoke_container="swcli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          smoke_root="${RUNNER_TEMP}/swcli-export-smoke"
           native_log=/root/.wine/drive_c/users/root/AppData/Local/SWCLI/logs/daemon.log
           daemon_log="${smoke_root}/daemon.log"
           startup_log="${smoke_root}/startup.log"
@@ -979,7 +979,7 @@ jobs:
             smoke_container="sw-language-smoke-${GITHUB_RUN_ID}-${language_tag}"
             smoke_root="${RUNNER_TEMP}/sw-language-smoke/${language_tag}"
             output_dir="${smoke_root}/output"
-            log_file="${smoke_root}/sw-cli-export.log"
+            log_file="${smoke_root}/swcli-export.log"
             executable_language_cli_image="${SW_EXECUTABLE_REPO}:${SW_IMAGE_SHA_TAG}-${language_tag}-cli"
 
             rm -rf "${smoke_root}"
@@ -1005,8 +1005,8 @@ jobs:
         timeout-minutes: 5
         run: |
           set -Eeuo pipefail
-          smoke_root="${RUNNER_TEMP}/sw-cli-export-smoke"
-          visible_container="sw-cli-visible-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          smoke_root="${RUNNER_TEMP}/swcli-export-smoke"
+          visible_container="swcli-visible-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           trap 'docker rm -f "${visible_container}" >/dev/null 2>&1 || :' EXIT
           docker run --rm \
             --name "${visible_container}" \
@@ -1024,7 +1024,7 @@ jobs:
           set -Eeuo pipefail
           # Atomic JSON written by root containers can retain mode 0600.
           # Only public evidence is shared; never traverse symlink targets.
-          for evidence_dir in "${RUNNER_TEMP}/sw-cli-export-smoke" "${RUNNER_TEMP}/sw-language-smoke"; do
+          for evidence_dir in "${RUNNER_TEMP}/swcli-export-smoke" "${RUNNER_TEMP}/sw-language-smoke"; do
             if [ -d "${evidence_dir}" ]; then
               sudo find -P "${evidence_dir}" -type d -exec chmod a+rx {} +
               sudo find -P "${evidence_dir}" -type f -exec chmod a+r {} +
@@ -1133,7 +1133,7 @@ jobs:
         if: always() && steps.check-images.outputs.already_verified != 'true'
         shell: bash
         run: |
-          docker rm -f "sw-cli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true
+          docker rm -f "swcli-export-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true
           while IFS=$'\t' read -r language_tag _; do
             docker rm -f "sw-language-smoke-${GITHUB_RUN_ID}-${language_tag}" >/dev/null 2>&1 || true
           done < "${SW_LANGUAGE_PLAN}" 2>/dev/null || true
@@ -1158,8 +1158,8 @@ jobs:
         if: always() && steps.check-images.outputs.already_verified != 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: sw-cli-export-smoke-${{ github.run_id }}
-          path: ${{ runner.temp }}/sw-cli-export-smoke
+          name: swcli-export-smoke-${{ github.run_id }}
+          path: ${{ runner.temp }}/swcli-export-smoke
           if-no-files-found: ignore
           retention-days: 14
 

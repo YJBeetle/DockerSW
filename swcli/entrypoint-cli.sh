@@ -48,7 +48,7 @@ else
     else
         SWCLID_START_ERROR="$(mktemp "${TMPDIR:-/tmp}/swclid-start-error.XXXXXX")"
     fi
-    if sw-cli "${SWCLID_START_ARGS[@]}" \
+    if swcli "${SWCLID_START_ARGS[@]}" \
         >"${SWCLID_START_OUTPUT}" 2>"${SWCLID_START_ERROR}"; then
         if jq -e '.success == true and .result.health.host_connected == true' \
             "${SWCLID_START_OUTPUT}" >/dev/null; then
@@ -74,6 +74,6 @@ if [ "$#" -gt 0 ]; then
     echo "[DockerSW] 容器初始化完成"
     exec "$@"
 else
-    echo "[DockerSW] 容器就绪。使用 'sw-cli' 执行建模、检查与导出。"
+    echo "[DockerSW] 容器就绪。使用 'swcli' 执行建模、检查与导出。"
     exec /bin/bash
 fi

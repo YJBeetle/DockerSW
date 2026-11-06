@@ -32,7 +32,7 @@ else:
     print(json.dumps({'success': False, 'error': {'code': os.environ.get('STOP_ERROR', 'ConnectionRefusedError')}}))
     sys.exit(1)
 '''
-        for name in ("python3", "winepath", "sw-cli"):
+        for name in ("python3", "winepath", "swcli"):
             path = self.directory / name
             path.write_text(executable)
             path.chmod(0o755)
@@ -48,7 +48,7 @@ else:
         self.assertEqual(result.returncode, 0, result.stderr)
         args = json.loads(self.trace.read_text())
         self.assertEqual(args[0], "/opt/swcli/scripts/ci/verify-visible.py")
-        self.assertIn("/usr/local/bin/sw-cli", args)
+        self.assertIn("/usr/local/bin/swcli", args)
         self.assertIn("--sample-part", args)
         self.assertIn("shared visible diagnostic", result.stderr)
         self.assertNotIn("--suite", args)
