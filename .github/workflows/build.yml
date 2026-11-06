@@ -68,6 +68,7 @@ jobs:
           python-version: '3.11'
 
       - name: Validate Shell Scripts
+        id: shell-checks
         run: |
           bash -n runtime/init_wineprefix.sh
           bash -n runtime/entrypoint.sh
@@ -86,11 +87,36 @@ jobs:
           bash -n runtime/verify_mono_ccw.sh
 
       - name: Run Logic Tests
+        id: logic-tests
         run: |
           python -m pip install ./swcli/SWCLI
           python -m unittest discover -s runtime/tests -p "test_*.py" -v
           python -m unittest discover -s swcli/tests -p "test_*.py" -v
           PYTHONPATH=swcli/SWCLI/src python -m unittest discover -s swcli/SWCLI/tests -p "test_*.py" -v
+
+      - name: Summarize unit verification
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          python3 swcli/SWCLI/scripts/ci/summarize-tests.py \
+            --evidence-root "${RUNNER_TEMP}/swcli-unit-evidence" \
+            --output-dir "${RUNNER_TEMP}/swcli-unit-summary" \
+            --host linux-wine --scope dockersw-unit \
+            --source-commit "$(git -C swcli/SWCLI rev-parse HEAD)" \
+            --client-version "$(PYTHONPATH=swcli/SWCLI/src python3 -c 'from swcli import __version__; print(__version__)')" \
+            --stage 'shell=${{ steps.shell-checks.outcome }}' \
+            --stage 'unit=${{ steps.logic-tests.outcome }}' \
+            --step-summary "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload unit summary
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: swcli-unit-summary-${{ github.run_id }}
+          path: ${{ runner.temp }}/swcli-unit-summary
+          if-no-files-found: ignore
+          retention-days: 14
 
   build-and-smoke-test:
     name: Build & Verify SolidWorks Images
@@ -201,6 +227,7 @@ jobs:
           fi
 
       - name: Build and load sw-runtime image
+        id: runtime-build
         if: steps.check-runtime.outputs.exists != 'true'
         uses: docker/build-push-action@v7
         with:
@@ -215,6 +242,7 @@ jobs:
           cache-to: type=registry,ref=ghcr.io/yjbeetle/sw-runtime:buildcache-image,mode=max,ignore-error=true
 
       - name: Smoke test sw-runtime image
+        id: runtime-smoke
         if: steps.check-runtime.outputs.exists != 'true'
         run: |
           . runtime/managed_com.env
@@ -1035,6 +1063,7 @@ jobs:
             fi
           done
       - name: Publish verified CLI images & promote atomically
+        id: publish
         if: success() && steps.smoke-generic.outcome == 'success' && steps.smoke-visible.outcome == 'success' && env.SWCLI_RUNTIME_SUITE == 'full'
         shell: bash
         run: |
@@ -1134,6 +1163,7 @@ jobs:
           docker system df || true
 
       - name: Unmount installation media
+        id: cleanup-media
         if: always() && steps.check-images.outputs.already_verified != 'true'
         shell: bash
         run: |
@@ -1148,6 +1178,26 @@ jobs:
             sudo umount "${GDRIVE_MOUNT}" 2>/dev/null || true
           tail -n 100 "${RUNNER_TEMP}/rclone-gdrive.log" 2>/dev/null || true
           rm -f "${RCLONE_CONFIG_FILE}"
+
+      - name: Summarize runtime verification
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          python3 swcli/SWCLI/scripts/ci/summarize-tests.py \
+            --evidence-root "${RUNNER_TEMP}/swcli-export-smoke" \
+            --output-dir "${RUNNER_TEMP}/swcli-export-smoke/summary" \
+            --host linux-wine --scope dockersw-runtime \
+            --source-commit "$(git -C swcli/SWCLI rev-parse HEAD)" \
+            --client-version "$(PYTHONPATH=swcli/SWCLI/src python3 -c 'from swcli import __version__; print(__version__)')" \
+            --stage 'runtime-build=${{ steps.runtime-build.outcome }}' \
+            --stage 'runtime-startup=${{ steps.runtime-smoke.outcome }}' \
+            --stage 'exports=${{ steps.smoke-exports.outcome }}' \
+            --stage 'cad=${{ steps.smoke-generic.outcome }}' \
+            --stage 'visible-lifecycle=${{ steps.smoke-visible.outcome }}' \
+            --stage 'cleanup=${{ steps.cleanup-media.outcome }}' \
+            --stage 'publish=${{ steps.publish.outcome }}' \
+            --step-summary "${GITHUB_STEP_SUMMARY}"
 
       - name: Upload private installer logs
         if: failure() && steps.check-images.outputs.already_verified != 'true'
