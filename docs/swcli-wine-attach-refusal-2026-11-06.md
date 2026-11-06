@@ -5,7 +5,8 @@ image release. The existing local executable image
 `377e9edd59f86333740cc1e3b049d546997b826907b5ce9851b571ebc205ecab`
 was run in its own disposable container with SWCLI source
 `4c3bfb2143e4f549a5da84d64e3ef40adb4195de` and current native wrappers mounted
-read-only as test inputs. No user SW, VM or other container was stopped.
+as copied test inputs in the isolated evidence directory. The dependency directory
+was mounted read-only. No user SW, VM or other container was stopped.
 
 The real command `swcli daemon start --attach-existing --json` was called once
 at a dedicated loopback endpoint. It returned exit code 1 and the original
