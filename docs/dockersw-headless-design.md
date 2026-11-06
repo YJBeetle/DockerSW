@@ -50,7 +50,7 @@ swcli-payload
 容器启动时执行以下标准化自适应与环境保障：
 
 1. **固定源码构建与兼容性补丁**：
-   - 从校验过 SHA-256 的 Wine 11.16 源码构建 `ntdll.so`、`win32u.so`、`winex11.so` 与 `opengl32.so`，修复 24-bit DIB 无头离屏渲染和 GLX 前缓冲缺陷；四者共享 Wine 私有 ABI，必须在同一个 Ubuntu 22.04 构建阶段作为整体生成和安装；同一构建阶段还生成 x64 `combase.dll`，修复 SOLIDWORKS 慢启动的 COM 注册等待，编译工具不进入成品镜像；
+   - 从校验过 SHA-256 的 Wine 11.21 源码构建 `ntdll.so`、`win32u.so`、`winex11.so` 与 `opengl32.so`，修复 24-bit DIB 无头离屏渲染和 GLX 前缓冲缺陷；四者共享 Wine 私有 ABI，必须在同一个 Ubuntu 22.04 构建阶段作为整体生成和安装；同一构建阶段还生成 x64 `combase.dll`，修复 SOLIDWORKS 慢启动的 COM 注册等待，编译工具不进入成品镜像；
    - 运行时只检测并执行 `/usr/local/lib/sw-runtime/patch_wine_mono.pl`，修补 Wine-Mono CCW (`ComCallableWrapper`) 释放时的断言崩溃；不再原地修改 Wine ELF 机器码；
 2. **Xvfb 无头显示守护**：
    - 检测并拉起 `Xvfb ${DISPLAY:-:99} -screen 0 1024x768x24 -ac +extension GLX +render -noreset`；
@@ -154,7 +154,7 @@ DockerSW 保留不依赖旧 `sw-daemon` 的人类监看能力。设置 `VNC_ENAB
 
 1. **Wine 11.x 24-bit DIB 离屏 OpenGL 渲染修复**：
    - *问题*：Xvfb 默认屏幕深度为 24bpp，Wine 11.x 的 `win32u.so` 在处理 24-bit DIB 时缺乏像素格式转换支持，导致离屏 OpenGL 交换缓冲失败，SOLIDWORKS 导出包含 3D 内容的模型或渲染时产生全黑图或抛出内存段错误。
-   - *方案*：对固定 SHA-256 的 Wine 11.16 源码应用可审阅的 LGPL 源码补丁，按 DIB 位深选择 `GL_BGR` / `GL_BGRA` 并使用真实 `biHeight`；在 Ubuntu 22.04 构建阶段成对产出 `ntdll.so` 与 `win32u.so`，彻底恢复 OpenGL 离屏绘图能力，同时避免依赖易漂移的机器码偏移。
+   - *方案*：对固定 SHA-256 的 Wine 11.21 源码应用可审阅的 LGPL 源码补丁，使用真实 DIB 高度，并通过统一的 32-bit 暂存表面转换像素格式；在 Ubuntu 22.04 构建阶段成对产出 `ntdll.so` 与 `win32u.so`，彻底恢复 OpenGL 离屏绘图能力，同时避免依赖易漂移的机器码偏移。
 2. **PropertyManager 鼠标捕获兼容修复**：
    - *问题*：Wine 对同一窗口重复 `SetCapture` 时重发 `WM_CAPTURECHANGED`，使 SOLIDWORKS 左侧面板顶部的确认与取消按钮错误释放鼠标捕获；
    - *方案*：源码补丁提供 `WINE_NOCAPTURERESEND` AppCompat 标志，并只对 `sldworks.exe` 启用，不改变其他 Windows 程序的捕获语义。

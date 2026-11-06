@@ -19,7 +19,7 @@ DockerSW 在 GitHub CI 与 workspaceroot 也观察到 ASM `SaveAs3` 返回错误
 ## 构建与验证
 
 MSXML6 的工厂转发到 Wine `msxml3` 实现，因此需要交付 `msxml3.dll`。
-DockerSW 使用 `managed_com.env` 固定的 Wine 11.16 源码，与其他修复模块同阶段构建
+DockerSW 使用 `managed_com.env` 固定的 Wine 11.21 源码，与其他修复模块同阶段构建
 x64 PE 模块，并在 wineboot 之前安装；初始化会将模板模块复制到 prefix 的 system32。
 已有 SOLIDWORKS 进程必须正常退出后再使用新镜像，热替换文件不会更新已加载模块。
 

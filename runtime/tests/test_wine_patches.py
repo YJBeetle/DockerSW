@@ -76,10 +76,10 @@ int main(void) {
 
         self.assertNotIn("ARG WINE_VERSION", dockerfile)
         self.assertNotIn("ARG WINE_SOURCE_SHA256", dockerfile)
-        self.assertIn('WINE_VERSION="11.16"', version_config)
+        self.assertIn('WINE_VERSION="11.21"', version_config)
         self.assertIn(
             'WINE_SOURCE_SHA256="'
-            'c66e2090343dcd727f7f7fd2f87ee0bfb0b118790c1d745ab7b8a4c3a4197f2f"',
+            '5a40f593432d81fd3a1646db503f21ce42b8894d6d80c34c3a48b886edc54e3d"',
             version_config,
         )
         self.assertIn("COPY runtime/managed_com.env /build/managed_com.env", dockerfile)
@@ -98,7 +98,7 @@ int main(void) {
 
         self.assertIn(". runtime/managed_com.env", workflow)
         self.assertIn('= "wine-${WINE_VERSION}"', workflow)
-        self.assertNotIn('= "wine-11.16"', workflow)
+        self.assertNotIn('= "wine-11.21"', workflow)
 
     def test_wine_unix_modules_are_built_and_installed_as_one_abi_set(self) -> None:
         dockerfile = (RUNTIME_ROOT / "Dockerfile").read_text(encoding="utf-8")
