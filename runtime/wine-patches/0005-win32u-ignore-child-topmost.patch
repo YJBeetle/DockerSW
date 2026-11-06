@@ -1,7 +1,10 @@
 diff --git a/dlls/win32u/window.c b/dlls/win32u/window.c
 --- a/dlls/win32u/window.c
 +++ b/dlls/win32u/window.c
-@@ -4233,2 +4233,12 @@ BOOL WINAPI NtUserSetWindowPos( HWND hwnd, HWND after, INT x, INT y, INT cx, INT cy, UINT flags )
+@@ -4265,6 +4265,16 @@
+         return FALSE;
+     }
+
 +    /* Windows ignores topmost changes for real child windows. A WS_CHILD
 +     * window parented to the desktop (e.g. ComboLBox) must still be moved
 +     * and shown, including when SWP_SHOWWINDOW is set. */
@@ -14,3 +17,4 @@ diff --git a/dlls/win32u/window.c b/dlls/win32u/window.c
 +
      winpos.hwnd = get_full_window_handle( hwnd );
      winpos.hwndInsertAfter = get_full_window_handle( after );
+     winpos.x = x;
