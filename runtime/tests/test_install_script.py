@@ -404,10 +404,10 @@ elif program == "wineserver":
         prepare = (RUNTIME_ROOT / "prepare_managed_com.sh").read_text(
             encoding="utf-8"
         )
-        self.assertIn('WINE_VERSION="11.16"', config)
-        self.assertIn('WINE_PACKAGE_VERSION="11.16~jammy-1"', config)
+        self.assertIn('WINE_VERSION="11.21"', config)
+        self.assertIn('WINE_PACKAGE_VERSION="11.21~jammy-1"', config)
         self.assertIn(
-            'WINE_SOURCE_SHA256="c66e2090343dcd727f7f7fd2f87ee0bfb0b118790c1d745ab7b8a4c3a4197f2f"',
+            'WINE_SOURCE_SHA256="5a40f593432d81fd3a1646db503f21ce42b8894d6d80c34c3a48b886edc54e3d"',
             config,
         )
         self.assertIn('WINE_MONO_VERSION="11.3.0"', config)
