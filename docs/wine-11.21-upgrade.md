@@ -50,3 +50,16 @@ Jammy DEB `11.21~jammy-1`。源码归档使用 SHA-256 校验；Wine-Mono 保持
 `d1d11df42ff5d0121bdca0084ef54eb99e97b059dd9d9e39de5564613a1e85af`。
 
 完整交付验证见 [升级工作流](https://github.com/YJBeetle/DockerSW/actions/runs/42248079598)。
+
+## 完整镜像交付结果
+
+工作流 `42248079598`（源码 `de3a1cd`）两个作业均成功：
+
+- 6 个真实 STEP/PDF/DWG 导出产物校验通过。
+- 19 组隔离功能测试全部通过，包括装配体、图纸原位保存/另存为和 Toolbox。
+- 本地化镜像与轻量可见流程通过。
+- `2025` 系列镜像晋升成功；远端查询确认 `2025-zh-cn-cli` 与
+  `sha-de3a1cd-zh-cn-cli` 的 manifest 相同，对应镜像摘要
+  `sha256:e7df83dfafcf9222ad3053e46720b771a96995c9e0b348d71d8fa99028b45b1d`。
+
+此处晋升范围为 `2025` 分支；`latest` 系列由 `main` 的工作流维护。
