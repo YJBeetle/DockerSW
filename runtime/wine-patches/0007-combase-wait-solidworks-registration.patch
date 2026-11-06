@@ -1,7 +1,10 @@
 diff --git a/dlls/combase/rpc.c b/dlls/combase/rpc.c
 --- a/dlls/combase/rpc.c
 +++ b/dlls/combase/rpc.c
-@@ -625,3 +625,36 @@
+@@ -622,6 +622,39 @@
+     return S_OK;
+ }
+
 +/* SOLIDWORKS may take minutes to register its class factory on a cold disk.
 + * Keep waiting inside the original activation instead of starting another
 + * server or relying on the running object table (not guaranteed in Wine). */
@@ -38,13 +41,23 @@ diff --git a/dlls/combase/rpc.c b/dlls/combase/rpc.c
  HRESULT rpc_get_local_class_object(REFCLSID rclsid, REFIID riid, void **obj)
  {
      PMInterfacePointer objref = NULL;
-@@ -632,4 +665,4 @@
+@@ -630,9 +663,9 @@
+     ULARGE_INTEGER newpos;
+     LARGE_INTEGER seekto;
      int tries = 0;
 +    const unsigned int MAXTRIES = local_server_wait_seconds( rclsid );
      ULONG length;
      HRESULT hr;
 -    static const int MAXTRIES = 30; /* 30 seconds */
-@@ -669,2 +702,2 @@
+
+     TRACE("clsid %s, riid %s\n", debugstr_guid(rclsid), debugstr_guid(riid));
+
+@@ -666,7 +699,7 @@
+         if (process) CloseHandle(process);
+     }
+
 -    if (!objref || tries >= MAXTRIES)
 +    if (!objref)
          return E_NOINTERFACE;
+
+     if (SUCCEEDED(hr = CreateStreamOnHGlobal(0, TRUE, &stream)))
