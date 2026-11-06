@@ -523,6 +523,29 @@ elif program == "wineserver":
         self.assertIn('VNC_ARGS+=(-viewonly)', entrypoint)
         self.assertIn('x11vnc "${VNC_ARGS[@]}"', entrypoint)
 
+    def test_font_registry_failure_preserves_native_diagnostics_and_exit_code(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            trace = root / "calls"
+            wine = root / "wine"
+            wine.write_text(
+                "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$QUERY_TRACE\"\n"
+                "printf '%s\\n' 'native registry stdout'\n"
+                "printf '%s\\n' 'native registry stderr' >&2\nexit 23\n"
+            )
+            wine.chmod(0o755)
+            result = subprocess.run(
+                ["bash", str(RUNTIME_ROOT / "configure_ui_fonts.sh")],
+                env={**os.environ, "PATH": str(root) + os.pathsep + os.environ["PATH"],
+                     "QUERY_TRACE": str(trace)}, capture_output=True, text=True, timeout=10,
+            )
+            self.assertEqual(result.returncode, 23)
+            self.assertIn("native registry stdout", result.stderr)
+            self.assertIn("native registry stderr", result.stderr)
+            self.assertIn("stage=runtime-fonts operation=reg-query exit=23", result.stderr)
+            self.assertIn("CurrentVersion", result.stderr)
+            self.assertEqual(len(trace.read_text().splitlines()), 1)
+
     def test_core_serial_number_cli_and_msi_property(self) -> None:
         script = INSTALLER.read_text(encoding="utf-8")
         self.assertIn("--serial-solidworks", script)

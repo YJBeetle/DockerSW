@@ -8,8 +8,15 @@ UNISCRIBE_FALLBACK_KEY='HKCU\Software\Wine\Uniscribe\Fallback'
 HAN_SCRIPT_TAG='696e6168' # OpenType 的 hani 脚本标签。
 NOTO_LINK='NotoSansCJK-Regular.ttc,Noto Sans CJK SC'
 
-font_registry="$(wine reg query "${FONTS_KEY}" /s 2>/dev/null)" \
-    || { echo '[DockerSW][ERROR] 无法读取 Wine 字体注册表' >&2; exit 1; }
+if font_registry="$(wine reg query "${FONTS_KEY}" /s)"; then
+    :
+else
+    query_status=$?
+    printf '[DockerSW][FAIL] stage=runtime-fonts operation=reg-query exit=%s key=%s\n' \
+        "${query_status}" "${FONTS_KEY}" >&2
+    printf '%s\n' "${font_registry}" >&2
+    exit "${query_status}"
+fi
 # grep -q 会提前关闭管道；在 pipefail 下，大字体列表可能使 printf 以
 # SIGPIPE 退出，从而把已登记的字体误报为缺失。直接输入避免这个竞态。
 grep -Fq 'NotoSansCJK-Regular.ttc' <<< "${font_registry}" \
