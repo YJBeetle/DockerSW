@@ -1,11 +1,132 @@
-diff --git a/dlls/win32u/opengl.c b/dlls/win32u/opengl.c
+From: DockerSW maintainers
+Subject: [PATCH] win32u: stage memory-DC transfers through a 32-bit DIB.
+
+Adapt MacSW 0008 for Wine 11.21's generic FBO drawables, retaining DockerSW
+number 0000. Convert row-padded 24-bit and top-down DIBs through Wine's GDI
+conversion for both FBO and legacy pixel transfers. Preserve pixel-store,
+pixel-buffer and texture state in the private root context.
+
 --- a/dlls/win32u/opengl.c
 +++ b/dlls/win32u/opengl.c
-@@ -1752,3 +1752,4 @@ static BOOL flush_memory_dc( struct opengl_context *context, HDC hdc, BOOL write, void (*flush)(void) )
+@@ -2401,6 +2401,83 @@
+     return drawable->buffer_map[buffer - GL_FRONT_LEFT];
+ }
+
++/* A memory DC can be 24-bit, row-padded or top-down. OpenGL's BGRA
++ * transfers must go through a bottom-up 32-bit staging DIB instead. */
++static BOOL sync_bitmap_framebuffer( const struct opengl_funcs *funcs, struct opengl_drawable *drawable,
++                                     BITMAPINFO *info, void *bits, BOOL write )
++{
++    int width = info->bmiHeader.biWidth;
++    int height = info->bmiHeader.biHeight == INT_MIN ? 0 : abs( info->bmiHeader.biHeight );
++    BITMAPINFO buffer_info = {.bmiHeader = {sizeof(BITMAPINFOHEADER), width, height, 1, 32, BI_RGB}};
++    struct bitblt_coords src = {.width = width, .height = height, .visrect = {0, 0, width, height}};
++    SIZE_T size;
++    GLenum alignment = write ? GL_UNPACK_ALIGNMENT : GL_PACK_ALIGNMENT;
++    GLenum row_length = write ? GL_UNPACK_ROW_LENGTH : GL_PACK_ROW_LENGTH;
++    GLenum skip_rows = write ? GL_UNPACK_SKIP_ROWS : GL_PACK_SKIP_ROWS;
++    GLenum skip_pixels = write ? GL_UNPACK_SKIP_PIXELS : GL_PACK_SKIP_PIXELS;
++    GLenum buffer_target = write ? GL_PIXEL_UNPACK_BUFFER : GL_PIXEL_PACK_BUFFER;
++    GLenum buffer_binding = write ? GL_PIXEL_UNPACK_BUFFER_BINDING : GL_PIXEL_PACK_BUFFER_BINDING;
++    GLint old_alignment, old_row_length, old_skip_rows, old_skip_pixels, old_buffer = 0;
++    void *buffer;
++    BOOL ret;
++
++    if (width <= 0 || height <= 0 || height > INT_MAX / 4 / width) return FALSE;
++    size = (SIZE_T)width * height * 4;
++    if (!(buffer = malloc( size ))) return FALSE;
++    ret = !write || !convert_bitmapinfo( info, bits, &src, &buffer_info, buffer );
++    if (ret)
++    {
++        /* The root context may be core-profile: save state explicitly rather
++         * than calling the compatibility-only glPushClientAttrib. */
++        funcs->p_glGetIntegerv( alignment, &old_alignment );
++        funcs->p_glGetIntegerv( row_length, &old_row_length );
++        funcs->p_glGetIntegerv( skip_rows, &old_skip_rows );
++        funcs->p_glGetIntegerv( skip_pixels, &old_skip_pixels );
++        funcs->p_glPixelStorei( alignment, 4 );
++        funcs->p_glPixelStorei( row_length, 0 );
++        funcs->p_glPixelStorei( skip_rows, 0 );
++        funcs->p_glPixelStorei( skip_pixels, 0 );
++        if (funcs->p_glBindBuffer)
++        {
++            funcs->p_glGetIntegerv( buffer_binding, &old_buffer );
++            funcs->p_glBindBuffer( buffer_target, 0 );
++        }
++        if (write && drawable->draw_fbo)
++        {
++            GLint previous_texture, front;
++
++            funcs->p_glGetIntegerv( GL_TEXTURE_BINDING_2D, &previous_texture );
++            funcs->p_glBindFramebuffer( GL_DRAW_FRAMEBUFFER, drawable->draw_fbo );
++            funcs->p_glGetFramebufferAttachmentParameteriv( GL_DRAW_FRAMEBUFFER,
++                    drawable_buffer_from_buffer( drawable, GL_FRONT_LEFT ),
++                    GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &front );
++            funcs->p_glBindTexture( GL_TEXTURE_2D, front );
++            funcs->p_glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, buffer );
++            funcs->p_glBindTexture( GL_TEXTURE_2D, previous_texture );
++        }
++        else if (write)
++        {
++            funcs->p_glBindFramebuffer( GL_DRAW_FRAMEBUFFER, 0 );
++            funcs->p_glDrawBuffer( drawable_buffer_from_buffer( drawable, GL_FRONT_LEFT ) );
++            funcs->p_glDrawPixels( width, height, GL_BGRA, GL_UNSIGNED_BYTE, buffer );
++        }
++        else
++        {
++            funcs->p_glBindFramebuffer( GL_READ_FRAMEBUFFER, drawable->read_fbo );
++            funcs->p_glReadBuffer( drawable_buffer_from_buffer( drawable, GL_FRONT_LEFT ) );
++            funcs->p_glReadPixels( 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, buffer );
++            ret = !convert_bitmapinfo( &buffer_info, buffer, &src, info, bits );
++        }
++        if (funcs->p_glBindBuffer) funcs->p_glBindBuffer( buffer_target, old_buffer );
++        funcs->p_glPixelStorei( alignment, old_alignment );
++        funcs->p_glPixelStorei( row_length, old_row_length );
++        funcs->p_glPixelStorei( skip_rows, old_skip_rows );
++        funcs->p_glPixelStorei( skip_pixels, old_skip_pixels );
++    }
++    free( buffer );
++    return ret;
++}
++
+ static BOOL flush_memory_dc( struct opengl_context *context, HDC hdc, BOOL write, void (*flush)(void) )
+ {
+     const struct opengl_funcs *funcs = &display_funcs;
+@@ -2421,36 +2498,12 @@
+
+         if (!get_image_from_bitmap( bmp, info, &bits, &src ))
+         {
 -            int width = info->bmiHeader.biWidth, height = info->bmiHeader.biSizeImage / 4 / width;
--            if (write) funcs->p_glDrawPixels( width, height, GL_BGRA, GL_UNSIGNED_BYTE, bits.ptr );
--            else funcs->p_glReadPixels( 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, bits.ptr );
-+            int width = info->bmiHeader.biWidth, height = abs( info->bmiHeader.biHeight );
-+            GLenum format = info->bmiHeader.biBitCount == 24 ? GL_BGR : GL_BGRA;
-+            if (write) funcs->p_glDrawPixels( width, height, format, GL_UNSIGNED_BYTE, bits.ptr );
-+            else funcs->p_glReadPixels( 0, 0, width, height, format, GL_UNSIGNED_BYTE, bits.ptr );
+             struct opengl_drawable *drawable = dc->opengl_drawable;
+
+             make_thread_context_current( context->root_context, drawable );
+             opengl_drawable_flush( drawable, 0, GL_FLUSH_ACTIVATE );
+
+-            if (write && drawable->draw_fbo)
+-            {
+-                GLint prev, front;
+-
+-                funcs->p_glGetIntegerv( GL_TEXTURE_BINDING_2D, &prev );
+-                funcs->p_glBindFramebuffer( GL_DRAW_FRAMEBUFFER, drawable->draw_fbo );
+-                funcs->p_glGetFramebufferAttachmentParameteriv( GL_DRAW_FRAMEBUFFER, drawable_buffer_from_buffer( drawable, GL_FRONT_LEFT ),
+-                                                                GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &front );
+-                funcs->p_glBindTexture( GL_TEXTURE_2D, front );
+-                funcs->p_glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, bits.ptr );
+-                funcs->p_glBindTexture( GL_TEXTURE_2D, prev );
+-            }
+-            else if (write)
+-            {
+-                funcs->p_glBindFramebuffer( GL_READ_FRAMEBUFFER, drawable->draw_fbo );
+-                funcs->p_glDrawBuffer( drawable_buffer_from_buffer( drawable, GL_FRONT_LEFT ) );
+-                funcs->p_glDrawPixels( width, height, GL_BGRA, GL_UNSIGNED_BYTE, bits.ptr );
+-            }
+-            else
+-            {
+-                funcs->p_glBindFramebuffer( GL_READ_FRAMEBUFFER, drawable->read_fbo );
+-                funcs->p_glReadBuffer( drawable_buffer_from_buffer( drawable, GL_FRONT_LEFT ) );
+-                funcs->p_glReadPixels( 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, bits.ptr );
+-            }
++            ret = sync_bitmap_framebuffer( funcs, drawable, info, bits.ptr, write );
+
+             make_client_context_current();
+         }

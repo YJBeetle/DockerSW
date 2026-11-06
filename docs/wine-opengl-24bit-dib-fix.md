@@ -57,17 +57,24 @@ static void flush_memory_dc( HDC hdc, struct opengl_context *context, BOOL write
 
 ## 3. 源码修复与构建实现
 
-`runtime/wine-patches/0000-win32u-fix-24bit-memory-dc.patch` 直接修改
-`flush_memory_dc`：
+`runtime/wine-patches/0000-win32u-fix-24bit-memory-dc.patch` 保留 DockerSW 的
+`0000` 编号，并参考 MacSW `0008` 迁移到 Wine 11.21 的通用 FBO 路径。
+原先仅按位深选择 `GL_BGR` / `GL_BGRA` 的改动已替换为统一的暂存转换：
 
-```c
-int width = info->bmiHeader.biWidth, height = abs( info->bmiHeader.biHeight );
-GLenum format = info->bmiHeader.biBitCount == 24 ? GL_BGR : GL_BGRA;
-```
+- 高度取自 DIB 的 `biHeight`，检查负高度极值、无效尺寸和暂存区大小。
+- 使用 Wine 的 `convert_bitmapinfo` 在源 DIB 与 **bottom-up、32-bit BGRA** 暂存 DIB 之间转换，保留 24/32 位图像的行对齐与 top-down / bottom-up 方向。
+- 写入 FBO 时使用 `glTexSubImage2D`；传统非 FBO 路径使用 `glDrawPixels`；回读使用 `glReadPixels` 后转换回原 DIB。两条路径均不再直接将 24 位缓冲区当作 BGRA。
+- 传输期间显式保存并恢复 pack/unpack 的 alignment、row length、skip rows、skip pixels 与 PBO 绑定；FBO 写入还恢复 texture 绑定。沿用上游私有 root context 和恢复客户端 context 的流程，不使用 core profile 不支持的 `glPushClientAttrib`。
 
-这样高度来自 DIB 自身，像素格式也与实际位深一致。补丁不再依赖编译器生成的固定指令、ELF 偏移或特征码。
+专项测试 `runtime/tests/test_memory_dc_patch.py` 编译并执行补丁中的实际辅助函数，
+使用模拟 GL 与 DIB 转换器覆盖 24/32 位、正负高度、奇数宽度行 padding、FBO / 传统路径、
+GL 状态恢复和转换失败。它验证调用契约，不替代 Wine 实际转换、驱动或 SOLIDWORKS 导出验收。
+第 5 节的历史端到端验证记录仍对应旧版本；11.21 的真实镜像回归需要单独确认。
 
-构建阶段固定并验证 Wine 11.16 源码归档 SHA-256，在 Ubuntu 22.04 中应用补丁后只构建需要的 Unix 核心模块。`win32u.so`、`winex11.so` 与 `opengl32.so` 均使用 Wine 私有 ABI，因此它们和 `ntdll.so` 必须来自同一份源码、同一个配置与同一次构建，并作为同一 ABI 集合覆盖 WineHQ 包中的对应文件。只替换其中一个模块即使版本号相同也不属于受支持的组合。
+构建阶段固定并验证 Wine 11.21 源码归档 SHA-256，在 Ubuntu 22.04 中应用补丁后只构建需要的模块。
+`win32u.so`、`winex11.so` 与 `opengl32.so` 均使用 Wine 私有 ABI，因此它们和 `ntdll.so`
+必须来自同一份源码、同一个配置与同一次构建，并作为同一 ABI 集合覆盖 WineHQ 包中的对应文件。
+只替换其中一个模块即使版本号相同也不属于受支持的组合。
 
 ---
 
