@@ -1014,8 +1014,12 @@ jobs:
             --env SW_SMOKE_EVIDENCE_DIR=/ci-smoke \
             --mount "type=bind,source=${smoke_root},target=/ci-smoke" \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/verify-visible.sh,target=/opt/dockersw-smoke/verify-visible.sh,readonly" \
+            --mount "type=bind,source=${GITHUB_WORKSPACE}/smoke-test/verify-attach-refusal.py,target=/opt/dockersw-smoke/verify-attach-refusal.py,readonly" \
             "${SW_EXECUTABLE_CLI_IMAGE}" \
-            bash /opt/dockersw-smoke/verify-visible.sh 2>&1 | tee "${smoke_root}/visible.log"
+            bash -ec '
+              bash /opt/dockersw-smoke/verify-visible.sh
+              python3 /opt/dockersw-smoke/verify-attach-refusal.py --output-dir /ci-smoke/attach-refusal
+            ' 2>&1 | tee "${smoke_root}/visible.log"
 
       - name: Make public smoke evidence readable for upload
         if: always() && steps.check-images.outputs.already_verified != 'true'

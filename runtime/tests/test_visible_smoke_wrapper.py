@@ -64,6 +64,11 @@ else:
         visible = workflow.split("- name: Shared lightweight visible smoke", 1)[1].split("- name:", 1)[0]
         self.assertIn("--env SWCLID_VISIBLE=true --env VNC_ENABLE=true", visible)
         self.assertIn("verify-visible.sh", visible)
+        self.assertIn("verify-attach-refusal.py,readonly", visible)
+        self.assertIn("--output-dir /ci-smoke/attach-refusal", visible)
+        self.assertLess(visible.index("bash /opt/dockersw-smoke/verify-visible.sh"),
+                        visible.index("python3 /opt/dockersw-smoke/verify-attach-refusal.py"))
+        self.assertIn("bash -ec", visible)
         self.assertNotIn("--publish", visible)
         self.assertNotIn(" -p ", visible)
         self.assertIn("trap 'docker rm -f", visible)
