@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export WINEARCH="win64"
+export WINEARCH="${WINEARCH:-wow64}"
 export WINEPREFIX="${WINEPREFIX:-/root/.wine}"
 export WINEDEBUG="${WINEDEBUG:--all}"
 export DISPLAY="${DISPLAY:-:99}"

@@ -85,6 +85,17 @@ class ImageLayeringTests(unittest.TestCase):
         self.assertIn('PYTHONPATH="${SWCLI_SOURCE}:${SWCLI_DEPS}/linux${PYTHONPATH:+:${PYTHONPATH}}"', wrapper)
         self.assertNotRegex(wine_setup, r"pip install[^\n]*\bswcli\b")
 
+    def test_runtime_wow64_mode_keeps_prefix_initialization_separate(self) -> None:
+        runtime = self.read("runtime/Dockerfile")
+        init = self.read("runtime/init_wineprefix.sh")
+        entrypoint = self.read("runtime/entrypoint.sh")
+        self.assertLess(runtime.index("bash /mnt/runtime/init_wineprefix.sh"),
+                        runtime.index("ENV WINEARCH=wow64"))
+        self.assertIn('export WINEARCH="win64"', init)
+        self.assertIn('export WINEARCH="${WINEARCH:-wow64}"', entrypoint)
+        self.assertNotIn("seccomp=unconfined", runtime + entrypoint)
+        self.assertNotIn("WINELOADERNOEXEC", runtime + entrypoint)
+
     def test_sw_install_stays_in_runtime_image(self) -> None:
         runtime = self.read("runtime/Dockerfile")
         payload = self.read("swcli/Dockerfile")

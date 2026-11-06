@@ -209,6 +209,10 @@ RUN --mount=type=bind,from=wine-unix-builder,source=/build/probes,target=/mnt/wi
     bash /mnt/wine-probes-gate.sh /mnt/wine-probes/fontlink.exe && \
     rm -rf /tmp/* /root/.cache/*
 
+# Prefix creation above remains win64; normal execution uses Wine's supported
+# new WoW64 mode so the launcher does not enter the legacy i386 socketcall path.
+ENV WINEARCH=wow64
+
 # 4. 仅加入执行 SOLIDWORKS 官方安装所需的稳定工具。频繁变化的 SWCLI、
 # DockerSW 运行脚本与入口点留到正式镜像的交付层。
 COPY --chmod=755 runtime/bin/sw-install /usr/local/bin/sw-install
