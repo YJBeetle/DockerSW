@@ -95,3 +95,33 @@ The complete image/Wine matrix is independently tracked by
 at image-source commit `89a742d9da657ea6e1cc97592a7e7a8bdc8b68c8`.
 Its outcome has not been inspected after dispatch; this document commit is not
 an accepted image SHA or a claim that the complete matrix passed.
+
+## Completed image CI and 2025 promotion audit
+
+[Run42123274873](https://github.com/YJBeetle/DockerSW/actions/runs/42123274873)
+completed successfully for image-source 89a742d9da657ea6e1cc97592a7e7a8bdc8b68c8,
+pinning SWCLI3eba5c4/0.1.0a16. Its original export ZIP artifact13464715360
+SHA-256 is e0913aae9ba3ed9ff9638041bd8ee44af86fafe42ba6b7617560d66aa4aff052;
+language ZIP13464620670 is21ed4accca0d7de11a3f59f68cc8a4bf6b130c391efdc02420d1959408fc5a6d.
+Both match GitHub digests.
+
+Independent raw receipt audit passed19sets/20steps,48polygon cases with4depth
+writes/4equal no-writes,96closed loops/stale-handle refusals,12through-all cases
+with analytic geometry/readback/save+readonly-reopen,22real exports,visible and
+actual localized language checks. Properties16reads/2CAS refusals,two real
+save-as/reopen samples,value/type/scope preservation and source hashes passed.
+Group host continuity,empty process boundaries and cleanup were checked.
+Startup reached readiness in34.993496seconds,without HostLauncherTimeout.
+
+The actual job log confirms SW_PROMOTE_IMAGES=true and ten2025 promotions.
+Every promoted digest matches both its executed build/push digest and the live
+GHCR sha-89a742d/2025 alias content (10/10);no main/latest promotion occurred.
+Original job log SHA61d6034791e024ec494a58c104a8bac9e418d21d1d50ad80e21c9a11b33916b0;
+full receipt2378e2d2e27d06c8a88fc5bf216e2ba0acf781fde3a4e8b61de2e8010c84fd97;
+properties68a8f5ea7d0b083da4597a364b1c480bd967a52c79e9605fab71bd2878e9aeac.
+Compact audit summary SHA3927c2d86ca62e66a8f4f33e3ebb72c0ea576a8bc4f532137332628c2f8ae9b1,
+with original files/logs/audit scripts retained at/private/tmp/swcli-mcp-ci-42123274873.
+
+This is acceptance of89a742d image source,not this later documentation commit.
+The separate native-Windows Task Scheduler refusal fix does not alter the Wine
+daemon utilities path;the successful image CI is not repeated for that fix.
