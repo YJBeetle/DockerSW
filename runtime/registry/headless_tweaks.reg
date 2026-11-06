@@ -21,7 +21,7 @@ Windows Registry Editor Version 5.00
 ; 向同一窗口重发 WM_CAPTURECHANGED；Wine 默认会，导致确认/取消按钮失去鼠标捕获。
 ; 对 SOLIDWORKS 使用已绘制的窗口表面，避免捕获触发底部假滚动条。
 [HKEY_CURRENT_USER\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers]
-"sldworks.exe"="WINE_NOCAPTURERESEND WINE_PRINTWINDOW_SURFACE"
+"sldworks.exe"="WINE_NOCAPTURERESEND"
 
 ; SOLIDWORKS 的 Codejock 文档窗口按钮与 Wine DefWindowProc 按钮会分别使用
 ; 主题和经典绘制，导致同一标题栏出现两套风格。关闭活动主题后统一为经典风格。
