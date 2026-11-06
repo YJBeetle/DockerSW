@@ -379,13 +379,19 @@ class EntrypointTests(unittest.TestCase):
             def after_startup(result, root):
                 self.assertEqual(list((root / "capture").iterdir()), [])
 
-            result, calls = self._run_cli_entrypoint(
-                runtime_log_dir=runtime_log_dir,
-                on_entrypoint_return=after_startup,
-            )
-            self.assertNotEqual(result.returncode, 0)
-            self.assertEqual(calls, [])
-            self.assertIn(str(runtime_log_dir), result.stderr)
+            for terse_mkdir_failure in (False, True):
+                with self.subTest(terse_mkdir_failure=terse_mkdir_failure):
+                    result, calls = self._run_cli_entrypoint(
+                        runtime_log_dir=runtime_log_dir,
+                        terse_mkdir_failure=terse_mkdir_failure,
+                        on_entrypoint_return=after_startup,
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    if terse_mkdir_failure:
+                        self.assertEqual(result.returncode, 23)
+                        self.assertIn("mkdir: Already exists", result.stderr)
+                    self.assertEqual(calls, [])
+                    self.assertIn(str(runtime_log_dir), result.stderr)
 
     def _run_cli_entrypoint(
         self,
@@ -398,6 +404,7 @@ class EntrypointTests(unittest.TestCase):
         host_connected=True,
         startup_timeout="1",
         runtime_log_dir=None,
+        terse_mkdir_failure=False,
         background_stderr=False,
         on_entrypoint_return=None,
     ):
@@ -408,6 +415,13 @@ class EntrypointTests(unittest.TestCase):
             descendant_pid_file = root / "descendant.pid"
             capture_dir = root / "capture"
             capture_dir.mkdir()
+            if terse_mkdir_failure:
+                fake_mkdir = root / "mkdir"
+                fake_mkdir.write_text(
+                    "#!/bin/sh\nprintf '%s\\n' 'mkdir: Already exists' >&2\nexit 23\n",
+                    encoding="utf-8",
+                )
+                fake_mkdir.chmod(0o755)
             fake_sw_cli.write_text(
                 "#!/usr/bin/env bash\n"
                 "printf '%s\\n' \"$*\" >> \"$SWCLI_TEST_CALL_LOG\"\n"

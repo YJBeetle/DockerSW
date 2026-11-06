@@ -42,7 +42,14 @@ else
     }
     trap cleanup_swclid_start_files EXIT
     if [ -n "${SWCLID_RUNTIME_LOG_DIR:-}" ]; then
-        mkdir -p -- "${SWCLID_RUNTIME_LOG_DIR}"
+        if mkdir -p -- "${SWCLID_RUNTIME_LOG_DIR}"; then
+            :
+        else
+            SWCLID_LOG_DIRECTORY_EXIT=$?
+            printf '[DockerSW][ERROR] 无法创建 SWCLI runtime 日志目录: %s\n' \
+                "${SWCLID_RUNTIME_LOG_DIR}" >&2
+            exit "${SWCLID_LOG_DIRECTORY_EXIT}"
+        fi
         SWCLID_START_ERROR="$(mktemp -- "${SWCLID_RUNTIME_LOG_DIR%/}/swclid-start-error.XXXXXX")"
         echo "[DockerSW] SWCLI runtime stderr log: ${SWCLID_START_ERROR}"
     else
