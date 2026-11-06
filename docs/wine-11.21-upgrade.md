@@ -29,3 +29,24 @@ Jammy DEB `11.21~jammy-1`。源码归档使用 SHA-256 校验；Wine-Mono 保持
 
 镜像构建继续执行 MSXML 与字体回退原生探针；交付工作流继续执行轻量可见与
 完整隐藏测试。升级的编译、真实运行和镜像晋升结果应以对应工作流为准。
+
+## workspaceroot 原生复验
+
+使用 CI 候选 `ghcr.io/yjbeetle/sw-runtime:sha-de3a1cd`，镜像摘要
+`sha256:800c2745d25fd890fbff62e6068ef258c90d8ce8759ebb394e5c365769bd0772`。
+已核对 Wine 为 11.21、四个 WineHQ 包均为 `11.21~jammy-1`，成品中没有
+编译器、`/build/source` 或 `/build/obj`。
+
+- 7 个模块在 workspaceroot 实编译成功。
+- 真实 Win32/WGL/GDI 像素探针：8/8 通过，退出 0；覆盖 24/32 位、7/8 宽度、
+  正负高度、非对称初始上传、逐像素回读、行方向、pack 状态、FBO 绑定和双 context。
+  使用 Wine 11.21 / Mesa llvmpipe；legacy 非 FBO、MSAA、Alpha 未纳入本次真实探针。
+- MSXML：8 个用例，failures=0，退出 0。
+- 字体回退：936→1252 码页切换的四阶段分别 14/22/3/5 项检查，全部零失败，退出 0。
+
+临时探针容器均已清理。远端日志保留于 `/tmp`：
+`dockersw-bitmap-enhanced1121-final.log`、`dockersw-wine1121-msxml-rerun.log`、
+`dockersw-wine1121-fontlink-rerun.log`。像素日志 SHA-256 为
+`d1d11df42ff5d0121bdca0084ef54eb99e97b059dd9d9e39de5564613a1e85af`。
+
+完整交付验证见 [升级工作流](https://github.com/YJBeetle/DockerSW/actions/runs/42248079598)。
